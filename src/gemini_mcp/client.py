@@ -144,22 +144,26 @@ class GeminiClient:
             full_prompt = f"Context:\n{context}\n\nQuestion/Task:\n{prompt}"
 
         # Configure generation with Gemini 3 thinking level
-        # Map thinking level to budget tokens (Gemini 3 specific)
-        thinking_budget_map = {
-            "minimal": 1024,
-            "low": 4096,
-            "medium": 16384,
-            "high": 32768,
+        # Gemini 3 uses thinking_level (LOW/HIGH) instead of thinking_budget
+        # Map user-friendly levels to Gemini 3 API values
+        thinking_level_map = {
+            "minimal": None,  # No thinking mode
+            "low": "low",
+            "medium": "medium",
+            "high": "high",
         }
-        thinking_budget = thinking_budget_map.get(thinking_level, 16384)
+        mapped_level = thinking_level_map.get(thinking_level, "medium")
 
         gen_config = types.GenerateContentConfig(
             temperature=temperature,
             max_output_tokens=max_tokens,
-            thinking_config=types.ThinkingConfig(
-                thinking_budget=thinking_budget,
-            ),
         )
+
+        # Only add thinking config if level is not minimal
+        if mapped_level:
+            gen_config.thinking_config = types.ThinkingConfig(
+                thinking_budget=32768,  # Max thinking budget for Gemini 3
+            )
         if system_instruction:
             gen_config.system_instruction = system_instruction
 
@@ -558,12 +562,13 @@ class GeminiClient:
 Generate a high-quality, production-ready HTML component following all rules in your system instructions.
 Respond ONLY with valid JSON."""
 
-        # High thinking budget for design quality (32768 tokens)
+        # High thinking budget for design quality
+        # max_output_tokens increased to 65536 (Gemini 3 max)
         gen_config = types.GenerateContentConfig(
             temperature=0.7,
-            max_output_tokens=16384,
+            max_output_tokens=65536,
             thinking_config=types.ThinkingConfig(
-                thinking_budget=32768,
+                thinking_budget=32768,  # Max thinking for best design quality
             ),
             system_instruction=FRONTEND_DESIGN_SYSTEM_PROMPT,
             response_mime_type="application/json",
