@@ -11,6 +11,7 @@ import uuid
 from datetime import datetime
 from functools import wraps
 from pathlib import Path
+import json
 from typing import Any, AsyncIterator, Callable, Dict, List, Optional, TypeVar
 
 from google import genai
@@ -18,6 +19,11 @@ from google.genai import types
 
 from .auth import get_auth_manager
 from .config import GeminiConfig, get_config
+from .frontend_presets import (
+    FRONTEND_DESIGN_SYSTEM_PROMPT,
+    build_style_guide,
+    get_component_preset,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -493,6 +499,132 @@ class GeminiClient:
 
         logger.info(f"Image saved to: {file_path}")
         return file_path
+
+    async def design_component(
+        self,
+        component_type: str,
+        design_spec: Dict[str, Any],
+        style_guide: Optional[Dict[str, Any]] = None,
+        constraints: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        """Generate frontend component HTML using Gemini 3 Pro.
+
+        This method uses gemini-3-pro-preview exclusively for highest quality
+        design output. It leverages high thinking budget for complex design
+        reasoning and returns structured JSON with HTML and metadata.
+
+        Args:
+            component_type: Type of component (button, card, navbar, etc.)
+            design_spec: Design specification containing:
+                - context: Usage context (e.g., "Primary CTA for newsletter")
+                - content_structure: Content to include in component
+            style_guide: Visual style configuration from theme preset.
+            constraints: Additional constraints like max_width, accessibility_level.
+
+        Returns:
+            Dict containing:
+                - component_id: Unique identifier for the component
+                - atomic_level: atom, molecule, or organism
+                - html: Self-contained HTML with TailwindCSS classes
+                - tailwind_classes_used: List of Tailwind classes used
+                - accessibility_features: A11y features implemented
+                - responsive_breakpoints: Responsive breakpoints used
+                - dark_mode_support: Whether dark mode is supported
+                - micro_interactions: Animation/transition classes
+                - design_notes: Gemini's design decisions explanation
+                - model_used: Model that generated the design
+        """
+        # Force Pro model for design quality
+        model = "gemini-3-pro-preview"
+
+        # Get component preset for context
+        component_preset = get_component_preset(component_type)
+
+        # Build structured JSON prompt (Gemini's recommended format)
+        structured_prompt = {
+            "task": "design_frontend_component",
+            "component_type": component_type,
+            "component_preset": component_preset,
+            "context": design_spec.get("context", ""),
+            "content_structure": design_spec.get("content_structure", {}),
+            "style_guide": style_guide or {},
+            "constraints": constraints or {},
+        }
+
+        prompt = f"""Design a {component_type} component with the following specification:
+
+{json.dumps(structured_prompt, indent=2)}
+
+Generate a high-quality, production-ready HTML component following all rules in your system instructions.
+Respond ONLY with valid JSON."""
+
+        # High thinking budget for design quality (32768 tokens)
+        gen_config = types.GenerateContentConfig(
+            temperature=0.7,
+            max_output_tokens=16384,
+            thinking_config=types.ThinkingConfig(
+                thinking_budget=32768,
+            ),
+            system_instruction=FRONTEND_DESIGN_SYSTEM_PROMPT,
+            response_mime_type="application/json",
+        )
+
+        # Retry logic for authentication errors
+        max_retries = 2
+        last_error = None
+
+        for attempt in range(max_retries):
+            try:
+                response = await self.client.aio.models.generate_content(
+                    model=model,
+                    contents=prompt,
+                    config=gen_config,
+                )
+
+                # Parse JSON response
+                response_text = response.text.strip()
+
+                # Handle potential markdown code blocks
+                if response_text.startswith("```"):
+                    # Remove markdown code block markers
+                    lines = response_text.split("\n")
+                    if lines[0].startswith("```"):
+                        lines = lines[1:]
+                    if lines[-1].strip() == "```":
+                        lines = lines[:-1]
+                    response_text = "\n".join(lines)
+
+                result = json.loads(response_text)
+
+                # Add model info to result
+                result["model_used"] = model
+
+                logger.info(
+                    f"design_component completed: {component_type} -> {result.get('component_id', 'unknown')}"
+                )
+                return result
+
+            except json.JSONDecodeError as e:
+                logger.error(f"Failed to parse design response as JSON: {e}")
+                logger.debug(f"Raw response: {response_text[:500]}...")
+                return {
+                    "error": f"Invalid JSON response: {e}",
+                    "raw_response": response_text[:1000],
+                    "model_used": model,
+                    "component_type": component_type,
+                }
+
+            except Exception as e:
+                last_error = e
+                if self._is_auth_error(e) and attempt < max_retries - 1:
+                    logger.warning(f"Design auth error detected (attempt {attempt + 1}): {e}")
+                    self._refresh_credentials_and_client()
+                    continue
+                else:
+                    logger.error(f"Design component failed: {e}")
+                    break
+
+        raise RuntimeError(f"Failed to design component: {last_error}")
 
 
 # Global client instance

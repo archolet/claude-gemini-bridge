@@ -10,6 +10,7 @@ Claude Code için Vertex AI üzerinden Gemini 3 modellerine erişim sağlayan MC
 - **Text Generation**: Context ve system instruction desteği ile metin üretimi
 - **Multi-turn Chat**: Oturum yönetimi ile çok turlu konuşmalar
 - **Image Generation**: Gemini ve Imagen modelleri ile görsel üretimi
+- **Frontend Design**: Gemini 3 Pro ile yüksek kaliteli TailwindCSS/HTML bileşen tasarımı
 - **Streaming**: Hızlı ilk yanıt için streaming desteği
 - **OAuth Authentication**: ADC ve gcloud CLI ile otomatik kimlik doğrulama
 
@@ -118,6 +119,68 @@ Gemini 3 Pro Image ile görsel üretimi (4096px yüksek kalite).
 | `aspect_ratio` | str | "1:1" | En boy oranı |
 | `output_format` | str | "base64" | "base64", "file", "both" |
 | `output_dir` | str | "./images" | Dosya çıktı dizini |
+
+### `design_frontend`
+
+Gemini 3 Pro ile yüksek kaliteli frontend bileşen tasarımı.
+
+**Parametreler:**
+| Parametre | Tip | Default | Açıklama |
+|-----------|-----|---------|----------|
+| `component_type` | str | (zorunlu) | Bileşen tipi (button, card, navbar, hero, vb.) |
+| `context` | str | "" | Kullanım bağlamı |
+| `content_structure` | str | "{}" | JSON formatında bileşen içeriği |
+| `theme` | str | "modern-minimal" | Görsel tema |
+| `dark_mode` | bool | true | Dark mode desteği |
+| `border_radius` | str | "" | Özel köşe yuvarlaklığı |
+| `responsive_breakpoints` | str | "sm,md,lg" | Responsive breakpoints |
+| `accessibility_level` | str | "AA" | WCAG seviyesi (AA/AAA) |
+| `micro_interactions` | bool | true | Hover/focus animasyonları |
+| `max_width` | str | "" | Maksimum genişlik |
+
+**Bileşen Tipleri:**
+- **Atoms**: button, input, badge, avatar, icon, dropdown, toggle, tooltip
+- **Molecules**: card, form, modal, tabs, table, accordion, alert, breadcrumb, pagination, search_bar, stat_card, pricing_card
+- **Organisms**: navbar, hero, sidebar, footer, data_table, login_form, signup_form, contact_form, feature_section, testimonial_section, pricing_table, dashboard_header
+
+**Temalar:**
+- `modern-minimal` - Temiz, profesyonel
+- `brutalist` - Kalın, yüksek kontrastlı
+- `glassmorphism` - Buzlu cam efekti
+- `neo-brutalism` - Eğlenceli, canlı renkler
+- `soft-ui` - Neumorfik, yumuşak derinlik
+- `corporate` - Kurumsal, güvenilir
+
+**Örnek:**
+```json
+{
+  "component_type": "pricing_card",
+  "context": "SaaS fiyatlandırma sayfası için Pro tier kartı",
+  "content_structure": "{\"tier\": \"Pro\", \"price\": \"$29/ay\", \"features\": [\"Sınırsız kullanıcı\", \"Öncelikli destek\"], \"cta\": \"Başla\"}",
+  "theme": "modern-minimal",
+  "dark_mode": true
+}
+```
+
+**Çıktı:**
+```json
+{
+  "component_id": "pricing-card-pro",
+  "atomic_level": "molecule",
+  "html": "<div class=\"bg-white dark:bg-slate-800...\">...</div>",
+  "tailwind_classes_used": ["rounded-xl", "shadow-lg", "..."],
+  "accessibility_features": ["aria-label", "focus-visible"],
+  "responsive_breakpoints": ["sm", "md", "lg"],
+  "dark_mode_support": true,
+  "micro_interactions": ["hover:shadow-xl", "transition-all"],
+  "design_notes": "...",
+  "model_used": "gemini-3-pro-preview"
+}
+```
+
+### `list_frontend_options`
+
+Kullanılabilir bileşen tiplerini ve temaları listele.
 
 ### `list_models`
 

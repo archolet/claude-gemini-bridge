@@ -4,10 +4,12 @@ Provides tools for interacting with Gemini models on Vertex AI:
 - ask_gemini: Text generation with context
 - chat_gemini: Multi-turn conversations
 - generate_image: Image generation
+- design_frontend: Frontend component design with TailwindCSS
 - list_models: Available models
 """
 
 import asyncio
+import json
 import logging
 from typing import Optional
 
@@ -15,6 +17,11 @@ from mcp.server.fastmcp import FastMCP
 
 from .client import get_gemini_client
 from .config import AVAILABLE_MODELS, get_config
+from .frontend_presets import (
+    build_style_guide,
+    get_available_components,
+    get_available_themes,
+)
 
 # Configure logging
 logging.basicConfig(
@@ -33,6 +40,7 @@ mcp = FastMCP(
     - ask_gemini: Generate text with optional context and system instructions
     - chat_gemini: Have multi-turn conversations with session management
     - generate_image: Create images using Gemini or Imagen models
+    - design_frontend: Design high-quality frontend components with TailwindCSS
     - list_models: See available models and their capabilities
 
     Authentication is handled automatically via Application Default Credentials
@@ -209,6 +217,166 @@ async def generate_image(
             "model_used": model,
             "prompt": prompt,
         }
+
+
+@mcp.tool()
+async def design_frontend(
+    component_type: str,
+    context: str = "",
+    content_structure: str = "{}",
+    theme: str = "modern-minimal",
+    dark_mode: bool = True,
+    border_radius: str = "",
+    responsive_breakpoints: str = "sm,md,lg",
+    accessibility_level: str = "AA",
+    micro_interactions: bool = True,
+    max_width: str = "",
+) -> dict:
+    """Design a frontend UI component using Gemini 3 Pro.
+
+    This tool generates high-quality, production-ready HTML components with
+    TailwindCSS. Always uses gemini-3-pro-preview for best design quality.
+    Perfect for creating UI components that Claude Code can then integrate
+    into a larger application.
+
+    Workflow:
+    1. Claude analyzes the feature requirements
+    2. Claude breaks down into atomic components (atoms, molecules, organisms)
+    3. Claude calls design_frontend for each component with the same theme
+    4. Gemini 3 Pro generates high-quality HTML with TailwindCSS
+    5. Claude assembles the components into a complete page
+
+    Args:
+        component_type: Type of component to design. Options:
+            Atoms: button, input, badge, avatar, icon, dropdown, toggle, tooltip
+            Molecules: card, form, modal, tabs, table, accordion, alert, breadcrumb,
+                      pagination, search_bar, stat_card, pricing_card
+            Organisms: navbar, hero, sidebar, footer, data_table, login_form,
+                      signup_form, contact_form, feature_section, testimonial_section,
+                      pricing_table, dashboard_header
+        context: Usage context explaining where/how the component will be used.
+                Example: "Primary CTA button for newsletter signup on landing page"
+        content_structure: JSON string with component content. Example:
+                          '{"text": "Subscribe", "icon": "mail"}'
+                          '{"tier": "Pro", "price": "$29/mo", "features": ["API access"]}'
+        theme: Visual style preset. Options:
+               - modern-minimal: Clean, professional (default)
+               - brutalist: Bold, high-contrast, sharp edges
+               - glassmorphism: Frosted glass, transparency
+               - neo-brutalism: Playful with bold colors
+               - soft-ui: Neumorphic, soft depth
+               - corporate: Professional, trustworthy
+        dark_mode: Include dark: variants for dark mode support (default: True)
+        border_radius: Custom border radius override (e.g., "rounded-xl")
+        responsive_breakpoints: Comma-separated breakpoints (default: "sm,md,lg")
+        accessibility_level: WCAG level - "AA" or "AAA" (default: "AA")
+        micro_interactions: Include hover/focus animations (default: True)
+        max_width: Maximum width constraint (e.g., "1280px", "max-w-7xl")
+
+    Returns:
+        Dict containing:
+        - component_id: Unique identifier for the component
+        - atomic_level: atom, molecule, or organism
+        - html: Self-contained HTML with TailwindCSS (ready to use)
+        - tailwind_classes_used: List of Tailwind classes used
+        - accessibility_features: A11y features implemented
+        - responsive_breakpoints: Breakpoints used
+        - dark_mode_support: Whether dark mode is supported
+        - micro_interactions: Animation/transition classes
+        - design_notes: Gemini's explanation of design decisions
+        - model_used: Always gemini-3-pro-preview
+
+    Examples:
+        # Button (Atom)
+        design_frontend(
+            component_type="button",
+            context="Primary CTA for newsletter signup",
+            content_structure='{"text": "Subscribe", "icon": "mail"}',
+            theme="modern-minimal"
+        )
+
+        # Pricing Card (Molecule)
+        design_frontend(
+            component_type="pricing_card",
+            context="SaaS pricing tier card",
+            content_structure='{"tier": "Pro", "price": "$29/mo", "features": ["Unlimited users", "Priority support"], "cta": "Get Started"}',
+            theme="modern-minimal"
+        )
+
+        # Navbar (Organism)
+        design_frontend(
+            component_type="navbar",
+            context="Main navigation for documentation site",
+            content_structure='{"logo": {"text": "DocsAI"}, "navigation": [{"label": "Docs", "href": "/docs"}], "actions": [{"type": "search"}, {"type": "theme-toggle"}]}',
+            max_width="1280px"
+        )
+    """
+    try:
+        # Parse content_structure from JSON string
+        try:
+            content = json.loads(content_structure) if content_structure else {}
+        except json.JSONDecodeError:
+            content = {"raw": content_structure}
+
+        # Build design specification
+        design_spec = {
+            "context": context,
+            "content_structure": content,
+        }
+
+        # Build style guide from theme
+        style_guide = build_style_guide(
+            theme=theme,
+            dark_mode=dark_mode,
+            border_radius=border_radius,
+        )
+
+        # Build constraints
+        constraints = {
+            "responsive_breakpoints": [bp.strip() for bp in responsive_breakpoints.split(",")],
+            "accessibility_level": accessibility_level,
+            "micro_interactions": micro_interactions,
+        }
+        if max_width:
+            constraints["max_width"] = max_width
+
+        # Call the design method
+        client = get_gemini_client()
+        result = await client.design_component(
+            component_type=component_type,
+            design_spec=design_spec,
+            style_guide=style_guide,
+            constraints=constraints,
+        )
+
+        logger.info(f"design_frontend completed: {component_type} -> {result.get('component_id', 'unknown')}")
+        return result
+
+    except Exception as e:
+        logger.error(f"design_frontend failed: {e}")
+        return {
+            "error": str(e),
+            "component_type": component_type,
+            "model_used": "gemini-3-pro-preview",
+        }
+
+
+@mcp.tool()
+def list_frontend_options() -> dict:
+    """List available frontend design options.
+
+    Returns all available component types and themes for the design_frontend tool.
+
+    Returns:
+        Dict containing:
+        - components: List of available component types (atoms, molecules, organisms)
+        - themes: List of available theme presets with descriptions
+    """
+    return {
+        "components": get_available_components(),
+        "themes": get_available_themes(),
+        "note": "Use design_frontend() with these options to generate components",
+    }
 
 
 @mcp.tool()
