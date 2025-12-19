@@ -16,6 +16,8 @@ from typing import Any, AsyncIterator, Callable, Dict, List, Optional, TypeVar
 
 from google import genai
 from google.genai import types
+from google.cloud import storage
+from google.cloud.exceptions import Conflict, NotFound
 
 from .auth import get_auth_manager
 from .config import GeminiConfig, get_config
@@ -70,6 +72,77 @@ class GeminiClient:
         """
         error_str = str(error).lower()
         return any(pattern in error_str for pattern in self.AUTH_ERROR_PATTERNS)
+
+    def _ensure_video_bucket(self, custom_uri: Optional[str] = None) -> str:
+        """Ensure a GCS bucket exists for video output and return the URI.
+
+        This method automatically creates a bucket if one doesn't exist,
+        using a project-based naming convention.
+
+        Args:
+            custom_uri: Optional custom GCS URI. If provided, uses this instead.
+
+        Returns:
+            GCS URI for video output (e.g., "gs://project-id-gemini-videos/")
+
+        Raises:
+            RuntimeError: If bucket creation fails due to permissions.
+        """
+        # If custom URI provided, use it directly
+        if custom_uri:
+            return custom_uri
+
+        # If config has a default, use it
+        if self.config.default_video_gcs_uri:
+            return self.config.default_video_gcs_uri
+
+        # Auto-generate bucket name from project ID
+        bucket_name = f"{self.config.project_id}-gemini-videos"
+        gcs_uri = f"gs://{bucket_name}/"
+
+        try:
+            # Initialize storage client
+            storage_client = storage.Client(project=self.config.project_id)
+
+            # Check if bucket exists
+            try:
+                bucket = storage_client.get_bucket(bucket_name)
+                logger.info(f"Using existing bucket: {bucket_name}")
+            except NotFound:
+                # Bucket doesn't exist, create it
+                logger.info(f"Creating new bucket: {bucket_name}")
+                bucket = storage_client.create_bucket(
+                    bucket_name,
+                    location=self.config.location if self.config.location != "global" else "us-central1",
+                )
+                logger.info(f"Bucket created successfully: {bucket_name}")
+
+            return gcs_uri
+
+        except Conflict:
+            # Bucket name already taken by another project
+            logger.warning(f"Bucket name {bucket_name} is taken. Using timestamped name.")
+            timestamp = datetime.now().strftime("%Y%m%d")
+            bucket_name = f"{self.config.project_id}-gemini-videos-{timestamp}"
+            gcs_uri = f"gs://{bucket_name}/"
+
+            try:
+                storage_client = storage.Client(project=self.config.project_id)
+                bucket = storage_client.create_bucket(
+                    bucket_name,
+                    location="us-central1",
+                )
+                logger.info(f"Bucket created with timestamped name: {bucket_name}")
+                return gcs_uri
+            except Exception as e:
+                raise RuntimeError(f"Failed to create bucket: {e}")
+
+        except Exception as e:
+            raise RuntimeError(
+                f"Failed to ensure video bucket exists: {e}. "
+                "Make sure you have storage.buckets.create permission or "
+                "provide a pre-existing bucket via GEMINI_VIDEO_GCS_URI."
+            )
 
     def _refresh_credentials_and_client(self) -> None:
         """Refresh credentials and recreate the client.
@@ -571,7 +644,8 @@ class GeminiClient:
             model: Veo model to use:
                    - veo-3.1-generate-001: Standard quality (~$0.40/sec)
                    - veo-3.1-fast-generate-001: Fast generation (~$0.15/sec)
-            output_gcs_uri: GCS URI for output (gs://bucket/path). Required.
+            output_gcs_uri: GCS URI for output (gs://bucket/path). Optional.
+                           If not provided, auto-creates bucket: {project-id}-gemini-videos
             duration_seconds: Video length in seconds (4, 6, or 8). Default: 8.
             aspect_ratio: "16:9" (landscape) or "9:16" (portrait). Default: "16:9".
             resolution: "720p" or "1080p". Default: "720p".
@@ -588,18 +662,13 @@ class GeminiClient:
                 - status: "completed" or "timeout"
 
         Note:
-            Requires GEMINI_VIDEO_GCS_URI environment variable or output_gcs_uri param.
+            GCS bucket is automatically created if not specified.
+            Override with GEMINI_VIDEO_GCS_URI env var or output_gcs_uri param.
         """
         import asyncio
 
-        # Use provided GCS URI or config default
-        gcs_uri = output_gcs_uri or self.config.default_video_gcs_uri
-        if not gcs_uri:
-            raise ValueError(
-                "output_gcs_uri is required for video generation. "
-                "Set GEMINI_VIDEO_GCS_URI environment variable or provide output_gcs_uri parameter. "
-                "Example: gs://your-bucket/videos/"
-            )
+        # Ensure bucket exists and get GCS URI (auto-creates if needed)
+        gcs_uri = self._ensure_video_bucket(output_gcs_uri)
 
         # Validate parameters
         if duration_seconds not in [4, 6, 8]:

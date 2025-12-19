@@ -9,7 +9,8 @@ Claude Code için Vertex AI üzerinden Gemini 3 modellerine erişim sağlayan MC
 
 - **Text Generation**: Context ve system instruction desteği ile metin üretimi
 - **Multi-turn Chat**: Oturum yönetimi ile çok turlu konuşmalar
-- **Image Generation**: Gemini ve Imagen modelleri ile görsel üretimi
+- **Image Generation**: Gemini 3 Pro Image ve Imagen 4 aileleri ile görsel üretimi
+- **Video Generation**: Veo 3.1 ile yüksek kaliteli video üretimi (otomatik GCS bucket)
 - **Frontend Design**: Gemini 3 Pro ile yüksek kaliteli TailwindCSS/HTML bileşen tasarımı
 - **Streaming**: Hızlı ilk yanıt için streaming desteği
 - **OAuth Authentication**: ADC ve gcloud CLI ile otomatik kimlik doğrulama
@@ -119,6 +120,33 @@ Gemini 3 Pro Image ile görsel üretimi (4096px yüksek kalite).
 | `aspect_ratio` | str | "1:1" | En boy oranı |
 | `output_format` | str | "base64" | "base64", "file", "both" |
 | `output_dir` | str | "./images" | Dosya çıktı dizini |
+| `number_of_images` | int | 1 | Üretilecek görsel sayısı (1-4, Imagen 4) |
+| `output_resolution` | str | "1K" | Çıktı çözünürlüğü (1K/2K, Imagen 4) |
+
+### `generate_video`
+
+Veo 3.1 ile video üretimi. GCS bucket otomatik oluşturulur.
+
+**ÖNEMLİ**: Video üretimi 1-10 dakika sürebilir.
+
+**Parametreler:**
+| Parametre | Tip | Default | Açıklama |
+|-----------|-----|---------|----------|
+| `prompt` | str | (zorunlu) | Video açıklaması |
+| `model` | str | "veo-3.1-generate-001" | Kullanılacak model |
+| `output_gcs_uri` | str | "" | GCS URI (opsiyonel, otomatik oluşturulur) |
+| `duration_seconds` | int | 8 | Video süresi (4, 6, 8 saniye) |
+| `aspect_ratio` | str | "16:9" | En boy oranı (16:9, 9:16) |
+| `resolution` | str | "720p" | Çözünürlük (720p, 1080p) |
+| `generate_audio` | bool | true | Ses üretimi (diyalog, müzik, SFX) |
+| `number_of_videos` | int | 1 | Video sayısı (1-4) |
+
+**Örnek:**
+```
+prompt="A golden retriever running through a sunlit meadow, slow motion, cinematic"
+duration_seconds=8
+resolution="1080p"
+```
 
 ### `design_frontend`
 
@@ -190,7 +218,7 @@ Kullanılabilir modelleri listele.
 
 Chat oturumunu temizle.
 
-## Kullanılabilir Modeller (Gemini 3 Only)
+## Kullanılabilir Modeller
 
 ### Text Modelleri
 - `gemini-3-flash-preview` - Pro-grade reasoning, Flash hızında (1M context)
@@ -198,6 +226,13 @@ Chat oturumunu temizle.
 
 ### Image Modelleri
 - `gemini-3-pro-image-preview` - Yüksek kalite görsel üretimi (4096px, legible text, character consistency)
+- `imagen-4.0-ultra-generate-001` - Ultra yüksek kalite ($0.06/görsel)
+- `imagen-4.0-generate-001` - Standart yüksek kalite ($0.04/görsel)
+- `imagen-4.0-fast-generate-001` - Hızlı üretim ($0.02/görsel)
+
+### Video Modelleri
+- `veo-3.1-generate-001` - Yüksek kalite, native audio (~$0.40/saniye)
+- `veo-3.1-fast-generate-001` - Hızlı üretim (~$0.15/saniye)
 
 ### Thinking Level
 Gemini 3 modelleri için reasoning derinliği:

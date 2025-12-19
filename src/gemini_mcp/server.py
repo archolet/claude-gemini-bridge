@@ -247,7 +247,7 @@ async def generate_video(
     """Generate a video using Veo 3.1 models.
 
     Creates high-quality videos with native audio from text descriptions.
-    Videos are saved to Google Cloud Storage (GCS bucket required).
+    Videos are saved to Google Cloud Storage. Bucket is auto-created if needed.
 
     IMPORTANT: This is a long-running operation. Video generation takes
     1-10 minutes depending on duration and resolution.
@@ -259,7 +259,7 @@ async def generate_video(
                - veo-3.1-generate-001: Highest quality (~$0.40/sec)
                - veo-3.1-fast-generate-001: Faster generation (~$0.15/sec)
         output_gcs_uri: GCS URI for output (e.g., "gs://my-bucket/videos/").
-                       Required. Set GEMINI_VIDEO_GCS_URI env var as default.
+                       Optional. If not provided, auto-creates: {project-id}-gemini-videos
         duration_seconds: Video length (4, 6, or 8 seconds). Default: 8.
         aspect_ratio: "16:9" (landscape) or "9:16" (portrait). Default: "16:9".
         resolution: "720p" or "1080p". Default: "720p".
@@ -270,16 +270,15 @@ async def generate_video(
         Dict with video_uris (GCS paths), model_used, and generation info.
 
     Example:
-        Generate a cinematic video:
+        Generate a cinematic video (bucket auto-created):
         prompt="A golden retriever running through a sunlit meadow, slow motion, cinematic"
         model="veo-3.1-generate-001"
-        output_gcs_uri="gs://my-bucket/videos/"
         duration_seconds=8
         resolution="1080p"
 
     Note:
-        Requires a GCS bucket with write permissions. Videos are stored at
-        the specified output_gcs_uri location.
+        GCS bucket is automatically created if not specified.
+        Override with GEMINI_VIDEO_GCS_URI env var or output_gcs_uri param.
     """
     try:
         client = get_gemini_client()
