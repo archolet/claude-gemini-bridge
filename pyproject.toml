@@ -33,9 +33,9 @@ dependencies = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/serkanozdogan/claude-gemini-bridge"
-Repository = "https://github.com/serkanozdogan/claude-gemini-bridge"
-Issues = "https://github.com/serkanozdogan/claude-gemini-bridge/issues"
+Homepage = "https://github.com/archolet/claude-gemini-bridge"
+Repository = "https://github.com/archolet/claude-gemini-bridge"
+Issues = "https://github.com/archolet/claude-gemini-bridge/issues"
 
 [project.scripts]
 gemini-mcp = "gemini_mcp.server:main"
