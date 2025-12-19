@@ -1514,6 +1514,60 @@ When refining existing HTML (previous_html provided):
 4. Keep all existing accessibility features
 5. Return the COMPLETE modified HTML, not just the changed parts
 
+## SECTION MARKERS (CRITICAL FOR ITERATIONS)
+
+When generating multi-section layouts (pages, templates, or layouts with multiple components),
+you MUST wrap each major section with structured markers for iteration support:
+
+```html
+<!-- SECTION: {section_type} -->
+<section class="...">
+  ...section content...
+</section>
+<!-- /SECTION: {section_type} -->
+```
+
+### Valid Section Types
+- navbar: Navigation bars, headers, app bars
+- hero: Hero sections, landing areas, above-the-fold content
+- stats: Statistics, metrics, key numbers sections
+- features: Feature grids, benefit lists, capability showcases
+- testimonials: Customer reviews, quotes, social proof
+- pricing: Pricing tables, plans, subscription options
+- cta: Call-to-action sections, conversion areas
+- footer: Site footers, bottom navigation
+- content: Generic content sections
+- gallery: Image galleries, portfolios
+- faq: FAQ sections, accordions
+- team: Team member sections
+- contact: Contact forms, contact information
+
+### Example Multi-Section Layout:
+```html
+<!-- SECTION: navbar -->
+<nav class="fixed top-0 ...">...</nav>
+<!-- /SECTION: navbar -->
+
+<!-- SECTION: hero -->
+<section class="min-h-screen ...">...</section>
+<!-- /SECTION: hero -->
+
+<!-- SECTION: features -->
+<section class="py-24 ...">...</section>
+<!-- /SECTION: features -->
+
+<!-- SECTION: footer -->
+<footer class="bg-slate-900 ...">...</footer>
+<!-- /SECTION: footer -->
+```
+
+### Critical Rules for Markers:
+1. ALWAYS use exact format: `<!-- SECTION: {type} -->` and `<!-- /SECTION: {type} -->`
+2. Section type MUST match in opening and closing markers
+3. Each section marker pair must be on its own line
+4. Markers must be at the root level of the section, not nested inside
+5. Do NOT include markers for single-component generation (only for multi-section layouts)
+
 ## PROJECT CONTEXT
 
 {project_context}

@@ -38,6 +38,14 @@ from .frontend_presets import (
     get_available_icon_names,
     get_icons_by_category,
 )
+from .section_utils import (
+    extract_section,
+    replace_section,
+    list_sections,
+    extract_design_tokens_from_section,
+    wrap_content_with_markers,
+    has_section_markers,
+)
 
 # Logger instance - configured in main() to use stderr (not stdout)
 # IMPORTANT: Do NOT use logging.basicConfig() here - it breaks MCP stdio protocol
@@ -1087,6 +1095,172 @@ def clear_chat_session(chat_id: str) -> dict:
             "success": False,
             "chat_id": chat_id,
             "error": str(e),
+        }
+
+
+@mcp.tool()
+async def replace_section_in_page(
+    page_html: str,
+    section_type: str,
+    modifications: str,
+    preserve_design_tokens: bool = True,
+    theme: str = "modern-minimal",
+    content_language: str = "tr",
+) -> dict:
+    """Replace a single section in an existing page with an improved version.
+
+    This tool enables iterative design improvement by replacing only the
+    specified section while preserving all other sections. The new section
+    maintains visual consistency with the rest of the page.
+
+    CRITICAL: The page HTML must use section markers in this format:
+    <!-- SECTION: {type} --> ... content ... <!-- /SECTION: {type} -->
+
+    Args:
+        page_html: Full HTML of the existing page with section markers.
+        section_type: Section to replace. Valid types:
+            - navbar: Navigation bars, headers
+            - hero: Hero sections, landing areas
+            - stats: Statistics, metrics sections
+            - features: Feature grids, benefit lists
+            - testimonials: Customer reviews, social proof
+            - pricing: Pricing tables, plans
+            - cta: Call-to-action sections
+            - footer: Site footers
+        modifications: Detailed description of desired changes.
+                      Example: "Add mega menu, search bar, and announcement banner"
+        preserve_design_tokens: Keep colors/typography consistent with page (default: True)
+        theme: Visual style preset for the new section
+        content_language: Language code for content (default: "tr")
+
+    Returns:
+        Dict containing:
+        - html: Updated full page HTML with only the target section changed
+        - modified_section: Which section was replaced
+        - preserved_sections: List of sections that were NOT modified
+        - design_notes: Explanation of design decisions
+        - error: Error message if the operation failed
+
+    Example:
+        # Update only the navbar in an existing landing page
+        result = replace_section_in_page(
+            page_html=existing_page,
+            section_type="navbar",
+            modifications="Add mega menu with 4 columns, search bar, dark mode toggle"
+        )
+
+        # The result contains the complete updated page
+        updated_page = result["html"]
+        # Hero, Features, Pricing, Footer etc. are unchanged
+    """
+    try:
+        # 1. Validate page has section markers
+        if not has_section_markers(page_html):
+            return {
+                "error": "Page HTML does not contain section markers. "
+                        "Section markers must be in format: <!-- SECTION: type --> ... <!-- /SECTION: type -->",
+                "html": page_html,
+                "modified_section": None,
+            }
+
+        # 2. List available sections
+        available_sections = list_sections(page_html)
+
+        if section_type not in available_sections:
+            return {
+                "error": f"Section '{section_type}' not found in page. "
+                        f"Available sections: {available_sections}",
+                "html": page_html,
+                "modified_section": None,
+                "available_sections": available_sections,
+            }
+
+        # 3. Extract current section content
+        current_section = extract_section(page_html, section_type)
+
+        # 4. Extract design tokens for consistency
+        design_tokens = {}
+        if preserve_design_tokens:
+            # Try to extract tokens from adjacent sections for consistency
+            for section_name in available_sections:
+                if section_name != section_type:
+                    tokens = extract_design_tokens_from_section(page_html, section_name)
+                    if tokens:
+                        design_tokens = tokens
+                        break
+
+        # 5. Generate new section using design_section
+        client = get_gemini_client()
+        new_section_result = await client.design_section(
+            section_type=section_type,
+            context=f"Replacing existing {section_type} section. Modifications: {modifications}",
+            previous_html=current_section,
+            design_tokens=design_tokens if design_tokens else None,
+            content_structure={},
+            theme=theme,
+            project_context=f"This is part of an existing page. Maintain visual consistency.",
+            content_language=content_language,
+        )
+
+        if "error" in new_section_result:
+            return {
+                "error": f"Failed to generate new section: {new_section_result['error']}",
+                "html": page_html,
+                "modified_section": None,
+            }
+
+        # 6. Get the new HTML (ensure it has markers)
+        new_html = new_section_result.get("html", "")
+        if not new_html:
+            return {
+                "error": "Generated section has no HTML content",
+                "html": page_html,
+                "modified_section": None,
+            }
+
+        # 7. Wrap with markers if not present
+        if f"<!-- SECTION: {section_type} -->" not in new_html:
+            new_html_content = new_html
+        else:
+            # Extract just the content without markers
+            new_html_content = extract_section(
+                wrap_content_with_markers(new_html, section_type),
+                section_type
+            ) or new_html
+
+        # 8. Replace the section in the page
+        try:
+            updated_page = replace_section(page_html, section_type, new_html_content)
+        except ValueError as e:
+            return {
+                "error": str(e),
+                "html": page_html,
+                "modified_section": None,
+            }
+
+        # 9. Return the result
+        preserved = [s for s in available_sections if s != section_type]
+
+        logger.info(
+            f"replace_section_in_page completed: {section_type} replaced, "
+            f"{len(preserved)} sections preserved"
+        )
+
+        return {
+            "html": updated_page,
+            "modified_section": section_type,
+            "preserved_sections": preserved,
+            "design_notes": new_section_result.get("design_notes", ""),
+            "design_tokens_used": design_tokens if preserve_design_tokens else None,
+            "model_used": new_section_result.get("model_used", "gemini-3-pro-preview"),
+        }
+
+    except Exception as e:
+        logger.error(f"replace_section_in_page failed: {e}")
+        return {
+            "error": str(e),
+            "html": page_html,
+            "modified_section": None,
         }
 
 

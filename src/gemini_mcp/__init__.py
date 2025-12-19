@@ -87,3 +87,24 @@ from .few_shot_examples import (
     get_few_shot_example,
     get_few_shot_examples_for_prompt,
 )
+
+from .section_utils import (
+    # Section Marker Pattern
+    SECTION_PATTERN,
+    VALID_SECTION_TYPES,
+    # Core Functions
+    extract_section,
+    replace_section,
+    list_sections,
+    get_section_boundaries,
+    # Validation
+    validate_section_type,
+    # Extended Functions
+    get_section_with_markers,
+    insert_section_after,
+    remove_section,
+    extract_design_tokens_from_section,
+    wrap_content_with_markers,
+    has_section_markers,
+    migrate_to_markers,
+)
