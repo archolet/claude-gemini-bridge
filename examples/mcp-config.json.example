@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "gemini": {
+      "command": "uv",
+      "args": ["run", "--directory", "/path/to/claude-gemini-bridge", "gemini-mcp"],
+      "env": {
+        "GOOGLE_CLOUD_PROJECT": "YOUR_PROJECT_ID",
+        "GOOGLE_CLOUD_LOCATION": "global"
+      }
+    }
+  }
+}
