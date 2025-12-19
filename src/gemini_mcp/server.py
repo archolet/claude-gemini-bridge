@@ -14,7 +14,7 @@ from typing import Optional
 
 from mcp.server.fastmcp import FastMCP
 
-from .client import get_gemini_client
+from .client import get_gemini_client, fix_js_fallbacks
 from .config import AVAILABLE_MODELS, get_config
 from .frontend_presets import (
     build_style_guide,
@@ -24,8 +24,11 @@ from .frontend_presets import (
     get_available_themes,
     get_available_templates,
     get_page_template,
+    get_section_types,
+    get_section_info,
     PAGE_TEMPLATES,
     THEME_PRESETS,
+    SECTION_TYPES,
 )
 
 # Logger instance - configured in main() to use stderr (not stdout)
@@ -325,6 +328,8 @@ async def design_frontend(
     micro_interactions: bool = True,
     max_width: str = "",
     project_context: str = "",
+    auto_fix: bool = True,
+    content_language: str = "tr",
 ) -> dict:
     """Design a frontend UI component using Gemini 3 Pro.
 
@@ -333,7 +338,8 @@ async def design_frontend(
     Perfect for creating UI components that Claude Code can then integrate
     into a larger application.
 
-    IMPORTANT: All placeholder text and content will be generated in Turkish.
+    IMPORTANT: Content language defaults to Turkish (tr). Use content_language
+    parameter to generate content in other languages (en, de).
 
     Workflow:
     1. Claude analyzes the feature requirements
@@ -459,7 +465,15 @@ async def design_frontend(
             style_guide=style_guide,
             constraints=constraints,
             project_context=project_context,
+            content_language=content_language,
         )
+
+        # Apply JS fallback fixes if enabled
+        if auto_fix and "html" in result:
+            result["html"], fixes = fix_js_fallbacks(result["html"])
+            if fixes:
+                result["js_fixes_applied"] = fixes
+                logger.info(f"Applied {len(fixes)} JS fallback fixes")
 
         logger.info(f"design_frontend completed: {component_type} -> {result.get('component_id', 'unknown')}")
         return result
@@ -477,13 +491,15 @@ async def design_frontend(
 def list_frontend_options() -> dict:
     """List available frontend design options.
 
-    Returns all available component types and themes for the design_frontend tool.
+    Returns all available component types, themes, templates, and section types
+    for the design tools.
 
     Returns:
         Dict containing:
         - components: List of available component types (atoms, molecules, organisms)
         - themes: List of available theme presets with descriptions
         - templates: List of available page templates
+        - sections: List of available section types for design_section
     """
     # Get theme details
     themes_with_details = {
@@ -500,11 +516,21 @@ def list_frontend_options() -> dict:
         for name, preset in PAGE_TEMPLATES.items()
     }
 
+    # Get section details
+    sections_with_details = {
+        name: {
+            "description": info.get("description", ""),
+            "typical_elements": info.get("typical_elements", []),
+        }
+        for name, info in SECTION_TYPES.items()
+    }
+
     return {
         "components": get_available_components(),
         "themes": themes_with_details,
         "templates": templates_with_details,
-        "note": "Use design_frontend() for components, design_page() for full pages, refine_frontend() for iterations",
+        "sections": sections_with_details,
+        "note": "Use design_frontend() for components, design_page() for full pages, design_section() for chain-based large pages, refine_frontend() for iterations",
     }
 
 
@@ -516,11 +542,12 @@ async def design_page(
     theme: str = "modern-minimal",
     dark_mode: bool = True,
     project_context: str = "",
+    content_language: str = "tr",
 ) -> dict:
     """Design a full page layout using Gemini 3 Pro.
 
     This tool generates complete page layouts with multiple sections.
-    All content will be generated in Turkish.
+    Content language is configurable (default: Turkish).
 
     Args:
         template_type: Type of page template. Options:
@@ -541,6 +568,8 @@ async def design_page(
         theme: Visual style preset (same as design_frontend)
         dark_mode: Include dark mode support (default: True)
         project_context: Project-specific context for design consistency.
+        content_language: Language code for content generation (default: "tr").
+                         Supported: "tr" (Turkish), "en" (English), "de" (German).
 
     Returns:
         Dict containing:
@@ -590,6 +619,7 @@ async def design_page(
             style_guide=style_guide,
             constraints=constraints,
             project_context=project_context,
+            content_language=content_language,
         )
 
         # Add template info to result
@@ -613,6 +643,7 @@ async def refine_frontend(
     previous_html: str,
     modifications: str,
     project_context: str = "",
+    auto_fix: bool = True,
 ) -> dict:
     """Refine an existing component design based on feedback.
 
@@ -655,6 +686,13 @@ async def refine_frontend(
             project_context=project_context,
         )
 
+        # Apply JS fallback fixes if enabled
+        if auto_fix and "html" in result:
+            result["html"], fixes = fix_js_fallbacks(result["html"])
+            if fixes:
+                result["js_fixes_applied"] = fixes
+                logger.info(f"Applied {len(fixes)} JS fallback fixes")
+
         logger.info(f"refine_frontend completed: {result.get('component_id', 'unknown')}")
         return result
 
@@ -663,6 +701,290 @@ async def refine_frontend(
         return {
             "error": str(e),
             "modifications": modifications,
+            "model_used": "gemini-3-pro-preview",
+        }
+
+
+@mcp.tool()
+async def design_section(
+    section_type: str,
+    context: str = "",
+    previous_html: str = "",
+    design_tokens: str = "{}",
+    content_structure: str = "{}",
+    theme: str = "modern-minimal",
+    project_context: str = "",
+    auto_fix: bool = True,
+    content_language: str = "tr",
+) -> dict:
+    """Design a single page section that matches previous sections.
+
+    Use this tool to build large pages section-by-section, where each section
+    maintains visual consistency with previous ones. This solves the token limit
+    problem by designing one section at a time.
+
+    Content language is configurable (default: Turkish).
+
+    Chain Workflow:
+    1. Design first section (e.g., hero) - no previous_html needed
+    2. Design second section with previous_html from step 1
+    3. Continue chain, each section matches the previous style
+    4. Combine all sections into a complete page
+
+    Args:
+        section_type: Type of section to design. Options:
+            - hero: Hero/banner section with headline and CTA
+            - features: Feature showcase grid or list
+            - pricing: Pricing tiers/cards
+            - testimonials: Customer testimonials/reviews
+            - cta: Call-to-action section
+            - footer: Page footer with links
+            - stats: Statistics/metrics display
+            - faq: FAQ accordion section
+            - team: Team members grid
+            - contact: Contact form section
+            - gallery: Image/portfolio gallery
+            - newsletter: Newsletter signup section
+        context: Usage context explaining where/how the section will be used.
+                Example: "Hero section for a Turkish SaaS landing page"
+        previous_html: HTML from previous section for style matching.
+                      When provided, Gemini will analyze and match:
+                      - Color palette (primary, secondary, background)
+                      - Typography (fonts, weights, sizes)
+                      - Spacing patterns (padding, margins)
+                      - Border radius
+                      - Shadow styles
+                      - Animation patterns
+        design_tokens: JSON string with explicit design tokens to use.
+                      If not provided but previous_html is given, tokens
+                      will be extracted automatically.
+                      Format: '{"colors": {...}, "typography": {...}, "spacing": {...}}'
+        content_structure: JSON string with section content. Example:
+                          '{"headline": "Başlık", "subheadline": "Alt başlık", "cta": "Başla"}'
+        theme: Visual style preset (modern-minimal, brutalist, etc.)
+        project_context: Project-specific context for design consistency.
+        content_language: Language code for content generation (default: "tr").
+                         Supported: "tr" (Turkish), "en" (English), "de" (German).
+
+    Returns:
+        Dict containing:
+        - section_type: Type of section designed
+        - html: Self-contained HTML with TailwindCSS classes
+        - design_tokens: Extracted design tokens for next section in chain
+        - tailwind_classes_used: List of Tailwind classes used
+        - accessibility_features: A11y features implemented
+        - responsive_breakpoints: Breakpoints used
+        - dark_mode_support: Whether dark mode is supported
+        - design_notes: Gemini's design decisions explanation
+        - model_used: Always gemini-3-pro-preview
+
+    Example Chain:
+        # 1. Start with hero
+        hero = design_section(
+            section_type="hero",
+            context="Landing page for B2B SaaS"
+        )
+
+        # 2. Features section matching hero style
+        features = design_section(
+            section_type="features",
+            previous_html=hero["html"],
+            design_tokens=json.dumps(hero["design_tokens"])
+        )
+
+        # 3. Pricing section continuing the chain
+        pricing = design_section(
+            section_type="pricing",
+            previous_html=features["html"],
+            design_tokens=json.dumps(features["design_tokens"])
+        )
+
+        # 4. Combine all sections
+        full_page = hero["html"] + features["html"] + pricing["html"]
+    """
+    try:
+        # Parse design_tokens from JSON string
+        try:
+            tokens = json.loads(design_tokens) if design_tokens and design_tokens != "{}" else None
+        except json.JSONDecodeError:
+            tokens = None
+
+        # Parse content_structure from JSON string
+        try:
+            content = json.loads(content_structure) if content_structure else {}
+        except json.JSONDecodeError:
+            content = {"raw": content_structure}
+
+        # Call the design_section method
+        client = get_gemini_client()
+        result = await client.design_section(
+            section_type=section_type,
+            context=context,
+            previous_html=previous_html,
+            design_tokens=tokens,
+            content_structure=content,
+            theme=theme,
+            project_context=project_context,
+            content_language=content_language,
+        )
+
+        # Apply JS fallback fixes if enabled
+        if auto_fix and "html" in result:
+            result["html"], fixes = fix_js_fallbacks(result["html"])
+            if fixes:
+                result["js_fixes_applied"] = fixes
+                logger.info(f"Applied {len(fixes)} JS fallback fixes")
+
+        logger.info(
+            f"design_section completed: {section_type} "
+            f"(chain_mode={'yes' if previous_html else 'no'})"
+        )
+        return result
+
+    except Exception as e:
+        logger.error(f"design_section failed: {e}")
+        return {
+            "error": str(e),
+            "section_type": section_type,
+            "model_used": "gemini-3-pro-preview",
+        }
+
+
+@mcp.tool()
+async def design_from_reference(
+    image_path: str,
+    component_type: str = "",
+    instructions: str = "",
+    context: str = "",
+    project_context: str = "",
+    extract_only: bool = False,
+    auto_fix: bool = True,
+    content_language: str = "tr",
+) -> dict:
+    """Design a component based on a reference image using Gemini Vision.
+
+    This tool analyzes a screenshot or design reference image and creates
+    a similar component with matching visual style. Uses Gemini's vision
+    capabilities to extract design tokens (colors, typography, spacing, etc.)
+    and then generates HTML matching those tokens.
+
+    Two modes:
+    - extract_only=True: Only extract design tokens, don't generate HTML
+    - extract_only=False: Extract tokens AND generate matching component
+
+    Content language is configurable (default: Turkish).
+
+    Args:
+        image_path: Path to the reference image file.
+                   Supported formats: PNG, JPG, JPEG, WEBP, GIF.
+                   Example: "/path/to/screenshot.png"
+        component_type: Type of component to design based on the reference.
+                       If empty and extract_only=False, will auto-detect from image.
+                       Options: hero, navbar, card, pricing_card, footer, etc.
+        instructions: Additional instructions for modifications.
+                     Examples:
+                     - "Buna benzer ama mavi tonlarında"
+                     - "Daha minimalist bir versiyon"
+                     - "Aynı stilde ama dark mode"
+                     - "Spacing'i daha geniş tut"
+        context: Usage context for the component.
+                Example: "Hero section for a Turkish restaurant website"
+        project_context: Project-specific context for design consistency.
+                        Example: "Project: KokoreçUsta - Traditional restaurant.
+                                 Target: Local customers. Tone: Warm, nostalgic."
+        extract_only: If True, only extract and return design tokens.
+                     If False, also generate a matching HTML component.
+                     Default: False
+        auto_fix: Apply JavaScript fallback fixes to generated HTML.
+                 Default: True
+        content_language: Language code for content generation (default: "tr").
+                         Supported: "tr" (Turkish), "en" (English), "de" (German).
+
+    Returns:
+        Dict containing:
+        - design_tokens: Extracted design tokens from the reference image
+            - colors: Color palette with hex codes
+            - typography: Font sizes, weights, line heights
+            - spacing: Padding, margin, gap patterns
+            - borders: Border radius, border styles
+            - shadows: Shadow styles
+            - layout: Grid/flex patterns detected
+        - aesthetic: Overall design aesthetic (minimal, bold, etc.)
+        - component_hints: Detected UI component types in the image
+        - html: Generated HTML (only if extract_only=False)
+        - design_notes: How the reference was interpreted
+        - modifications: Changes made based on instructions
+        - model_used: Always gemini-3-pro-preview
+
+    Examples:
+        # Extract only - useful for understanding a design
+        design_from_reference(
+            image_path="/path/to/inspiration.png",
+            extract_only=True
+        )
+
+        # Full design from reference
+        design_from_reference(
+            image_path="/path/to/competitor-hero.png",
+            component_type="hero",
+            instructions="Buna benzer ama marka renklerimizle",
+            project_context="Project: TeknoSoft - B2B SaaS"
+        )
+
+        # Match style but different component
+        design_from_reference(
+            image_path="/path/to/navbar-design.png",
+            component_type="footer",  # Use navbar's style for footer
+            instructions="Aynı stilde footer tasarla"
+        )
+
+    Workflow:
+        1. Gemini Vision analyzes the reference image
+        2. Extracts design tokens (colors, typography, spacing, etc.)
+        3. Identifies aesthetic and component types
+        4. (If extract_only=False) Generates matching HTML with TailwindCSS
+        5. Applies JS fallback fixes if auto_fix=True
+    """
+    try:
+        client = get_gemini_client()
+
+        if extract_only:
+            # Only extract design tokens, don't generate HTML
+            result = await client.analyze_reference_image(
+                image_path=image_path,
+                extract_only=True,
+            )
+        else:
+            # Extract tokens AND generate matching component
+            result = await client.design_from_reference(
+                image_path=image_path,
+                component_type=component_type,
+                instructions=instructions,
+                context=context,
+                project_context=project_context,
+                content_language=content_language,
+            )
+
+            # Apply JS fallback fixes if enabled and HTML was generated
+            if auto_fix and "html" in result:
+                result["html"], fixes = fix_js_fallbacks(result["html"])
+                if fixes:
+                    result["js_fixes_applied"] = fixes
+                    logger.info(f"Applied {len(fixes)} JS fallback fixes")
+
+        logger.info(
+            f"design_from_reference completed: "
+            f"image={image_path}, extract_only={extract_only}, "
+            f"component={component_type or 'auto'}"
+        )
+        return result
+
+    except Exception as e:
+        logger.error(f"design_from_reference failed: {e}")
+        return {
+            "error": str(e),
+            "image_path": image_path,
+            "component_type": component_type,
             "model_used": "gemini-3-pro-preview",
         }
 
