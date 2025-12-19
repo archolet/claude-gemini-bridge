@@ -8,7 +8,6 @@ Provides tools for interacting with Gemini models on Vertex AI:
 - list_models: Available models
 """
 
-import asyncio
 import json
 import logging
 from typing import Optional
@@ -23,11 +22,8 @@ from .frontend_presets import (
     get_available_themes,
 )
 
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-)
+# Logger instance - configured in main() to use stderr (not stdout)
+# IMPORTANT: Do NOT use logging.basicConfig() here - it breaks MCP stdio protocol
 logger = logging.getLogger(__name__)
 
 # Create MCP server
@@ -523,6 +519,15 @@ def _config_valid() -> bool:
 
 def main():
     """Entry point for the Gemini MCP server."""
+    import sys
+
+    # Configure logging to stderr (NOT stdout - stdout is for MCP protocol)
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+        stream=sys.stderr,  # CRITICAL: Use stderr, not stdout
+    )
+
     logger.info("Starting Gemini MCP Server...")
 
     # Validate configuration on startup
