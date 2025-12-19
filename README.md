@@ -12,6 +12,12 @@ Claude Code için Vertex AI üzerinden Gemini 3 modellerine erişim sağlayan MC
 - **Image Generation**: Gemini 3 Pro Image ve Imagen 4 aileleri ile görsel üretimi
 - **Video Generation**: Veo 3.1 ile yüksek kaliteli video üretimi (otomatik GCS bucket)
 - **Frontend Design**: Gemini 3 Pro ile yüksek kaliteli TailwindCSS/HTML bileşen tasarımı
+  - 49 component tipi (atoms, molecules, organisms)
+  - 10 page template (landing, dashboard, auth, vb.)
+  - 14 tema (modern-minimal, cyberpunk, glassmorphism, vb.)
+  - Proje bağlamı desteği (projenin ruhunu Gemini'ye aktarma)
+  - İterasyon desteği (mevcut tasarımları revize etme)
+  - Türkçe içerik üretimi
 - **Streaming**: Hızlı ilk yanıt için streaming desteği
 - **OAuth Authentication**: ADC ve gcloud CLI ile otomatik kimlik doğrulama
 
@@ -165,19 +171,28 @@ Gemini 3 Pro ile yüksek kaliteli frontend bileşen tasarımı.
 | `accessibility_level` | str | "AA" | WCAG seviyesi (AA/AAA) |
 | `micro_interactions` | bool | true | Hover/focus animasyonları |
 | `max_width` | str | "" | Maksimum genişlik |
+| `project_context` | str | "" | Proje bağlamı (amaç, hedef kitle, ton, sektör) |
 
-**Bileşen Tipleri:**
-- **Atoms**: button, input, badge, avatar, icon, dropdown, toggle, tooltip
-- **Molecules**: card, form, modal, tabs, table, accordion, alert, breadcrumb, pagination, search_bar, stat_card, pricing_card
-- **Organisms**: navbar, hero, sidebar, footer, data_table, login_form, signup_form, contact_form, feature_section, testimonial_section, pricing_table, dashboard_header
+**Bileşen Tipleri (49 adet):**
+- **Atoms (13)**: button, input, badge, avatar, icon, dropdown, toggle, tooltip, slider, spinner, progress, chip, divider
+- **Molecules (18)**: card, form, modal, tabs, table, accordion, alert, breadcrumb, pagination, search_bar, stat_card, pricing_card, carousel, stepper, timeline, file_upload, rating, color_picker
+- **Organisms (18)**: navbar, hero, sidebar, footer, data_table, login_form, signup_form, contact_form, feature_section, testimonial_section, pricing_table, dashboard_header, kanban_board, calendar, chat_widget, notification_center, user_profile, settings_panel
 
-**Temalar:**
+**Temalar (14 adet):**
 - `modern-minimal` - Temiz, profesyonel
 - `brutalist` - Kalın, yüksek kontrastlı
 - `glassmorphism` - Buzlu cam efekti
 - `neo-brutalism` - Eğlenceli, canlı renkler
 - `soft-ui` - Neumorfik, yumuşak derinlik
 - `corporate` - Kurumsal, güvenilir
+- `gradient` - Gradient-ağırlıklı modern tasarım
+- `cyberpunk` - Neon renkler, koyu arka plan
+- `retro` - 80'ler/90'lar ilham
+- `pastel` - Yumuşak pastel tonlar
+- `dark_mode_first` - Dark mode optimizasyonlu
+- `high_contrast` - WCAG AAA erişilebilirlik
+- `nature` - Toprak tonları, organik his
+- `startup` - Tech startup estetiği
 
 **Örnek:**
 ```json
@@ -206,9 +221,66 @@ Gemini 3 Pro ile yüksek kaliteli frontend bileşen tasarımı.
 }
 ```
 
+### `design_page`
+
+Gemini 3 Pro ile tam sayfa template tasarımı.
+
+**Parametreler:**
+| Parametre | Tip | Default | Açıklama |
+|-----------|-----|---------|----------|
+| `template_type` | str | (zorunlu) | Template tipi |
+| `context` | str | "" | Kullanım bağlamı |
+| `content_structure` | str | "{}" | JSON formatında sayfa içeriği |
+| `theme` | str | "modern-minimal" | Görsel tema |
+| `dark_mode` | bool | true | Dark mode desteği |
+| `project_context` | str | "" | Proje bağlamı |
+
+**Template Tipleri (10 adet):**
+- `landing_page` - Marketing landing page (hero, features, testimonials, pricing, CTA, footer)
+- `dashboard` - Admin dashboard (sidebar, header, stats, charts, tables)
+- `auth_page` - Login/signup sayfası (form, social login, branding)
+- `pricing_page` - Fiyatlandırma karşılaştırma (tiers, features, FAQ)
+- `blog_post` - Blog makale layout (header, content, sidebar, comments)
+- `product_page` - E-commerce ürün sayfası (gallery, details, reviews, related)
+- `portfolio` - Portfolio/showcase (hero, projects, about, contact)
+- `documentation` - Docs sayfa layout (sidebar nav, content, TOC)
+- `error_page` - 404/500 hata sayfaları
+- `coming_soon` - Coming soon/maintenance sayfası
+
+### `refine_frontend`
+
+Mevcut bir tasarımı doğal dil ile revize etme.
+
+**Parametreler:**
+| Parametre | Tip | Default | Açıklama |
+|-----------|-----|---------|----------|
+| `previous_html` | str | (zorunlu) | Önceki HTML tasarımı |
+| `modifications` | str | (zorunlu) | İstenen değişiklikler (doğal dilde) |
+| `project_context` | str | "" | Proje bağlamı |
+
+**Örnek Kullanım:**
+```python
+# İlk tasarımı al
+result = design_frontend(component_type="button", context="CTA butonu")
+
+# Değişiklik iste
+refined = refine_frontend(
+    previous_html=result["html"],
+    modifications="Buton rengini maviden yeşile çevir, köşeleri daha yuvarlak yap"
+)
+```
+
+**Örnek Modification İstekleri:**
+- "Buton rengini maviden yeşile çevir"
+- "Header'ı daha kompakt yap"
+- "Dark mode desteği ekle"
+- "Mobil responsive sorunlarını düzelt"
+- "Font boyutunu büyüt"
+- "Hover efektini daha belirgin yap"
+
 ### `list_frontend_options`
 
-Kullanılabilir bileşen tiplerini ve temaları listele.
+Kullanılabilir bileşen tiplerini, temaları ve template'leri listele.
 
 ### `list_models`
 
