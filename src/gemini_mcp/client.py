@@ -22,8 +22,9 @@ from google.cloud.exceptions import Conflict, NotFound
 from .auth import get_auth_manager
 from .config import GeminiConfig, get_config
 from .frontend_presets import (
-    FRONTEND_DESIGN_SYSTEM_PROMPT,
+    build_refinement_prompt,
     build_style_guide,
+    build_system_prompt,
     get_component_preset,
 )
 
@@ -820,6 +821,7 @@ class GeminiClient:
         design_spec: Dict[str, Any],
         style_guide: Optional[Dict[str, Any]] = None,
         constraints: Optional[Dict[str, Any]] = None,
+        project_context: str = "",
     ) -> Dict[str, Any]:
         """Generate frontend component HTML using Gemini 3 Pro.
 
@@ -834,6 +836,9 @@ class GeminiClient:
                 - content_structure: Content to include in component
             style_guide: Visual style configuration from theme preset.
             constraints: Additional constraints like max_width, accessibility_level.
+            project_context: Optional project context describing the project's
+                purpose, target audience, industry, and design philosophy.
+                This helps Gemini understand the project's "spirit" for consistent design.
 
         Returns:
             Dict containing:
@@ -872,6 +877,9 @@ class GeminiClient:
 Generate a high-quality, production-ready HTML component following all rules in your system instructions.
 Respond ONLY with valid JSON."""
 
+        # Build system prompt with project context
+        system_prompt = build_system_prompt(project_context)
+
         # High thinking budget for design quality
         # max_output_tokens increased to 65536 (Gemini 3 max)
         gen_config = types.GenerateContentConfig(
@@ -880,7 +888,7 @@ Respond ONLY with valid JSON."""
             thinking_config=types.ThinkingConfig(
                 thinking_budget=32768,  # Max thinking for best design quality
             ),
-            system_instruction=FRONTEND_DESIGN_SYSTEM_PROMPT,
+            system_instruction=system_prompt,
             response_mime_type="application/json",
         )
 
@@ -940,6 +948,130 @@ Respond ONLY with valid JSON."""
                     break
 
         raise RuntimeError(f"Failed to design component: {last_error}")
+
+    async def refine_component(
+        self,
+        previous_html: str,
+        modifications: str,
+        project_context: str = "",
+    ) -> Dict[str, Any]:
+        """Refine an existing component design based on feedback.
+
+        This method takes a previously generated HTML component and applies
+        modifications based on natural language instructions. It preserves
+        the overall structure unless explicitly asked to change it.
+
+        Args:
+            previous_html: The HTML code from a previous design that needs refinement.
+            modifications: Natural language description of the changes to make.
+                Examples: "Buton rengini maviden yeşile çevir",
+                         "Header'ı daha kompakt yap",
+                         "Dark mode desteği ekle"
+            project_context: Optional project context to maintain design consistency.
+
+        Returns:
+            Dict containing:
+                - html: The refined HTML component
+                - modifications_applied: Description of changes made
+                - model_used: Model that generated the refinement
+                - design_notes: Explanation of refinement decisions
+        """
+        # Force Pro model for design quality
+        model = "gemini-3-pro-preview"
+
+        # Build refinement prompt
+        system_prompt = build_refinement_prompt(
+            previous_html=previous_html,
+            modifications=modifications,
+            project_context=project_context,
+        )
+
+        prompt = f"""Refine the following HTML component based on these modification requests:
+
+## Modification Requests:
+{modifications}
+
+## Current HTML to Refine:
+```html
+{previous_html}
+```
+
+Apply the requested modifications while:
+1. Preserving the overall structure unless explicitly asked to change
+2. Maintaining consistency with existing style choices
+3. Keeping all existing accessibility features
+4. Returning the COMPLETE modified HTML, not just changed parts
+
+Respond with valid JSON containing:
+- html: The complete refined HTML
+- modifications_applied: List of changes made
+- design_notes: Brief explanation of refinement decisions"""
+
+        # High thinking budget for quality refinement
+        gen_config = types.GenerateContentConfig(
+            temperature=0.7,
+            max_output_tokens=65536,
+            thinking_config=types.ThinkingConfig(
+                thinking_budget=32768,
+            ),
+            system_instruction=system_prompt,
+            response_mime_type="application/json",
+        )
+
+        # Retry logic for authentication errors
+        max_retries = 2
+        last_error = None
+
+        for attempt in range(max_retries):
+            try:
+                response = await self.client.aio.models.generate_content(
+                    model=model,
+                    contents=prompt,
+                    config=gen_config,
+                )
+
+                # Parse JSON response
+                response_text = response.text.strip()
+
+                # Handle potential markdown code blocks
+                if response_text.startswith("```"):
+                    lines = response_text.split("\n")
+                    if lines[0].startswith("```"):
+                        lines = lines[1:]
+                    if lines[-1].strip() == "```":
+                        lines = lines[:-1]
+                    response_text = "\n".join(lines)
+
+                result = json.loads(response_text)
+
+                # Add model info to result
+                result["model_used"] = model
+
+                logger.info(
+                    f"refine_component completed: {len(modifications)} char modifications applied"
+                )
+                return result
+
+            except json.JSONDecodeError as e:
+                logger.error(f"Failed to parse refinement response as JSON: {e}")
+                logger.debug(f"Raw response: {response_text[:500]}...")
+                return {
+                    "error": f"Invalid JSON response: {e}",
+                    "raw_response": response_text[:1000],
+                    "model_used": model,
+                }
+
+            except Exception as e:
+                last_error = e
+                if self._is_auth_error(e) and attempt < max_retries - 1:
+                    logger.warning(f"Refinement auth error detected (attempt {attempt + 1}): {e}")
+                    self._refresh_credentials_and_client()
+                    continue
+                else:
+                    logger.error(f"Refine component failed: {e}")
+                    break
+
+        raise RuntimeError(f"Failed to refine component: {last_error}")
 
 
 # Global client instance

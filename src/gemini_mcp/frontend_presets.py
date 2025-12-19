@@ -50,6 +50,34 @@ COMPONENT_PRESETS: Dict[str, Dict[str, Any]] = {
         "atomic_level": "atom",
         "positions": ["top", "bottom", "left", "right"],
     },
+    "slider": {
+        "atomic_level": "atom",
+        "variants": ["default", "range", "stepped"],
+        "sizes": ["sm", "md", "lg"],
+        "states": ["default", "focus", "disabled"],
+    },
+    "spinner": {
+        "atomic_level": "atom",
+        "variants": ["default", "dots", "bars", "pulse"],
+        "sizes": ["xs", "sm", "md", "lg", "xl"],
+    },
+    "progress": {
+        "atomic_level": "atom",
+        "variants": ["linear", "circular", "stepped"],
+        "states": ["default", "success", "warning", "error"],
+    },
+    "chip": {
+        "atomic_level": "atom",
+        "variants": ["default", "outlined", "filled"],
+        "sizes": ["sm", "md", "lg"],
+        "dismissable": True,
+    },
+    "divider": {
+        "atomic_level": "atom",
+        "variants": ["solid", "dashed", "dotted"],
+        "orientations": ["horizontal", "vertical"],
+        "with_text": True,
+    },
     # MOLECULES - Combinations of atoms
     "card": {
         "atomic_level": "molecule",
@@ -103,6 +131,37 @@ COMPONENT_PRESETS: Dict[str, Dict[str, Any]] = {
         "atomic_level": "molecule",
         "sections": ["tier", "price", "features", "cta"],
     },
+    "carousel": {
+        "atomic_level": "molecule",
+        "variants": ["default", "fade", "slide", "cards"],
+        "features": ["autoplay", "indicators", "arrows", "thumbnails"],
+    },
+    "stepper": {
+        "atomic_level": "molecule",
+        "variants": ["horizontal", "vertical", "compact"],
+        "states": ["completed", "active", "pending", "error"],
+    },
+    "timeline": {
+        "atomic_level": "molecule",
+        "variants": ["vertical", "horizontal", "alternating"],
+        "styles": ["default", "connected", "dotted"],
+    },
+    "file_upload": {
+        "atomic_level": "molecule",
+        "variants": ["dropzone", "button", "inline"],
+        "features": ["drag_drop", "preview", "progress", "multiple"],
+    },
+    "rating": {
+        "atomic_level": "molecule",
+        "variants": ["stars", "hearts", "thumbs", "numeric"],
+        "sizes": ["sm", "md", "lg"],
+        "interactive": True,
+    },
+    "color_picker": {
+        "atomic_level": "molecule",
+        "variants": ["default", "compact", "inline", "popover"],
+        "features": ["presets", "custom", "opacity"],
+    },
     # ORGANISMS - Complex components
     "navbar": {
         "atomic_level": "organism",
@@ -155,6 +214,103 @@ COMPONENT_PRESETS: Dict[str, Dict[str, Any]] = {
     "dashboard_header": {
         "atomic_level": "organism",
         "sections": ["title", "breadcrumb", "actions", "search"],
+    },
+    "kanban_board": {
+        "atomic_level": "organism",
+        "sections": ["columns", "cards", "header", "add_button"],
+        "features": ["drag_drop", "filters", "search", "labels"],
+    },
+    "calendar": {
+        "atomic_level": "organism",
+        "variants": ["month", "week", "day", "agenda"],
+        "features": ["events", "navigation", "today_button", "mini_calendar"],
+    },
+    "chat_widget": {
+        "atomic_level": "organism",
+        "sections": ["header", "messages", "input", "typing_indicator"],
+        "variants": ["floating", "embedded", "fullscreen"],
+    },
+    "notification_center": {
+        "atomic_level": "organism",
+        "sections": ["header", "list", "empty_state", "settings"],
+        "features": ["mark_read", "filters", "clear_all"],
+    },
+    "user_profile": {
+        "atomic_level": "organism",
+        "sections": ["avatar", "info", "stats", "actions", "tabs"],
+        "variants": ["card", "page", "sidebar"],
+    },
+    "settings_panel": {
+        "atomic_level": "organism",
+        "sections": ["sidebar", "content", "header", "save_actions"],
+        "features": ["sections", "search", "reset"],
+    },
+}
+
+# =============================================================================
+# PAGE TEMPLATES (Full Page Designs)
+# =============================================================================
+
+PAGE_TEMPLATES: Dict[str, Dict[str, Any]] = {
+    "landing_page": {
+        "description": "Marketing landing page with hero, features, and CTA",
+        "sections": ["hero", "features", "testimonials", "pricing", "cta", "footer"],
+        "layouts": ["single_column", "multi_section"],
+        "recommended_theme": "modern-minimal",
+    },
+    "dashboard": {
+        "description": "Admin dashboard with sidebar, stats, and data views",
+        "sections": ["sidebar", "header", "stats_row", "charts", "data_table"],
+        "layouts": ["sidebar_left", "sidebar_right", "top_nav"],
+        "recommended_theme": "corporate",
+    },
+    "auth_page": {
+        "description": "Login/signup page with form and branding",
+        "sections": ["branding", "form", "social_login", "footer_links"],
+        "layouts": ["centered", "split", "full_image"],
+        "recommended_theme": "modern-minimal",
+    },
+    "pricing_page": {
+        "description": "Pricing comparison page with tiers and FAQ",
+        "sections": ["header", "toggle", "pricing_cards", "comparison_table", "faq"],
+        "layouts": ["cards", "table", "hybrid"],
+        "recommended_theme": "modern-minimal",
+    },
+    "blog_post": {
+        "description": "Blog article layout with content and sidebar",
+        "sections": ["header", "featured_image", "content", "author", "related", "comments"],
+        "layouts": ["full_width", "with_sidebar", "magazine"],
+        "recommended_theme": "modern-minimal",
+    },
+    "product_page": {
+        "description": "E-commerce product page with gallery and details",
+        "sections": ["gallery", "info", "variants", "add_to_cart", "reviews", "related"],
+        "layouts": ["split", "stacked", "immersive"],
+        "recommended_theme": "modern-minimal",
+    },
+    "portfolio": {
+        "description": "Portfolio/showcase page with projects grid",
+        "sections": ["hero", "about", "projects_grid", "skills", "contact"],
+        "layouts": ["grid", "masonry", "carousel"],
+        "recommended_theme": "modern-minimal",
+    },
+    "documentation": {
+        "description": "Docs page with navigation and content",
+        "sections": ["sidebar_nav", "breadcrumb", "content", "toc", "prev_next"],
+        "layouts": ["three_column", "two_column", "single"],
+        "recommended_theme": "corporate",
+    },
+    "error_page": {
+        "description": "404/500 error page with helpful actions",
+        "sections": ["illustration", "message", "actions", "search"],
+        "layouts": ["centered", "split", "minimal"],
+        "recommended_theme": "modern-minimal",
+    },
+    "coming_soon": {
+        "description": "Coming soon/maintenance page with countdown",
+        "sections": ["logo", "countdown", "email_signup", "social_links"],
+        "layouts": ["centered", "split_image", "video_background"],
+        "recommended_theme": "glassmorphism",
     },
 }
 
@@ -281,6 +437,173 @@ THEME_PRESETS: Dict[str, Dict[str, Any]] = {
         "shadow_hover": "shadow-lg",
         "font": "font-sans",
     },
+    # New themes added
+    "gradient": {
+        "description": "Modern gradient-heavy design with vibrant colors",
+        "primary": "violet-600",
+        "primary_hover": "violet-700",
+        "secondary": "fuchsia-500",
+        "accent": "cyan-400",
+        "background": "white",
+        "background_dark": "slate-950",
+        "surface": "slate-50",
+        "surface_dark": "slate-900",
+        "border": "slate-200",
+        "border_dark": "slate-700",
+        "text": "slate-900",
+        "text_dark": "slate-100",
+        "text_muted": "slate-500",
+        "border_radius": "rounded-2xl",
+        "gradient_primary": "bg-gradient-to-r from-violet-600 to-fuchsia-500",
+        "gradient_accent": "bg-gradient-to-r from-cyan-400 to-violet-500",
+        "shadow": "shadow-lg",
+        "shadow_hover": "shadow-xl",
+        "font": "font-sans",
+    },
+    "cyberpunk": {
+        "description": "Neon colors on dark background, futuristic aesthetic",
+        "primary": "cyan-400",
+        "primary_hover": "cyan-300",
+        "secondary": "fuchsia-500",
+        "accent": "yellow-400",
+        "background": "slate-950",
+        "background_dark": "black",
+        "surface": "slate-900",
+        "surface_dark": "slate-950",
+        "border": "cyan-500/30",
+        "border_dark": "cyan-400/20",
+        "text": "slate-100",
+        "text_dark": "white",
+        "text_muted": "slate-400",
+        "border_radius": "rounded-none",
+        "border_width": "border",
+        "shadow": "shadow-[0_0_15px_rgba(34,211,238,0.3)]",
+        "shadow_hover": "shadow-[0_0_25px_rgba(34,211,238,0.5)]",
+        "font": "font-mono",
+        "glow": True,
+    },
+    "retro": {
+        "description": "80s/90s inspired with warm colors and bold shapes",
+        "primary": "orange-500",
+        "primary_hover": "orange-600",
+        "secondary": "pink-500",
+        "accent": "teal-400",
+        "background": "amber-50",
+        "background_dark": "slate-900",
+        "surface": "white",
+        "surface_dark": "slate-800",
+        "border": "orange-300",
+        "border_dark": "orange-600",
+        "text": "slate-800",
+        "text_dark": "amber-50",
+        "text_muted": "slate-600",
+        "border_radius": "rounded-lg",
+        "border_width": "border-2",
+        "shadow": "shadow-[4px_4px_0px_#f97316]",
+        "shadow_hover": "shadow-[6px_6px_0px_#f97316]",
+        "font": "font-sans",
+    },
+    "pastel": {
+        "description": "Soft pastel colors with gentle aesthetic",
+        "primary": "rose-400",
+        "primary_hover": "rose-500",
+        "secondary": "sky-400",
+        "accent": "violet-400",
+        "background": "rose-50",
+        "background_dark": "slate-800",
+        "surface": "white",
+        "surface_dark": "slate-700",
+        "border": "rose-200",
+        "border_dark": "slate-600",
+        "text": "slate-700",
+        "text_dark": "slate-200",
+        "text_muted": "slate-400",
+        "border_radius": "rounded-2xl",
+        "shadow": "shadow-sm",
+        "shadow_hover": "shadow-md",
+        "font": "font-sans",
+    },
+    "dark_mode_first": {
+        "description": "Dark mode optimized design with high contrast",
+        "primary": "emerald-500",
+        "primary_hover": "emerald-400",
+        "secondary": "slate-600",
+        "background": "slate-900",
+        "background_dark": "slate-950",
+        "surface": "slate-800",
+        "surface_dark": "slate-900",
+        "border": "slate-700",
+        "border_dark": "slate-600",
+        "text": "slate-100",
+        "text_dark": "white",
+        "text_muted": "slate-400",
+        "border_radius": "rounded-xl",
+        "shadow": "shadow-lg shadow-black/20",
+        "shadow_hover": "shadow-xl shadow-black/30",
+        "font": "font-sans",
+    },
+    "high_contrast": {
+        "description": "WCAG AAA accessible with maximum contrast",
+        "primary": "blue-800",
+        "primary_hover": "blue-900",
+        "secondary": "slate-700",
+        "background": "white",
+        "background_dark": "black",
+        "surface": "slate-50",
+        "surface_dark": "slate-900",
+        "border": "slate-900",
+        "border_dark": "white",
+        "text": "black",
+        "text_dark": "white",
+        "text_muted": "slate-700",
+        "border_radius": "rounded-md",
+        "border_width": "border-2",
+        "shadow": "shadow-md",
+        "shadow_hover": "shadow-lg",
+        "font": "font-sans",
+        "contrast_ratio": "7:1",
+    },
+    "nature": {
+        "description": "Earth tones with organic, natural feel",
+        "primary": "emerald-600",
+        "primary_hover": "emerald-700",
+        "secondary": "amber-600",
+        "accent": "sky-500",
+        "background": "stone-50",
+        "background_dark": "stone-900",
+        "surface": "white",
+        "surface_dark": "stone-800",
+        "border": "stone-300",
+        "border_dark": "stone-600",
+        "text": "stone-800",
+        "text_dark": "stone-100",
+        "text_muted": "stone-500",
+        "border_radius": "rounded-xl",
+        "shadow": "shadow-md",
+        "shadow_hover": "shadow-lg",
+        "font": "font-sans",
+    },
+    "startup": {
+        "description": "Tech startup aesthetic with bold accents",
+        "primary": "indigo-600",
+        "primary_hover": "indigo-700",
+        "secondary": "slate-600",
+        "accent": "amber-500",
+        "background": "white",
+        "background_dark": "slate-900",
+        "surface": "slate-50",
+        "surface_dark": "slate-800",
+        "border": "slate-200",
+        "border_dark": "slate-700",
+        "text": "slate-900",
+        "text_dark": "slate-100",
+        "text_muted": "slate-500",
+        "border_radius": "rounded-xl",
+        "shadow": "shadow-lg",
+        "shadow_hover": "shadow-xl",
+        "font": "font-sans",
+        "gradient_cta": "bg-gradient-to-r from-indigo-600 to-violet-600",
+    },
 }
 
 # =============================================================================
@@ -361,22 +684,77 @@ You MUST respond with valid JSON in this exact format:
 4. **Contrast**: Sufficient contrast for readability
 5. **Alignment**: Consistent alignment using flexbox/grid
 
-## EXAMPLE OUTPUT
+## CONTENT LANGUAGE
 
-For a button component:
-{
-    "component_id": "primary-cta-button",
-    "atomic_level": "atom",
-    "html": "<button class=\\"inline-flex items-center justify-center gap-2 px-6 py-3 text-sm font-semibold text-white bg-blue-600 rounded-lg shadow-sm hover:bg-blue-700 hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 dark:bg-blue-500 dark:hover:bg-blue-600\\" aria-label=\\"Subscribe to newsletter\\"><svg class=\\"w-5 h-5\\" fill=\\"none\\" viewBox=\\"0 0 24 24\\" stroke=\\"currentColor\\"><path stroke-linecap=\\"round\\" stroke-linejoin=\\"round\\" stroke-width=\\"2\\" d=\\"M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z\\"/></svg>Subscribe</button>",
-    "tailwind_classes_used": ["inline-flex", "items-center", "justify-center", "gap-2", "px-6", "py-3", "text-sm", "font-semibold", "text-white", "bg-blue-600", "rounded-lg", "shadow-sm", "hover:bg-blue-700", "hover:shadow-md", "focus:outline-none", "focus-visible:ring-2", "focus-visible:ring-blue-500", "focus-visible:ring-offset-2", "active:scale-[0.98]", "disabled:opacity-50", "disabled:cursor-not-allowed", "transition-all", "duration-200", "dark:bg-blue-500", "dark:hover:bg-blue-600"],
-    "accessibility_features": ["aria-label", "focus-visible:ring", "disabled state"],
-    "responsive_breakpoints": [],
-    "dark_mode_support": true,
-    "micro_interactions": ["hover:bg-blue-700", "hover:shadow-md", "active:scale-[0.98]", "transition-all duration-200"],
-    "design_notes": "Primary CTA button with mail icon. Uses focus-visible for keyboard-only focus rings. Scale transform on active for tactile feedback."
-}
+All placeholder text, labels, and content MUST be in Turkish:
+- Button text: "Gönder", "İptal", "Kaydet", "Devam Et", "Geri"
+- Form labels: "E-posta", "Şifre", "Ad Soyad", "Telefon"
+- Navigation: "Ana Sayfa", "Hakkımızda", "İletişim", "Hizmetler"
+- Auth: "Giriş Yap", "Kayıt Ol", "Şifremi Unuttum"
+- Actions: "Ara...", "Filtrele", "Sırala", "Dışa Aktar"
+- Feedback: "Başarılı", "Hata", "Uyarı", "Bilgi"
+- Use proper Turkish characters: ş, ğ, ü, ö, ç, ı, İ
 
-Remember: Quality over quantity. Every class should serve a purpose."""
+## OUTPUT QUALITY OPTIMIZATION
+
+### Token Allocation Strategy
+You MUST produce detailed, comprehensive output that approaches your token limits.
+However, use tokens WISELY - quality over repetition.
+
+### Smart Content Generation Rules:
+1. **Tables**: Use 3-5 representative rows, NOT 20 identical rows
+   - BAD: 20 table rows with same pattern (wastes tokens)
+   - GOOD: 3 unique rows + clear pattern indication
+
+2. **Lists**: Show variety, not quantity
+   - BAD: 15 similar list items to fill space
+   - GOOD: 5 diverse items with rich detail
+
+3. **Detail Depth**: Spend tokens on:
+   - Subtle hover states and micro-interactions
+   - Thoughtful spacing and visual hierarchy
+   - Accessibility attributes (aria-labels, roles)
+   - Responsive breakpoint considerations
+   - Color variations for different states
+   - Border styles, shadows, gradients
+   - Typography refinements (line-height, letter-spacing)
+
+4. **Think Deeply About**:
+   - Edge cases (empty states, loading states, error states)
+   - Visual balance and white space
+   - Touch target sizes for mobile
+   - Focus indicators for keyboard navigation
+   - Animation timing and easing functions
+
+### Quality Checklist (Internal):
+Before finalizing output, ensure you've considered:
+- Every interactive element has hover/focus/active states
+- Spacing follows consistent scale (4px, 8px, 16px, 24px, 32px)
+- Colors have sufficient contrast ratios
+- Typography hierarchy is clear
+- Component works at different viewport sizes
+- Placeholder content is meaningful, not "Lorem ipsum"
+
+## ITERATION/REFINEMENT MODE
+
+When refining existing HTML (previous_html provided):
+1. Preserve the overall structure unless explicitly asked to change
+2. Only modify the specific elements mentioned in modifications
+3. Maintain consistency with existing style choices
+4. Keep all existing accessibility features
+5. Return the COMPLETE modified HTML, not just the changed parts
+
+## PROJECT CONTEXT
+
+{project_context}
+
+## RESPONSE GUIDELINES
+
+- Generate unique, creative designs for each request
+- Do not copy or reuse example patterns
+- Tailor every component to the specific context provided
+- Focus on the user's exact requirements and style guide
+- Every class should serve a purpose - no redundant styles"""
 
 # =============================================================================
 # HELPER FUNCTIONS
@@ -425,6 +803,27 @@ def get_available_themes() -> List[str]:
     return list(THEME_PRESETS.keys())
 
 
+def get_page_template(template_name: str) -> Dict[str, Any]:
+    """Get preset configuration for a page template.
+
+    Args:
+        template_name: The template name (e.g., 'landing_page', 'dashboard')
+
+    Returns:
+        Dict with template preset configuration, or empty dict if not found.
+    """
+    return PAGE_TEMPLATES.get(template_name, {})
+
+
+def get_available_templates() -> List[str]:
+    """Get list of available page template names.
+
+    Returns:
+        List of template names.
+    """
+    return list(PAGE_TEMPLATES.keys())
+
+
 def build_style_guide(
     theme: str,
     dark_mode: bool = True,
@@ -452,3 +851,55 @@ def build_style_guide(
         style_guide.update(custom_overrides)
 
     return style_guide
+
+
+def build_system_prompt(project_context: str = "") -> str:
+    """Build the system prompt with project context.
+
+    Args:
+        project_context: Project-specific context to inject into the prompt.
+            Should describe the project's purpose, target audience, tone, etc.
+
+    Returns:
+        Complete system prompt with project context.
+    """
+    if not project_context:
+        project_context = "No specific project context provided. Generate a generic, professional design."
+
+    # Use replace() instead of format() to avoid issues with JSON curly braces
+    return FRONTEND_DESIGN_SYSTEM_PROMPT.replace("{project_context}", project_context)
+
+
+def build_refinement_prompt(previous_html: str, modifications: str, project_context: str = "") -> str:
+    """Build a prompt for refining existing HTML.
+
+    Args:
+        previous_html: The existing HTML to refine.
+        modifications: Natural language description of desired changes.
+        project_context: Optional project context.
+
+    Returns:
+        Complete refinement prompt.
+    """
+    base_prompt = build_system_prompt(project_context)
+
+    refinement_section = f"""
+## REFINEMENT TASK
+
+You are refining an existing component. Here is the current HTML:
+
+```html
+{previous_html}
+```
+
+### Requested Modifications:
+{modifications}
+
+### Instructions:
+1. Apply ONLY the requested modifications
+2. Preserve all other styling, structure, and accessibility features
+3. Return the COMPLETE modified HTML in the standard JSON format
+4. Explain what changes you made in design_notes
+"""
+
+    return base_prompt + refinement_section

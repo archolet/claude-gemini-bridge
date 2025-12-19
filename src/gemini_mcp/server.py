@@ -18,8 +18,14 @@ from .client import get_gemini_client
 from .config import AVAILABLE_MODELS, get_config
 from .frontend_presets import (
     build_style_guide,
+    build_system_prompt,
+    build_refinement_prompt,
     get_available_components,
     get_available_themes,
+    get_available_templates,
+    get_page_template,
+    PAGE_TEMPLATES,
+    THEME_PRESETS,
 )
 
 # Logger instance - configured in main() to use stderr (not stdout)
@@ -318,6 +324,7 @@ async def design_frontend(
     accessibility_level: str = "AA",
     micro_interactions: bool = True,
     max_width: str = "",
+    project_context: str = "",
 ) -> dict:
     """Design a frontend UI component using Gemini 3 Pro.
 
@@ -325,6 +332,8 @@ async def design_frontend(
     TailwindCSS. Always uses gemini-3-pro-preview for best design quality.
     Perfect for creating UI components that Claude Code can then integrate
     into a larger application.
+
+    IMPORTANT: All placeholder text and content will be generated in Turkish.
 
     Workflow:
     1. Claude analyzes the feature requirements
@@ -335,17 +344,20 @@ async def design_frontend(
 
     Args:
         component_type: Type of component to design. Options:
-            Atoms: button, input, badge, avatar, icon, dropdown, toggle, tooltip
+            Atoms: button, input, badge, avatar, icon, dropdown, toggle, tooltip,
+                   slider, spinner, progress, chip, divider
             Molecules: card, form, modal, tabs, table, accordion, alert, breadcrumb,
-                      pagination, search_bar, stat_card, pricing_card
+                      pagination, search_bar, stat_card, pricing_card, carousel,
+                      stepper, timeline, file_upload, rating, color_picker
             Organisms: navbar, hero, sidebar, footer, data_table, login_form,
                       signup_form, contact_form, feature_section, testimonial_section,
-                      pricing_table, dashboard_header
+                      pricing_table, dashboard_header, kanban_board, calendar,
+                      chat_widget, notification_center, user_profile, settings_panel
         context: Usage context explaining where/how the component will be used.
                 Example: "Primary CTA button for newsletter signup on landing page"
         content_structure: JSON string with component content. Example:
-                          '{"text": "Subscribe", "icon": "mail"}'
-                          '{"tier": "Pro", "price": "$29/mo", "features": ["API access"]}'
+                          '{"text": "Abone Ol", "icon": "mail"}'
+                          '{"tier": "Pro", "price": "₺299/ay", "features": ["Sınırsız kullanıcı"]}'
         theme: Visual style preset. Options:
                - modern-minimal: Clean, professional (default)
                - brutalist: Bold, high-contrast, sharp edges
@@ -353,12 +365,24 @@ async def design_frontend(
                - neo-brutalism: Playful with bold colors
                - soft-ui: Neumorphic, soft depth
                - corporate: Professional, trustworthy
+               - gradient: Gradient-heavy modern design
+               - cyberpunk: Neon colors, dark background
+               - retro: 80s/90s inspired
+               - pastel: Soft pastel colors
+               - dark_mode_first: Dark mode optimized
+               - high_contrast: WCAG AAA accessible
+               - nature: Earth tones, organic feel
+               - startup: Tech startup aesthetic
         dark_mode: Include dark: variants for dark mode support (default: True)
         border_radius: Custom border radius override (e.g., "rounded-xl")
         responsive_breakpoints: Comma-separated breakpoints (default: "sm,md,lg")
         accessibility_level: WCAG level - "AA" or "AAA" (default: "AA")
         micro_interactions: Include hover/focus animations (default: True)
         max_width: Maximum width constraint (e.g., "1280px", "max-w-7xl")
+        project_context: Project-specific context for design consistency. Example:
+                        "Project: InfoSYS - Enterprise ERP for Turkish businesses.
+                         Target: Corporate users. Tone: Professional, trustworthy.
+                         Industry: Business Software. Colors: Blue primary."
 
     Returns:
         Dict containing:
@@ -434,6 +458,7 @@ async def design_frontend(
             design_spec=design_spec,
             style_guide=style_guide,
             constraints=constraints,
+            project_context=project_context,
         )
 
         logger.info(f"design_frontend completed: {component_type} -> {result.get('component_id', 'unknown')}")
@@ -458,12 +483,188 @@ def list_frontend_options() -> dict:
         Dict containing:
         - components: List of available component types (atoms, molecules, organisms)
         - themes: List of available theme presets with descriptions
+        - templates: List of available page templates
     """
+    # Get theme details
+    themes_with_details = {
+        name: {"description": preset.get("description", "")}
+        for name, preset in THEME_PRESETS.items()
+    }
+
+    # Get template details
+    templates_with_details = {
+        name: {
+            "description": preset.get("description", ""),
+            "sections": preset.get("sections", []),
+        }
+        for name, preset in PAGE_TEMPLATES.items()
+    }
+
     return {
         "components": get_available_components(),
-        "themes": get_available_themes(),
-        "note": "Use design_frontend() with these options to generate components",
+        "themes": themes_with_details,
+        "templates": templates_with_details,
+        "note": "Use design_frontend() for components, design_page() for full pages, refine_frontend() for iterations",
     }
+
+
+@mcp.tool()
+async def design_page(
+    template_type: str,
+    context: str = "",
+    content_structure: str = "{}",
+    theme: str = "modern-minimal",
+    dark_mode: bool = True,
+    project_context: str = "",
+) -> dict:
+    """Design a full page layout using Gemini 3 Pro.
+
+    This tool generates complete page layouts with multiple sections.
+    All content will be generated in Turkish.
+
+    Args:
+        template_type: Type of page template. Options:
+            - landing_page: Marketing landing page with hero, features, CTA
+            - dashboard: Admin dashboard with sidebar, stats, data views
+            - auth_page: Login/signup page with form and branding
+            - pricing_page: Pricing comparison with tiers and FAQ
+            - blog_post: Blog article layout with content and sidebar
+            - product_page: E-commerce product page with gallery
+            - portfolio: Portfolio/showcase page with projects grid
+            - documentation: Docs page with navigation and content
+            - error_page: 404/500 error page with helpful actions
+            - coming_soon: Coming soon/maintenance page with countdown
+        context: Usage context explaining the page purpose.
+                Example: "Landing page for a Turkish SaaS product"
+        content_structure: JSON string with page content. Example:
+                          '{"title": "Hoş Geldiniz", "subtitle": "En iyi çözüm"}'
+        theme: Visual style preset (same as design_frontend)
+        dark_mode: Include dark mode support (default: True)
+        project_context: Project-specific context for design consistency.
+
+    Returns:
+        Dict containing:
+        - page_id: Unique identifier for the page
+        - template_type: The template used
+        - html: Complete HTML with TailwindCSS
+        - sections: List of sections included
+        - design_notes: Gemini's explanation of design decisions
+        - model_used: Always gemini-3-pro-preview
+    """
+    try:
+        template = get_page_template(template_type)
+        if not template:
+            return {
+                "error": f"Unknown template: {template_type}",
+                "available_templates": get_available_templates(),
+            }
+
+        # Parse content_structure
+        try:
+            content = json.loads(content_structure) if content_structure else {}
+        except json.JSONDecodeError:
+            content = {"raw": content_structure}
+
+        # Build design specification for a page
+        design_spec = {
+            "context": context,
+            "content_structure": content,
+            "template_info": template,
+        }
+
+        # Build style guide
+        style_guide = build_style_guide(theme=theme, dark_mode=dark_mode)
+
+        # Build constraints
+        constraints = {
+            "sections": template.get("sections", []),
+            "layouts": template.get("layouts", []),
+            "is_full_page": True,
+        }
+
+        # Call the design method with page template
+        client = get_gemini_client()
+        result = await client.design_component(
+            component_type=f"page:{template_type}",
+            design_spec=design_spec,
+            style_guide=style_guide,
+            constraints=constraints,
+            project_context=project_context,
+        )
+
+        # Add template info to result
+        result["template_type"] = template_type
+        result["sections"] = template.get("sections", [])
+
+        logger.info(f"design_page completed: {template_type}")
+        return result
+
+    except Exception as e:
+        logger.error(f"design_page failed: {e}")
+        return {
+            "error": str(e),
+            "template_type": template_type,
+            "model_used": "gemini-3-pro-preview",
+        }
+
+
+@mcp.tool()
+async def refine_frontend(
+    previous_html: str,
+    modifications: str,
+    project_context: str = "",
+) -> dict:
+    """Refine an existing component design based on feedback.
+
+    Use this tool to iterate on a design without starting from scratch.
+    Send the previous HTML and describe the changes you want.
+    All content will be generated in Turkish.
+
+    Args:
+        previous_html: The existing HTML code to refine.
+                      This should be the complete HTML from a previous
+                      design_frontend or design_page call.
+        modifications: Natural language description of desired changes.
+                      Examples:
+                      - "Buton rengini maviden yeşile çevir"
+                      - "Header'ı daha kompakt yap"
+                      - "Dark mode desteği ekle"
+                      - "Mobil responsive sorunlarını düzelt"
+                      - "Hover efektlerini daha belirgin yap"
+        project_context: Optional project context for consistency.
+
+    Returns:
+        Dict containing:
+        - component_id: Identifier for the refined component
+        - html: The modified HTML with TailwindCSS
+        - changes_made: Summary of changes applied
+        - design_notes: Explanation of modifications
+        - model_used: Always gemini-3-pro-preview
+
+    Example:
+        refine_frontend(
+            previous_html='<button class="bg-blue-600...">Gönder</button>',
+            modifications="Buton boyutunu büyüt ve hover efekti ekle"
+        )
+    """
+    try:
+        client = get_gemini_client()
+        result = await client.refine_component(
+            previous_html=previous_html,
+            modifications=modifications,
+            project_context=project_context,
+        )
+
+        logger.info(f"refine_frontend completed: {result.get('component_id', 'unknown')}")
+        return result
+
+    except Exception as e:
+        logger.error(f"refine_frontend failed: {e}")
+        return {
+            "error": str(e),
+            "modifications": modifications,
+            "model_used": "gemini-3-pro-preview",
+        }
 
 
 @mcp.tool()
