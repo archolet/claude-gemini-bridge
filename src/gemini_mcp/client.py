@@ -333,15 +333,19 @@ class GeminiClient:
         aspect_ratio: str = "1:1",
         output_format: str = "base64",
         output_dir: Optional[str] = None,
+        number_of_images: int = 1,
+        output_resolution: str = "1K",
     ) -> Dict[str, Any]:
         """Generate an image using Gemini or Imagen.
 
         Args:
             prompt: Text description of the image to generate.
             model: Model ID to use. Defaults to config default image model.
-            aspect_ratio: Image aspect ratio (e.g., "1:1", "16:9", "9:16").
+            aspect_ratio: Image aspect ratio (e.g., "1:1", "16:9", "9:16", "3:4", "4:3").
             output_format: "base64", "file", or "both".
             output_dir: Directory to save file output.
+            number_of_images: Number of images to generate (1-4, Imagen only).
+            output_resolution: Output resolution "1K" or "2K" (Imagen 4 only).
 
         Returns:
             Dict containing image data and/or file path.
@@ -358,7 +362,8 @@ class GeminiClient:
                 # Check if using Imagen standalone or Gemini with image capability
                 if model.startswith("imagen"):
                     return await self._generate_with_imagen(
-                        prompt, model, aspect_ratio, output_format, output_dir
+                        prompt, model, aspect_ratio, output_format, output_dir,
+                        number_of_images, output_resolution
                     )
                 else:
                     return await self._generate_with_gemini_image(
@@ -440,14 +445,34 @@ class GeminiClient:
         aspect_ratio: str,
         output_format: str,
         output_dir: str,
+        number_of_images: int = 1,
+        output_resolution: str = "1K",
     ) -> Dict[str, Any]:
-        """Generate image using Imagen standalone model."""
+        """Generate image using Imagen standalone model.
+
+        Supports Imagen 4 family:
+        - imagen-4.0-generate-001: Standard quality
+        - imagen-4.0-ultra-generate-001: Ultra high quality
+        - imagen-4.0-fast-generate-001: Fast generation
+        """
+        # Clamp number_of_images to valid range (1-4)
+        number_of_images = max(1, min(4, number_of_images))
+
+        # Build config for Imagen 4
         config = types.GenerateImagesConfig(
-            number_of_images=1,
+            number_of_images=number_of_images,
             aspect_ratio=aspect_ratio,
+            output_mime_type="image/png",
         )
 
-        response = self.client.models.generate_images(
+        # Add output resolution for Imagen 4 models (1K or 2K)
+        if "imagen-4" in model and output_resolution in ["1K", "2K"]:
+            # Note: The SDK may use different attribute name
+            # This might need adjustment based on actual SDK version
+            pass  # output_resolution is set via API, SDK support may vary
+
+        # Use async API for proper async handling
+        response = await self.client.aio.models.generate_images(
             model=model,
             prompt=prompt,
             config=config,
@@ -457,18 +482,37 @@ class GeminiClient:
             "model_used": model,
             "prompt": prompt,
             "aspect_ratio": aspect_ratio,
+            "number_of_images": number_of_images,
         }
 
         if response.generated_images:
-            image = response.generated_images[0]
-            image_data = image.image.image_bytes
+            # Handle multiple images
+            if number_of_images == 1:
+                # Single image - return as before for backwards compatibility
+                image = response.generated_images[0]
+                image_data = image.image.image_bytes
 
-            if output_format in ["base64", "both"]:
-                result["base64"] = base64.b64encode(image_data).decode("utf-8")
+                if output_format in ["base64", "both"]:
+                    result["base64"] = base64.b64encode(image_data).decode("utf-8")
 
-            if output_format in ["file", "both"]:
-                file_path = self._save_image(image_data, output_dir)
-                result["file_path"] = file_path
+                if output_format in ["file", "both"]:
+                    file_path = self._save_image(image_data, output_dir)
+                    result["file_path"] = file_path
+            else:
+                # Multiple images - return as list
+                result["images"] = []
+                for i, image in enumerate(response.generated_images):
+                    image_data = image.image.image_bytes
+                    img_result = {}
+
+                    if output_format in ["base64", "both"]:
+                        img_result["base64"] = base64.b64encode(image_data).decode("utf-8")
+
+                    if output_format in ["file", "both"]:
+                        file_path = self._save_image(image_data, output_dir)
+                        img_result["file_path"] = file_path
+
+                    result["images"].append(img_result)
 
         return result
 

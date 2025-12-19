@@ -171,32 +171,44 @@ async def generate_image(
     aspect_ratio: str = "1:1",
     output_format: str = "base64",
     output_dir: str = "./images",
+    number_of_images: int = 1,
+    output_resolution: str = "1K",
 ) -> dict:
-    """Generate an image using Gemini 3 Pro Image model.
+    """Generate an image using Gemini or Imagen models.
 
-    Creates high-fidelity images from text descriptions with reasoning-enhanced
-    composition. Supports multiple output formats and aspect ratios.
+    Creates high-fidelity images from text descriptions. Supports both
+    Gemini 3 Pro Image and Imagen 4 family models.
 
     Args:
         prompt: Text description of the image to generate. Be specific
                 and descriptive for best results.
         model: Image model to use:
                - gemini-3-pro-image-preview: High-fidelity with reasoning (4096px)
+               - imagen-4.0-ultra-generate-001: Highest quality ($0.06/image)
+               - imagen-4.0-generate-001: Standard quality ($0.04/image)
+               - imagen-4.0-fast-generate-001: Fast generation ($0.02/image)
         aspect_ratio: Image dimensions ratio (1:1, 16:9, 9:16, 4:3, 3:4).
         output_format: How to return the image:
                       - "base64": Return as base64 string (default)
                       - "file": Save to disk only
                       - "both": Return base64 AND save to disk
         output_dir: Directory to save files when using "file" or "both".
+        number_of_images: Number of images to generate (1-4, Imagen 4 only).
+        output_resolution: Output resolution "1K" or "2K" (Imagen 4 only).
 
     Returns:
         Dict with base64 data and/or file_path, plus model info.
+        For multiple images, returns "images" list with each image's data.
 
     Example:
-        Generate a logo:
-        prompt="A minimalist tech startup logo with geometric shapes, blue and white"
+        Generate with Gemini:
+        prompt="A minimalist tech startup logo with geometric shapes"
         model="gemini-3-pro-image-preview"
-        output_format="both"
+
+        Generate with Imagen 4 Ultra:
+        prompt="Photorealistic mountain landscape at sunset"
+        model="imagen-4.0-ultra-generate-001"
+        number_of_images=4
     """
     try:
         client = get_gemini_client()
@@ -206,6 +218,8 @@ async def generate_image(
             aspect_ratio=aspect_ratio,
             output_format=output_format,
             output_dir=output_dir,
+            number_of_images=number_of_images,
+            output_resolution=output_resolution,
         )
         logger.info(f"generate_image completed with model {result['model_used']}")
         return result

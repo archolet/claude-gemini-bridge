@@ -67,6 +67,30 @@ AVAILABLE_MODELS = {
             "max_resolution": "4096x4096",
             "features": ["legible text", "multi-turn editing", "character consistency", "14 reference inputs"],
         },
+        {
+            "id": "imagen-4.0-ultra-generate-001",
+            "name": "Imagen 4 Ultra",
+            "description": "Highest quality image generation with ultra-high fidelity for print media",
+            "max_resolution": "2K",
+            "price": "$0.06/image",
+            "features": ["ultra-high fidelity", "complex prompts", "SynthID watermark", "1-4 images per request"],
+        },
+        {
+            "id": "imagen-4.0-generate-001",
+            "name": "Imagen 4",
+            "description": "High-quality image generation for general tasks",
+            "max_resolution": "2K",
+            "price": "$0.04/image",
+            "features": ["high quality", "SynthID watermark", "1-4 images per request"],
+        },
+        {
+            "id": "imagen-4.0-fast-generate-001",
+            "name": "Imagen 4 Fast",
+            "description": "Fast image generation for quick iterations",
+            "max_resolution": "2K",
+            "price": "$0.02/image",
+            "features": ["fast generation", "SynthID watermark", "best with simple prompts"],
+        },
     ],
 }
 
