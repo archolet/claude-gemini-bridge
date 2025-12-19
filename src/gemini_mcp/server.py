@@ -29,6 +29,14 @@ from .frontend_presets import (
     PAGE_TEMPLATES,
     THEME_PRESETS,
     SECTION_TYPES,
+    # MAXIMUM_RICHNESS mode support
+    MICRO_INTERACTIONS,
+    VISUAL_EFFECTS,
+    SVG_ICONS,
+    get_all_micro_interactions,
+    get_all_visual_effects,
+    get_available_icon_names,
+    get_icons_by_category,
 )
 
 # Logger instance - configured in main() to use stderr (not stdout)
@@ -453,6 +461,15 @@ async def design_frontend(
             "responsive_breakpoints": [bp.strip() for bp in responsive_breakpoints.split(",")],
             "accessibility_level": accessibility_level,
             "micro_interactions": micro_interactions,
+            # MAXIMUM_RICHNESS mode directives
+            "output_mode": "MAXIMUM_RICHNESS",
+            "min_table_rows": 8,
+            "min_list_items": 6,
+            "generate_all_states": True,  # hover, focus, active, disabled, loading, error
+            "inline_svgs": True,  # Use real SVG markup, not placeholders
+            "realistic_turkish_content": True,
+            "available_effects": list(VISUAL_EFFECTS.keys()),
+            "available_icons": list(SVG_ICONS.keys())[:25],  # Top 25 icons for reference
         }
         if max_width:
             constraints["max_width"] = max_width
@@ -525,12 +542,48 @@ def list_frontend_options() -> dict:
         for name, info in SECTION_TYPES.items()
     }
 
+    # Get micro-interaction details
+    interactions_with_details = {
+        name: {
+            "classes": preset.get("classes", ""),
+            "description": preset.get("description", ""),
+        }
+        for name, preset in MICRO_INTERACTIONS.items()
+    }
+
+    # Get visual effect details
+    effects_with_details = {
+        name: {
+            "classes": preset.get("classes", ""),
+            "description": preset.get("description", ""),
+        }
+        for name, preset in VISUAL_EFFECTS.items()
+    }
+
     return {
         "components": get_available_components(),
         "themes": themes_with_details,
         "templates": templates_with_details,
         "sections": sections_with_details,
-        "note": "Use design_frontend() for components, design_page() for full pages, design_section() for chain-based large pages, refine_frontend() for iterations",
+        # MAXIMUM_RICHNESS mode resources
+        "micro_interactions": interactions_with_details,
+        "visual_effects": effects_with_details,
+        "icons": {
+            "available": get_available_icon_names(),
+            "by_category": get_icons_by_category(),
+            "total_count": len(SVG_ICONS),
+        },
+        "richness_mode": {
+            "enabled": True,
+            "directives": {
+                "min_table_rows": 8,
+                "min_list_items": 6,
+                "generate_all_states": True,
+                "inline_svgs": True,
+                "realistic_turkish_content": True,
+            },
+        },
+        "note": "Use design_frontend() for components, design_page() for full pages, design_section() for chain-based large pages, refine_frontend() for iterations. MAXIMUM_RICHNESS mode is enabled by default.",
     }
 
 

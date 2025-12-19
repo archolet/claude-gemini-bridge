@@ -3,6 +3,7 @@
 __version__ = "0.1.0"
 
 from .frontend_presets import (
+    # Existing exports
     COMPONENT_PRESETS,
     THEME_PRESETS,
     get_available_components,
@@ -10,6 +11,22 @@ from .frontend_presets import (
     get_component_preset,
     get_theme_preset,
     build_style_guide,
+    # MAXIMUM_RICHNESS mode - Effect Libraries
+    MICRO_INTERACTIONS,
+    VISUAL_EFFECTS,
+    SVG_ICONS,
+    # MAXIMUM_RICHNESS mode - Helper Functions
+    get_micro_interaction,
+    get_all_micro_interactions,
+    get_available_interaction_names,
+    get_visual_effect,
+    get_all_visual_effects,
+    get_available_effect_names,
+    get_svg_icon,
+    get_all_svg_icons,
+    get_available_icon_names,
+    get_icons_by_category,
+    build_rich_style_guide,
 )
 
 from .schemas import (
