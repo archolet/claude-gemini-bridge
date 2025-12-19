@@ -621,6 +621,50 @@ class GeminiClient:
         logger.info(f"Image saved to: {file_path}")
         return file_path
 
+    def _download_from_gcs(self, gcs_uri: str, output_dir: str) -> str:
+        """Download a file from Google Cloud Storage.
+
+        Args:
+            gcs_uri: GCS URI (e.g., "gs://bucket/path/file.mp4")
+            output_dir: Local directory to save the file.
+
+        Returns:
+            Full path to downloaded file.
+        """
+        # Ensure directory exists
+        Path(output_dir).mkdir(parents=True, exist_ok=True)
+
+        # Parse GCS URI: gs://bucket/path/to/file.mp4
+        if not gcs_uri.startswith("gs://"):
+            raise ValueError(f"Invalid GCS URI: {gcs_uri}")
+
+        path_without_scheme = gcs_uri[5:]  # Remove "gs://"
+        parts = path_without_scheme.split("/", 1)
+        bucket_name = parts[0]
+        blob_path = parts[1] if len(parts) > 1 else ""
+
+        # Extract filename from blob path
+        original_filename = os.path.basename(blob_path)
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        unique_id = uuid.uuid4().hex[:8]
+
+        # Preserve extension from original filename
+        _, ext = os.path.splitext(original_filename)
+        if not ext:
+            ext = ".mp4"  # Default to mp4 for videos
+
+        filename = f"gemini_video_{timestamp}_{unique_id}{ext}"
+        file_path = os.path.join(output_dir, filename)
+
+        # Download from GCS
+        storage_client = storage.Client(project=self.config.project_id)
+        bucket = storage_client.bucket(bucket_name)
+        blob = bucket.blob(blob_path)
+        blob.download_to_filename(file_path)
+
+        logger.info(f"Video downloaded to: {file_path}")
+        return file_path
+
     async def generate_video(
         self,
         prompt: str,
@@ -633,6 +677,8 @@ class GeminiClient:
         number_of_videos: int = 1,
         poll_interval: int = 15,
         max_wait_time: int = 600,
+        auto_download: bool = True,
+        output_dir: str = "./videos",
     ) -> Dict[str, Any]:
         """Generate video using Veo 3.1 models.
 
@@ -653,10 +699,13 @@ class GeminiClient:
             number_of_videos: Number of videos to generate (1-4). Default: 1.
             poll_interval: Seconds between status checks. Default: 15.
             max_wait_time: Maximum wait time in seconds. Default: 600 (10 min).
+            auto_download: Automatically download videos to local directory. Default: True.
+            output_dir: Local directory for downloaded videos. Default: "./videos".
 
         Returns:
             Dict containing:
                 - video_uris: List of GCS URIs for generated videos
+                - local_paths: List of local file paths (if auto_download=True)
                 - model_used: Model that generated the video
                 - duration_seconds: Actual video duration
                 - status: "completed" or "timeout"
@@ -737,6 +786,18 @@ class GeminiClient:
                             video_uris.append(video.video.uri)
                     result["video_uris"] = video_uris
                     result["video_count"] = len(video_uris)
+
+                    # Auto-download if enabled
+                    if auto_download and video_uris:
+                        local_paths = []
+                        for gcs_uri in video_uris:
+                            try:
+                                local_path = self._download_from_gcs(gcs_uri, output_dir)
+                                local_paths.append(local_path)
+                            except Exception as download_error:
+                                logger.warning(f"Failed to download {gcs_uri}: {download_error}")
+                                local_paths.append(None)
+                        result["local_paths"] = local_paths
 
                 logger.info(f"Video generation completed: {result.get('video_count', 0)} videos")
                 return result

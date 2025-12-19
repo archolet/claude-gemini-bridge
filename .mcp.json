@@ -1,3 +1,12 @@
 {
-  "mcpServers": {}
+  "mcpServers": {
+    "gemini": {
+      "command": "/Users/serkanozdogan/.local/bin/uv",
+      "args": ["run", "--directory", "/Users/serkanozdogan/Desktop/gemini", "gemini-mcp"],
+      "env": {
+        "GOOGLE_CLOUD_PROJECT": "gen-lang-client-0681357092",
+        "GOOGLE_CLOUD_LOCATION": "global"
+      }
+    }
+  }
 }

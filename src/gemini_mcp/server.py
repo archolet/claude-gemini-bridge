@@ -239,11 +239,13 @@ async def generate_video(
     resolution: str = "720p",
     generate_audio: bool = True,
     number_of_videos: int = 1,
+    auto_download: bool = True,
+    output_dir: str = "./videos",
 ) -> dict:
     """Generate a video using Veo 3.1 models.
 
     Creates high-quality videos with native audio from text descriptions.
-    Videos are saved to Google Cloud Storage. Bucket is auto-created if needed.
+    Videos are saved to Google Cloud Storage and automatically downloaded locally.
 
     IMPORTANT: This is a long-running operation. Video generation takes
     1-10 minutes depending on duration and resolution.
@@ -261,12 +263,14 @@ async def generate_video(
         resolution: "720p" or "1080p". Default: "720p".
         generate_audio: Generate synchronized audio (dialogue, music, SFX). Default: True.
         number_of_videos: Number of video variations (1-4). Default: 1.
+        auto_download: Automatically download videos to local directory. Default: True.
+        output_dir: Local directory for downloaded videos. Default: "./videos".
 
     Returns:
-        Dict with video_uris (GCS paths), model_used, and generation info.
+        Dict with video_uris (GCS paths), local_paths (if auto_download), and generation info.
 
     Example:
-        Generate a cinematic video (bucket auto-created):
+        Generate a cinematic video (auto-downloaded to ./videos):
         prompt="A golden retriever running through a sunlit meadow, slow motion, cinematic"
         model="veo-3.1-generate-001"
         duration_seconds=8
@@ -274,7 +278,7 @@ async def generate_video(
 
     Note:
         GCS bucket is automatically created if not specified.
-        Override with GEMINI_VIDEO_GCS_URI env var or output_gcs_uri param.
+        Videos are automatically downloaded to output_dir when auto_download=True.
     """
     try:
         client = get_gemini_client()
@@ -287,6 +291,8 @@ async def generate_video(
             resolution=resolution,
             generate_audio=generate_audio,
             number_of_videos=number_of_videos,
+            auto_download=auto_download,
+            output_dir=output_dir,
         )
         logger.info(f"generate_video completed with model {result['model_used']}")
         return result
