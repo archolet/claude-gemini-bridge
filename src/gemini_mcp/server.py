@@ -18,14 +18,21 @@ from .client import get_gemini_client
 from .config import AVAILABLE_MODELS, get_config
 from .frontend_presets import (
     build_style_guide,
+    build_rich_style_guide,
     build_system_prompt,
     build_refinement_prompt,
     get_available_components,
     get_available_themes,
     get_available_templates,
     get_page_template,
+    get_all_micro_interactions,
+    get_all_visual_effects,
+    get_available_icon_names,
     PAGE_TEMPLATES,
     THEME_PRESETS,
+    MICRO_INTERACTIONS,
+    VISUAL_EFFECTS,
+    SVG_ICONS,
 )
 
 # Logger instance - configured in main() to use stderr (not stdout)
@@ -435,18 +442,25 @@ async def design_frontend(
             "content_structure": content,
         }
 
-        # Build style guide from theme
-        style_guide = build_style_guide(
+        # Build RICH style guide from theme (includes micro-interactions & visual effects)
+        style_guide = build_rich_style_guide(
             theme=theme,
             dark_mode=dark_mode,
             border_radius=border_radius,
+            include_micro_interactions=micro_interactions,
+            include_visual_effects=True,
         )
 
-        # Build constraints
+        # Build constraints with MAXIMUM RICHNESS emphasis
         constraints = {
             "responsive_breakpoints": [bp.strip() for bp in responsive_breakpoints.split(",")],
             "accessibility_level": accessibility_level,
             "micro_interactions": micro_interactions,
+            "output_mode": "MAXIMUM_RICHNESS",
+            "generate_inline_svgs": True,
+            "generate_all_states": True,
+            "realistic_content": True,
+            "available_icons": list(SVG_ICONS.keys())[:20],  # Top 20 icon names for reference
         }
         if max_width:
             constraints["max_width"] = max_width
@@ -477,13 +491,17 @@ async def design_frontend(
 def list_frontend_options() -> dict:
     """List available frontend design options.
 
-    Returns all available component types and themes for the design_frontend tool.
+    Returns all available component types, themes, micro-interactions,
+    visual effects, and SVG icons for the design_frontend tool.
 
     Returns:
         Dict containing:
         - components: List of available component types (atoms, molecules, organisms)
         - themes: List of available theme presets with descriptions
         - templates: List of available page templates
+        - micro_interactions: Available animation/transition presets
+        - visual_effects: Available visual effect presets (glassmorphism, neon, etc.)
+        - icons: Available inline SVG icons
     """
     # Get theme details
     themes_with_details = {
@@ -500,11 +518,33 @@ def list_frontend_options() -> dict:
         for name, preset in PAGE_TEMPLATES.items()
     }
 
+    # Get micro-interaction details
+    micro_interactions_details = {
+        name: {
+            "classes": preset.get("classes", ""),
+            "description": preset.get("description", "Animation/transition effect"),
+        }
+        for name, preset in MICRO_INTERACTIONS.items()
+    }
+
+    # Get visual effects details
+    visual_effects_details = {
+        name: {
+            "classes": preset.get("classes", ""),
+            "description": preset.get("description", "Visual effect"),
+        }
+        for name, preset in VISUAL_EFFECTS.items()
+    }
+
     return {
         "components": get_available_components(),
         "themes": themes_with_details,
         "templates": templates_with_details,
-        "note": "Use design_frontend() for components, design_page() for full pages, refine_frontend() for iterations",
+        "micro_interactions": micro_interactions_details,
+        "visual_effects": visual_effects_details,
+        "icons": get_available_icon_names(),
+        "total_icons": len(SVG_ICONS),
+        "note": "Use design_frontend() for components, design_page() for full pages, refine_frontend() for iterations. All outputs now use MAXIMUM_RICHNESS mode with inline SVGs and comprehensive state variants.",
     }
 
 
