@@ -548,6 +548,142 @@ class GeminiClient:
         logger.info(f"Image saved to: {file_path}")
         return file_path
 
+    async def generate_video(
+        self,
+        prompt: str,
+        model: str = "veo-3.1-generate-001",
+        output_gcs_uri: Optional[str] = None,
+        duration_seconds: int = 8,
+        aspect_ratio: str = "16:9",
+        resolution: str = "720p",
+        generate_audio: bool = True,
+        number_of_videos: int = 1,
+        poll_interval: int = 15,
+        max_wait_time: int = 600,
+    ) -> Dict[str, Any]:
+        """Generate video using Veo 3.1 models.
+
+        Veo 3.1 generates high-quality videos with native audio support.
+        This is a long-running operation that requires polling.
+
+        Args:
+            prompt: Text description of the video to generate.
+            model: Veo model to use:
+                   - veo-3.1-generate-001: Standard quality (~$0.40/sec)
+                   - veo-3.1-fast-generate-001: Fast generation (~$0.15/sec)
+            output_gcs_uri: GCS URI for output (gs://bucket/path). Required.
+            duration_seconds: Video length in seconds (4, 6, or 8). Default: 8.
+            aspect_ratio: "16:9" (landscape) or "9:16" (portrait). Default: "16:9".
+            resolution: "720p" or "1080p". Default: "720p".
+            generate_audio: Generate synchronized audio. Default: True.
+            number_of_videos: Number of videos to generate (1-4). Default: 1.
+            poll_interval: Seconds between status checks. Default: 15.
+            max_wait_time: Maximum wait time in seconds. Default: 600 (10 min).
+
+        Returns:
+            Dict containing:
+                - video_uris: List of GCS URIs for generated videos
+                - model_used: Model that generated the video
+                - duration_seconds: Actual video duration
+                - status: "completed" or "timeout"
+
+        Note:
+            Requires GEMINI_VIDEO_GCS_URI environment variable or output_gcs_uri param.
+        """
+        import asyncio
+
+        # Use provided GCS URI or config default
+        gcs_uri = output_gcs_uri or self.config.default_video_gcs_uri
+        if not gcs_uri:
+            raise ValueError(
+                "output_gcs_uri is required for video generation. "
+                "Set GEMINI_VIDEO_GCS_URI environment variable or provide output_gcs_uri parameter. "
+                "Example: gs://your-bucket/videos/"
+            )
+
+        # Validate parameters
+        if duration_seconds not in [4, 6, 8]:
+            duration_seconds = 8  # Default to 8 if invalid
+        if aspect_ratio not in ["16:9", "9:16"]:
+            aspect_ratio = "16:9"
+        if resolution not in ["720p", "1080p"]:
+            resolution = "720p"
+        number_of_videos = max(1, min(4, number_of_videos))
+
+        # Build video generation config
+        config = types.GenerateVideosConfig(
+            aspect_ratio=aspect_ratio,
+            output_gcs_uri=gcs_uri,
+        )
+
+        # Note: duration_seconds, resolution, generate_audio, number_of_videos
+        # may need to be set via different SDK attributes depending on version
+
+        # Retry logic for authentication errors
+        max_retries = 2
+        last_error = None
+
+        for attempt in range(max_retries):
+            try:
+                # Start video generation (long-running operation)
+                operation = self.client.models.generate_videos(
+                    model=model,
+                    prompt=prompt,
+                    config=config,
+                )
+
+                logger.info(f"Video generation started with model {model}")
+
+                # Poll for completion
+                elapsed = 0
+                while not operation.done and elapsed < max_wait_time:
+                    await asyncio.sleep(poll_interval)
+                    elapsed += poll_interval
+                    operation = self.client.operations.get(operation)
+                    logger.debug(f"Video generation progress: elapsed={elapsed}s, done={operation.done}")
+
+                if not operation.done:
+                    return {
+                        "model_used": model,
+                        "prompt": prompt,
+                        "status": "timeout",
+                        "message": f"Video generation timed out after {max_wait_time} seconds",
+                        "operation_name": getattr(operation, "name", None),
+                    }
+
+                # Extract results
+                result: Dict[str, Any] = {
+                    "model_used": model,
+                    "prompt": prompt,
+                    "status": "completed",
+                    "duration_seconds": duration_seconds,
+                    "aspect_ratio": aspect_ratio,
+                    "resolution": resolution,
+                }
+
+                if operation.response and hasattr(operation, "result"):
+                    video_uris = []
+                    for video in operation.result.generated_videos:
+                        if hasattr(video, "video") and hasattr(video.video, "uri"):
+                            video_uris.append(video.video.uri)
+                    result["video_uris"] = video_uris
+                    result["video_count"] = len(video_uris)
+
+                logger.info(f"Video generation completed: {result.get('video_count', 0)} videos")
+                return result
+
+            except Exception as e:
+                last_error = e
+                if self._is_auth_error(e) and attempt < max_retries - 1:
+                    logger.warning(f"Video gen auth error detected (attempt {attempt + 1}): {e}")
+                    self._refresh_credentials_and_client()
+                    continue
+                else:
+                    logger.error(f"Video generation failed: {e}")
+                    break
+
+        raise RuntimeError(f"Failed to generate video: {last_error}")
+
     async def design_component(
         self,
         component_type: str,

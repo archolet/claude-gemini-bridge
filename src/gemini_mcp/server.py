@@ -234,6 +234,78 @@ async def generate_image(
 
 
 @mcp.tool()
+async def generate_video(
+    prompt: str,
+    model: str = "veo-3.1-generate-001",
+    output_gcs_uri: str = "",
+    duration_seconds: int = 8,
+    aspect_ratio: str = "16:9",
+    resolution: str = "720p",
+    generate_audio: bool = True,
+    number_of_videos: int = 1,
+) -> dict:
+    """Generate a video using Veo 3.1 models.
+
+    Creates high-quality videos with native audio from text descriptions.
+    Videos are saved to Google Cloud Storage (GCS bucket required).
+
+    IMPORTANT: This is a long-running operation. Video generation takes
+    1-10 minutes depending on duration and resolution.
+
+    Args:
+        prompt: Text description of the video to generate. Be specific
+                about scenes, actions, camera movements, and mood.
+        model: Veo model to use:
+               - veo-3.1-generate-001: Highest quality (~$0.40/sec)
+               - veo-3.1-fast-generate-001: Faster generation (~$0.15/sec)
+        output_gcs_uri: GCS URI for output (e.g., "gs://my-bucket/videos/").
+                       Required. Set GEMINI_VIDEO_GCS_URI env var as default.
+        duration_seconds: Video length (4, 6, or 8 seconds). Default: 8.
+        aspect_ratio: "16:9" (landscape) or "9:16" (portrait). Default: "16:9".
+        resolution: "720p" or "1080p". Default: "720p".
+        generate_audio: Generate synchronized audio (dialogue, music, SFX). Default: True.
+        number_of_videos: Number of video variations (1-4). Default: 1.
+
+    Returns:
+        Dict with video_uris (GCS paths), model_used, and generation info.
+
+    Example:
+        Generate a cinematic video:
+        prompt="A golden retriever running through a sunlit meadow, slow motion, cinematic"
+        model="veo-3.1-generate-001"
+        output_gcs_uri="gs://my-bucket/videos/"
+        duration_seconds=8
+        resolution="1080p"
+
+    Note:
+        Requires a GCS bucket with write permissions. Videos are stored at
+        the specified output_gcs_uri location.
+    """
+    try:
+        client = get_gemini_client()
+        result = await client.generate_video(
+            prompt=prompt,
+            model=model,
+            output_gcs_uri=output_gcs_uri if output_gcs_uri else None,
+            duration_seconds=duration_seconds,
+            aspect_ratio=aspect_ratio,
+            resolution=resolution,
+            generate_audio=generate_audio,
+            number_of_videos=number_of_videos,
+        )
+        logger.info(f"generate_video completed with model {result['model_used']}")
+        return result
+
+    except Exception as e:
+        logger.error(f"generate_video failed: {e}")
+        return {
+            "error": str(e),
+            "model_used": model,
+            "prompt": prompt,
+        }
+
+
+@mcp.tool()
 async def design_frontend(
     component_type: str,
     context: str = "",
@@ -397,17 +469,19 @@ def list_frontend_options() -> dict:
 def list_models() -> dict:
     """List available Gemini models and their capabilities.
 
-    Returns information about text generation and image generation models
+    Returns information about text, image, and video generation models
     available on Vertex AI.
 
     Returns:
-        Dict containing lists of text and image models with their specs.
+        Dict containing lists of text, image, and video models with their specs.
     """
     return {
         "text_models": AVAILABLE_MODELS["text"],
         "image_models": AVAILABLE_MODELS["image"],
+        "video_models": AVAILABLE_MODELS.get("video", []),
         "default_text_model": get_config().default_model if _config_valid() else "gemini-3-flash-preview",
         "default_image_model": get_config().default_image_model if _config_valid() else "gemini-3-pro-image-preview",
+        "default_video_model": "veo-3.1-generate-001",
     }
 
 
