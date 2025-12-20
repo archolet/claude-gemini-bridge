@@ -108,3 +108,49 @@ from .section_utils import (
     has_section_markers,
     migrate_to_markers,
 )
+
+from .theme_factories import (
+    # Color Utility Functions
+    hex_to_rgb,
+    rgb_to_hex,
+    hex_to_hsl,
+    hsl_to_hex,
+    relative_luminance,
+    contrast_ratio,
+    validate_contrast,
+    # Brand Colors
+    BrandColors,
+    # Theme Factory Functions (14 themes)
+    create_modern_minimal_theme,
+    create_brutalist_theme,
+    create_glassmorphism_theme,
+    create_neo_brutalism_theme,
+    create_soft_ui_theme,
+    create_corporate_theme,
+    create_gradient_theme,
+    create_cyberpunk_theme,
+    create_retro_theme,
+    create_pastel_theme,
+    create_dark_mode_first_theme,
+    create_high_contrast_theme,
+    create_nature_theme,
+    create_startup_theme,
+    # Theme-Specific Constants
+    BRUTALIST_CONTRAST_PAIRS,
+    NEOBRUTALISM_GRADIENTS,
+    GRADIENT_ANIMATIONS,
+    CORPORATE_INDUSTRIES,
+    CORPORATE_LAYOUTS,
+    GRADIENT_LIBRARY,
+    NEON_COLORS,
+    GLOW_INTENSITIES,
+    RETRO_FONT_PAIRINGS,
+    PASTEL_ACCESSIBLE_PAIRS,
+    NATURE_SEASONS,
+    STARTUP_ARCHETYPES,
+    # Helper Functions
+    calculate_neumorphism_shadows,
+    generate_neon_glow,
+    get_gradient,
+    list_gradients_by_category,
+)
