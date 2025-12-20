@@ -1,0 +1,390 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Serenity - Meditasyon & Sağlık</title>
+
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <!-- Fonts: Poppins -->
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600&display=swap" rel="stylesheet">
+
+    <!-- Icons: FontAwesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <style>
+        :root {
+            --bg-color: #E8EEF4;
+            --text-main: #4A5568;
+            --text-light: #718096;
+            --accent: #7B93DB;
+
+            /* Neumorphic Shadow Variables */
+            --shadow-light: -8px -8px 16px #FFFFFF;
+            --shadow-dark: 8px 8px 16px #D1D9E6;
+
+            --inner-shadow-light: inset -8px -8px 16px #FFFFFF;
+            --inner-shadow-dark: inset 8px 8px 16px #D1D9E6;
+        }
+
+        body {
+            font-family: 'Poppins', sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-main);
+        }
+
+        /* --- Neumorphic Utility Classes --- */
+
+        /* Raised Element (Card, Button) */
+        .neu-flat {
+            background: var(--bg-color);
+            box-shadow: var(--shadow-dark), var(--shadow-light);
+            border-radius: 20px;
+            border: 1px solid rgba(255,255,255,0.2);
+            transition: all 0.3s ease;
+        }
+
+        /* Hover Effect for Buttons */
+        .neu-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 10px 10px 18px #D1D9E6, -10px -10px 18px #FFFFFF;
+        }
+
+        .neu-btn:active {
+            box-shadow: var(--inner-shadow-dark), var(--inner-shadow-light);
+            transform: translateY(0);
+        }
+
+        /* Pressed/Inset Element (Inputs, Active States) */
+        .neu-pressed {
+            background: var(--bg-color);
+            box-shadow: var(--inner-shadow-dark), var(--inner-shadow-light);
+            border-radius: 20px;
+            border: none;
+        }
+
+        /* Circular Elements */
+        .neu-circle {
+            border-radius: 50%;
+        }
+
+        /* Icon Container */
+        .neu-icon-box {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--accent);
+        }
+
+        /* Animations */
+        @keyframes breathe {
+            0%, 100% { transform: scale(1); box-shadow: var(--shadow-dark), var(--shadow-light); }
+            50% { transform: scale(1.05); box-shadow: 12px 12px 24px #D1D9E6, -12px -12px 24px #FFFFFF; }
+        }
+
+        .animate-breathe {
+            animation: breathe 6s ease-in-out infinite;
+        }
+
+        /* Soft Text Gradient for Hero */
+        .text-soft {
+            color: var(--text-main);
+            text-shadow: 1px 1px 1px #fff;
+        }
+    </style>
+</head>
+<body class="antialiased scroll-smooth">
+
+    <!-- SECTION: navbar -->
+    <nav class="fixed w-full z-50 top-0 left-0 py-4 px-6 bg-[#E8EEF4]/90 backdrop-blur-sm">
+        <div class="max-w-7xl mx-auto flex justify-between items-center neu-flat px-6 py-3 rounded-full">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 neu-flat neu-circle flex items-center justify-center text-[#7B93DB]">
+                    <i class="fa-solid fa-spa"></i>
+                </div>
+                <span class="text-xl font-semibold tracking-wide text-gray-700">Serenity</span>
+            </div>
+
+            <div class="hidden md:flex gap-8 text-gray-600 font-medium">
+                <a href="#features" class="hover:text-[#7B93DB] transition-colors">Özellikler</a>
+                <a href="#testimonials" class="hover:text-[#7B93DB] transition-colors">Yorumlar</a>
+                <a href="#pricing" class="hover:text-[#7B93DB] transition-colors">Fiyatlandırma</a>
+            </div>
+
+            <button class="neu-flat neu-btn px-6 py-2 rounded-full text-[#7B93DB] font-medium text-sm">
+                Uygulamayı İndir
+            </button>
+        </div>
+    </nav>
+    <!-- /SECTION: navbar -->
+
+    <!-- SECTION: hero -->
+    <section class="min-h-screen flex items-center pt-24 pb-12 px-6 relative overflow-hidden">
+        <div class="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
+
+            <!-- Text Content -->
+            <div class="space-y-8 z-10">
+                <span class="neu-pressed px-4 py-2 rounded-full text-sm font-medium text-[#7B93DB] inline-block">
+                    #1 Farkındalık Uygulaması
+                </span>
+                <h1 class="text-5xl lg:text-6xl font-light text-gray-700 leading-tight">
+                    Zihninizi <br>
+                    <span class="font-semibold text-[#7B93DB]">Özgürleştirin</span>
+                </h1>
+                <p class="text-lg text-gray-500 max-w-md leading-relaxed">
+                    Günün karmaşasından uzaklaşın. Serenity ile iç huzurunuzu keşfedin, uykunuzu düzenleyin ve anı yaşayın.
+                </p>
+                <div class="flex gap-6">
+                    <button class="neu-flat neu-btn px-8 py-4 rounded-full text-[#7B93DB] font-semibold flex items-center gap-3">
+                        <i class="fa-solid fa-play"></i> Hemen Başla
+                    </button>
+                    <button class="neu-flat neu-btn w-14 h-14 rounded-full flex items-center justify-center text-gray-500">
+                        <i class="fa-solid fa-arrow-down"></i>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Visual Content (Abstract Breathing Animation) -->
+            <div class="flex justify-center items-center relative">
+                <!-- Outer Rings -->
+                <div class="absolute w-96 h-96 neu-flat neu-circle opacity-30 animate-breathe" style="animation-delay: 0s;"></div>
+                <div class="absolute w-72 h-72 neu-flat neu-circle opacity-60 animate-breathe" style="animation-delay: 1s;"></div>
+
+                <!-- Main Visual -->
+                <div class="w-64 h-64 neu-flat neu-circle flex items-center justify-center animate-breathe z-10 relative">
+                    <i class="fa-solid fa-leaf text-6xl text-[#7B93DB] opacity-80"></i>
+                    <!-- Decorative dots -->
+                    <div class="absolute top-8 right-10 w-4 h-4 neu-pressed neu-circle bg-blue-100"></div>
+                    <div class="absolute bottom-10 left-8 w-6 h-6 neu-pressed neu-circle bg-blue-50"></div>
+                </div>
+            </div>
+        </div>
+    </section>
+    <!-- /SECTION: hero -->
+
+    <!-- SECTION: features -->
+    <section id="features" class="py-24 px-6 bg-[#E8EEF4]">
+        <div class="max-w-7xl mx-auto">
+            <div class="text-center mb-16">
+                <h2 class="text-3xl font-semibold text-gray-700 mb-4">Size Nasıl Yardımcı Oluyoruz?</h2>
+                <p class="text-gray-500">Bütünsel sağlık için özenle tasarlanmış araçlar.</p>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
+                <!-- Feature 1 -->
+                <div class="neu-flat p-8 flex flex-col items-center text-center group hover:scale-[1.02] transition-transform">
+                    <div class="w-16 h-16 neu-pressed neu-circle neu-icon-box mb-6 text-2xl">
+                        <i class="fa-solid fa-moon"></i>
+                    </div>
+                    <h3 class="text-lg font-medium text-gray-700 mb-2">Uyku Takibi</h3>
+                    <p class="text-sm text-gray-500">Derin uyku analizleri ve rahatlatıcı seslerle daha iyi uyuyun.</p>
+                </div>
+
+                <!-- Feature 2 -->
+                <div class="neu-flat p-8 flex flex-col items-center text-center group hover:scale-[1.02] transition-transform">
+                    <div class="w-16 h-16 neu-pressed neu-circle neu-icon-box mb-6 text-2xl">
+                        <i class="fa-solid fa-headphones-simple"></i>
+                    </div>
+                    <h3 class="text-lg font-medium text-gray-700 mb-2">Rehberli Meditasyon</h3>
+                    <p class="text-sm text-gray-500">Her seviyeye uygun, uzmanlarca hazırlanmış sesli rehberler.</p>
+                </div>
+
+                <!-- Feature 3 -->
+                <div class="neu-flat p-8 flex flex-col items-center text-center group hover:scale-[1.02] transition-transform">
+                    <div class="w-16 h-16 neu-pressed neu-circle neu-icon-box mb-6 text-2xl">
+                        <i class="fa-solid fa-wind"></i>
+                    </div>
+                    <h3 class="text-lg font-medium text-gray-700 mb-2">Nefes Egzersizleri</h3>
+                    <p class="text-sm text-gray-500">Stresi azaltmak için 4-7-8 ve kutu nefes teknikleri.</p>
+                </div>
+
+                <!-- Feature 4 -->
+                <div class="neu-flat p-8 flex flex-col items-center text-center group hover:scale-[1.02] transition-transform">
+                    <div class="w-16 h-16 neu-pressed neu-circle neu-icon-box mb-6 text-2xl">
+                        <i class="fa-solid fa-heart-pulse"></i>
+                    </div>
+                    <h3 class="text-lg font-medium text-gray-700 mb-2">Duygu Günlüğü</h3>
+                    <p class="text-sm text-gray-500">Hislerinizi takip edin ve duygusal farkındalığınızı artırın.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+    <!-- /SECTION: features -->
+
+    <!-- SECTION: testimonials -->
+    <section id="testimonials" class="py-24 px-6">
+        <div class="max-w-7xl mx-auto">
+            <h2 class="text-3xl font-semibold text-gray-700 mb-16 text-center">Mutlu Kullanıcılar</h2>
+
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+                <!-- Review 1 -->
+                <div class="neu-flat p-8 relative mt-6">
+                    <div class="absolute -top-6 left-8 w-14 h-14 neu-flat neu-circle overflow-hidden border-2 border-[#E8EEF4]">
+                        <img src="https://i.pravatar.cc/150?img=32" alt="User" class="w-full h-full object-cover opacity-90">
+                    </div>
+                    <div class="mt-6">
+                        <div class="flex text-yellow-400 text-xs mb-3 space-x-1">
+                            <i class="fa-solid fa-star"></i><i class="fa-solid fa-star"></i><i class="fa-solid fa-star"></i><i class="fa-solid fa-star"></i><i class="fa-solid fa-star"></i>
+                        </div>
+                        <p class="text-gray-500 italic text-sm mb-4">"Uyku problemlerim için indirdim, şimdi onsuz yapamıyorum. Arayüzü o kadar sakinleştirici ki..."</p>
+                        <h4 class="text-gray-700 font-medium text-sm">Ayşe Yılmaz</h4>
+                    </div>
+                </div>
+
+                <!-- Review 2 -->
+                <div class="neu-flat p-8 relative mt-6 transform md:-translate-y-4">
+                    <div class="absolute -top-6 left-8 w-14 h-14 neu-flat neu-circle overflow-hidden border-2 border-[#E8EEF4]">
+                        <img src="https://i.pravatar.cc/150?img=11" alt="User" class="w-full h-full object-cover opacity-90">
+                    </div>
+                    <div class="mt-6">
+                        <div class="flex text-yellow-400 text-xs mb-3 space-x-1">
+                            <i class="fa-solid fa-star"></i><i class="fa-solid fa-star"></i><i class="fa-solid fa-star"></i><i class="fa-solid fa-star"></i><i class="fa-solid fa-star"></i>
+                        </div>
+                        <p class="text-gray-500 italic text-sm mb-4">"Günlük stresle başa çıkmamda en büyük yardımcım. Nefes egzersizleri harika."</p>
+                        <h4 class="text-gray-700 font-medium text-sm">Caner Demir</h4>
+                    </div>
+                </div>
+
+                <!-- Review 3 -->
+                <div class="neu-flat p-8 relative mt-6">
+                    <div class="absolute -top-6 left-8 w-14 h-14 neu-flat neu-circle overflow-hidden border-2 border-[#E8EEF4]">
+                        <img src="https://i.pravatar.cc/150?img=5" alt="User" class="w-full h-full object-cover opacity-90">
+                    </div>
+                    <div class="mt-6">
+                        <div class="flex text-yellow-400 text-xs mb-3 space-x-1">
+                            <i class="fa-solid fa-star"></i><i class="fa-solid fa-star"></i><i class="fa-solid fa-star"></i><i class="fa-solid fa-star"></i><i class="fa-solid fa-star-half-stroke"></i>
+                        </div>
+                        <p class="text-gray-500 italic text-sm mb-4">"Tasarımı göz yormuyor, kullanımı çok kolay. Odaklanma müzikleri çalışırken çok iyi."</p>
+                        <h4 class="text-gray-700 font-medium text-sm">Elif Kaya</h4>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+    <!-- /SECTION: testimonials -->
+
+    <!-- SECTION: pricing -->
+    <section id="pricing" class="py-24 px-6 bg-[#E8EEF4]">
+        <div class="max-w-5xl mx-auto">
+            <div class="text-center mb-12">
+                <h2 class="text-3xl font-semibold text-gray-700 mb-6">Huzura Giden Yolculuk</h2>
+
+                <!-- Toggle Switch -->
+                <div class="flex items-center justify-center gap-4">
+                    <span class="text-gray-500 text-sm">Aylık</span>
+                    <div class="w-16 h-8 neu-pressed rounded-full relative cursor-pointer px-1 flex items-center">
+                        <div class="w-6 h-6 neu-flat neu-circle bg-[#7B93DB] absolute right-1"></div>
+                    </div>
+                    <span class="text-gray-700 font-medium text-sm">Yıllık <span class="text-xs text-[#7B93DB] ml-1">(-20%)</span></span>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-8 items-center">
+                <!-- Basic -->
+                <div class="neu-flat p-8 rounded-3xl text-center">
+                    <h3 class="text-xl font-medium text-gray-600 mb-4">Başlangıç</h3>
+                    <div class="text-3xl font-bold text-gray-700 mb-6">₺0<span class="text-sm font-normal text-gray-400">/ay</span></div>
+                    <ul class="text-gray-500 text-sm space-y-4 mb-8 text-left pl-4">
+                        <li class="flex items-center gap-2"><i class="fa-solid fa-check text-[#7B93DB]"></i> 5 Meditasyon</li>
+                        <li class="flex items-center gap-2"><i class="fa-solid fa-check text-[#7B93DB]"></i> Temel Nefes</li>
+                        <li class="flex items-center gap-2"><i class="fa-solid fa-check text-[#7B93DB]"></i> Reklamlı</li>
+                    </ul>
+                    <button class="neu-flat neu-btn w-full py-3 rounded-xl text-gray-600 font-medium text-sm">Kayıt Ol</button>
+                </div>
+
+                <!-- Pro (Featured) -->
+                <div class="neu-flat p-8 rounded-3xl text-center transform md:scale-110 z-10 border-2 border-[#7B93DB]/10 relative">
+                    <div class="absolute top-0 left-1/2 transform -translate-x-1/2 -translate-y-1/2">
+                        <span class="bg-[#7B93DB] text-white text-xs px-3 py-1 rounded-full shadow-lg">Popüler</span>
+                    </div>
+                    <h3 class="text-xl font-semibold text-[#7B93DB] mb-4">Serenity Pro</h3>
+                    <div class="text-4xl font-bold text-gray-700 mb-6">₺49<span class="text-sm font-normal text-gray-400">/ay</span></div>
+                    <ul class="text-gray-500 text-sm space-y-4 mb-8 text-left pl-4">
+                        <li class="flex items-center gap-2"><i class="fa-solid fa-check text-[#7B93DB]"></i> Sınırsız Meditasyon</li>
+                        <li class="flex items-center gap-2"><i class="fa-solid fa-check text-[#7B93DB]"></i> Uyku Hikayeleri</li>
+                        <li class="flex items-center gap-2"><i class="fa-solid fa-check text-[#7B93DB]"></i> Çevrimdışı Mod</li>
+                        <li class="flex items-center gap-2"><i class="fa-solid fa-check text-[#7B93DB]"></i> Reklamsız</li>
+                    </ul>
+                    <button class="neu-pressed w-full py-3 rounded-xl text-[#7B93DB] font-bold text-sm shadow-inner">Pro'ya Geç</button>
+                </div>
+
+                <!-- Zen Master -->
+                <div class="neu-flat p-8 rounded-3xl text-center">
+                    <h3 class="text-xl font-medium text-gray-600 mb-4">Zen Master</h3>
+                    <div class="text-3xl font-bold text-gray-700 mb-6">₺89<span class="text-sm font-normal text-gray-400">/ay</span></div>
+                    <ul class="text-gray-500 text-sm space-y-4 mb-8 text-left pl-4">
+                        <li class="flex items-center gap-2"><i class="fa-solid fa-check text-[#7B93DB]"></i> Her Şey Dahil</li>
+                        <li class="flex items-center gap-2"><i class="fa-solid fa-check text-[#7B93DB]"></i> Canlı Koçluk</li>
+                        <li class="flex items-center gap-2"><i class="fa-solid fa-check text-[#7B93DB]"></i> Özel Atölyeler</li>
+                    </ul>
+                    <button class="neu-flat neu-btn w-full py-3 rounded-xl text-gray-600 font-medium text-sm">İletişime Geç</button>
+                </div>
+            </div>
+        </div>
+    </section>
+    <!-- /SECTION: pricing -->
+
+    <!-- SECTION: footer -->
+    <footer class="pt-16 pb-8 px-6">
+        <div class="max-w-7xl mx-auto">
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-12 mb-12">
+                <!-- Brand -->
+                <div>
+                    <div class="flex items-center gap-2 mb-4 text-[#7B93DB]">
+                        <i class="fa-solid fa-spa text-2xl"></i>
+                        <span class="text-2xl font-semibold text-gray-700">Serenity</span>
+                    </div>
+                    <p class="text-sm text-gray-500 mb-6">
+                        Daha sakin, daha mutlu ve daha bilinçli bir yaşam için yol arkadaşınız.
+                    </p>
+                    <div class="flex gap-4">
+                        <a href="#" class="w-10 h-10 neu-flat neu-circle flex items-center justify-center text-gray-500 hover:text-[#7B93DB] transition-colors"><i class="fa-brands fa-instagram"></i></a>
+                        <a href="#" class="w-10 h-10 neu-flat neu-circle flex items-center justify-center text-gray-500 hover:text-[#7B93DB] transition-colors"><i class="fa-brands fa-twitter"></i></a>
+                        <a href="#" class="w-10 h-10 neu-flat neu-circle flex items-center justify-center text-gray-500 hover:text-[#7B93DB] transition-colors"><i class="fa-brands fa-youtube"></i></a>
+                    </div>
+                </div>
+
+                <!-- Links -->
+                <div>
+                    <h4 class="font-semibold text-gray-700 mb-4">Keşfet</h4>
+                    <ul class="space-y-2 text-sm text-gray-500">
+                        <li><a href="#" class="hover:text-[#7B93DB]">Hakkımızda</a></li>
+                        <li><a href="#" class="hover:text-[#7B93DB]">Kariyer</a></li>
+                        <li><a href="#" class="hover:text-[#7B93DB]">Blog</a></li>
+                        <li><a href="#" class="hover:text-[#7B93DB]">Basın</a></li>
+                    </ul>
+                </div>
+
+                <!-- Support -->
+                <div>
+                    <h4 class="font-semibold text-gray-700 mb-4">Destek</h4>
+                    <ul class="space-y-2 text-sm text-gray-500">
+                        <li><a href="#" class="hover:text-[#7B93DB]">Yardım Merkezi</a></li>
+                        <li><a href="#" class="hover:text-[#7B93DB]">Gizlilik Politikası</a></li>
+                        <li><a href="#" class="hover:text-[#7B93DB]">Kullanım Şartları</a></li>
+                        <li><a href="#" class="hover:text-[#7B93DB]">İletişim</a></li>
+                    </ul>
+                </div>
+
+                <!-- Newsletter -->
+                <div>
+                    <h4 class="font-semibold text-gray-700 mb-4">Bülten</h4>
+                    <p class="text-sm text-gray-500 mb-4">Haftalık farkındalık ipuçları için abone olun.</p>
+                    <form class="flex flex-col gap-3">
+                        <input type="email" placeholder="E-posta adresiniz" class="neu-pressed px-4 py-3 outline-none text-gray-600 text-sm placeholder-gray-400 focus:text-[#7B93DB]">
+                        <button class="neu-flat neu-btn py-2 rounded-xl text-[#7B93DB] font-medium text-sm">Abone Ol</button>
+                    </form>
+                </div>
+            </div>
+
+            <div class="border-t border-gray-300/30 pt-8 text-center">
+                <p class="text-xs text-gray-400">&copy; 2023 Serenity App. Tüm hakları saklıdır.</p>
+            </div>
+        </div>
+    </footer>
+    <!-- /SECTION: footer -->
+
+</body>
+</html>
