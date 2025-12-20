@@ -8,6 +8,84 @@ from typing import Dict, List, Any, Optional
 
 # Example component designs with rich CSS/JS
 COMPONENT_EXAMPLES: Dict[str, Dict[str, Any]] = {
+
+    "ultra_dense_card": {
+        "input": "Create a glassmorphic NFT card with holographic effects",
+        "output": {
+            "design_thinking": "1. VISUAL DNA: Cyberpunk luxury. Needs iridescence. 2. LAYERS: 5 layers (Base + Mesh + Noise + Holograph + Glass). 3. PHYSICS: Tilt effect on hover.",
+            "component_id": "nft_holo_card",
+            "atomic_level": "molecule",
+            "html": """
+<div class="group relative w-full max-w-sm rounded-[2.5rem] p-0.5 transition-all duration-500 hover:scale-105 hover:shadow-[0_0_80px_-10px_rgba(168,85,247,0.4)]">
+    <!-- HOLOGRAPHIC BORDER GRADIENT -->
+    <div class="absolute inset-0 rounded-[2.5rem] bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 opacity-100 blur-sm transition-all duration-500 group-hover:opacity-100 group-hover:blur-md animate-gradient bg-[length:200%_200%]"></div>
+    
+    <!-- MAIN CARD CONTAINER -->
+    <div class="relative h-full w-full overflow-hidden rounded-[2.4rem] bg-slate-900/90 backdrop-blur-3xl ring-1 ring-white/10">
+        
+        <!-- LAYER 1: NOISE TEXTURE -->
+        <div class="absolute inset-0 z-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-20 mix-blend-overlay"></div>
+        
+        <!-- LAYER 2: INTERACTIVE BLOB BACKGROUND -->
+        <div class="absolute -top-24 -right-24 h-64 w-64 rounded-full bg-purple-600/30 blur-[80px] transition-all duration-700 group-hover:bg-purple-600/50"></div>
+        <div class="absolute -bottom-24 -left-24 h-64 w-64 rounded-full bg-indigo-600/30 blur-[80px] transition-all duration-700 group-hover:bg-indigo-600/50"></div>
+        
+        <!-- CARD CONTENT -->
+        <div class="relative z-10 flex flex-col p-6">
+            
+            <!-- IMAGE CONTAINER with Inner Shadow & Reflection -->
+            <div class="relative mb-6 overflow-hidden rounded-[2rem] shadow-2xl ring-1 ring-white/10 group-hover:shadow-purple-500/20">
+                <div class="absolute inset-0 z-20 bg-gradient-to-tr from-transparent via-transparent to-white/20 opacity-0 transition-opacity duration-500 group-hover:opacity-100"></div>
+                <img src="https://mir-s3-cdn-cf.behance.net/project_modules/max_1200/961163155700689.635a9c049d569.jpg" alt="NFT" class="h-64 w-full object-cover transition-transform duration-700 ease-[cubic-bezier(0.25,1,0.5,1)] group-hover:scale-110">
+                
+                <!-- Floating Badge -->
+                <div class="absolute top-4 right-4 z-30 flex items-center gap-2 rounded-full border border-white/20 bg-black/40 px-3 py-1.5 backdrop-blur-md">
+                    <span class="relative flex h-2 w-2">
+                      <span class="absolute inline-flex h-full w-full animate-ping rounded-full bg-green-400 opacity-75"></span>
+                      <span class="relative inline-flex h-2 w-2 rounded-full bg-green-500"></span>
+                    </span>
+                    <span class="text-xs font-bold tracking-wider text-white">LIVE</span>
+                </div>
+            </div>
+            
+            <!-- TEXT DETAILS -->
+            <div class="mb-4">
+                <h3 class="bg-gradient-to-r from-white to-white/60 bg-clip-text text-2xl font-black tracking-tight text-transparent drop-shadow-sm">Cosmic Traveler #1337</h3>
+                <p class="text-sm font-medium text-slate-400">Created by <span class="text-purple-400 group-hover:underline">Neo_Artist</span></p>
+            </div>
+            
+            <!-- STATS ROW with Glass Capsules -->
+            <div class="mb-6 grid grid-cols-2 gap-3">
+                <div class="flex flex-col items-center justify-center rounded-2xl border border-white/5 bg-white/5 py-3 transition-colors hover:bg-white/10">
+                    <span class="text-xs font-bold uppercase tracking-widest text-slate-500">Current Bid</span>
+                    <span class="text-lg font-black text-white">4.2 ETH</span>
+                </div>
+                <div class="flex flex-col items-center justify-center rounded-2xl border border-white/5 bg-white/5 py-3 transition-colors hover:bg-white/10">
+                    <span class="text-xs font-bold uppercase tracking-widest text-slate-500">Ending In</span>
+                    <span class="text-lg font-black text-white">08h 12m</span>
+                </div>
+            </div>
+            
+            <!-- ACTION BUTTON with Complex Hover Physics -->
+            <button class="group/btn relative w-full overflow-hidden rounded-xl bg-white py-4 text-center font-bold text-slate-900 transition-all hover:scale-[1.02] hover:shadow-lg hover:shadow-white/20 active:scale-95">
+                <span class="relative z-10">Place Bid</span>
+                <div class="absolute inset-0 -translate-x-full bg-gradient-to-r from-purple-400 to-indigo-400 transition-transform duration-300 group-hover/btn:translate-x-0"></div>
+                <span class="absolute inset-0 z-20 flex items-center justify-center opacity-0 transition-opacity duration-300 group-hover/btn:opacity-100 text-white">Confirm Transaction</span>
+            </button>
+        </div>
+    </div>
+</div>
+""",
+            "tailwind_classes_used": ["bg-slate-900", "backdrop-blur-3xl", "animate-gradient"],
+            "accessibility_features": ["alt text"],
+            "responsive_breakpoints": [],
+            "dark_mode_support": True,
+            "micro_interactions": ["hover:scale-105", "group-hover"],
+            "design_notes": "Dense layering used."
+        }
+    },
+
+
     "button": {
         "input": {
             "component_type": "button",
