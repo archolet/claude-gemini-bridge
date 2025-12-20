@@ -1231,8 +1231,22 @@ Ensure all animations follow organic physics:
 3.  **Preserve Structure**: Do not break the layout, but *enhance* the styling.
 4.  **Alpine.js**: Ensure interactivity is preserved or enhanced.
 
+### 4. TRI-SPLIT REFINEMENT (MANDATORY)
+You are refining a TRI-SPLIT Component. You must return 3 separate keys:
+- `html`: Updated HTML structure (Tailwind ONLY).
+- `css`: Updated Custom CSS (if physics changed).
+- `javascript`: Updated Logic (if behavior changed).
+
 ### OUTPUT FORMAT
-Return the COMPLETE, IMPROVED HTML in the standard JSON format with `design_thinking` explaining your aesthetic choices.
+```json
+{
+  "design_thinking": "1. CRITIQUE: ... 2. DENSITY PLAN: ...",
+  "html": "...",
+  "css": "...",
+  "javascript": "...",
+  "tailwind_classes_used": [...]
+}
+```
 """
 
     return base_prompt + refinement_section
