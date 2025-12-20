@@ -7,7 +7,7 @@ Uses Pydantic v2 for modern validation features.
 import re
 from datetime import datetime
 from typing import Any, Dict, List, Literal, Optional
-from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic import BaseModel, Field, field_validator
 
 
 # =============================================================================
@@ -126,6 +126,7 @@ class DesignResponse(BaseModel):
         description="Animation/transition classes"
     )
     design_notes: str = Field(default="", description="Design decision notes")
+    design_thinking: str = Field(default="", description="Design-CoT reasoning step before generation")
     model_used: str = Field(default="gemini-3-pro-preview", description="Model used")
 
     # Optional fields

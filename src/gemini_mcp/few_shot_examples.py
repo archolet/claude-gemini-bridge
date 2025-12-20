@@ -16,6 +16,7 @@ COMPONENT_EXAMPLES: Dict[str, Dict[str, Any]] = {
             "theme": "modern-minimal",
         },
         "output": {
+            "design_thinking": "1. VISUAL DNA: High-impact CTA with material depth. Using complex shadow layering (colored shadow + standard shadow) to create a 'hovering' effect. 2. LAYER ARCHITECTURE: Gradient background with inner lightning (white/20 overlay) to simulate a polished surface. 3. INTERACTION MODEL: Magnetic lift effect (-translate-y-1) paired with shadow expansion for tactile feedback.",
             "component_id": "btn_newsletter_cta",
             "atomic_level": "atom",
             "html": """<button
@@ -86,6 +87,7 @@ COMPONENT_EXAMPLES: Dict[str, Dict[str, Any]] = {
             "theme": "modern-minimal",
         },
         "output": {
+            "design_thinking": "1. VISUAL DNA: Airy, expansive luxury SaaS aesthetic. Using 4-layer background (Gradient + Pulse Blobs + Grid + Noise) to create dense atmosphere. 2. TYPOGRAPHY PHYSICS: Heading uses 'tracking-tight' for authority and gradient clip for modernisation. 3. LAYOUT: Center-aligned for maximum focus, using 'staggered fade-in' for cinematic entrance.",
             "component_id": "hero_saas_landing",
             "atomic_level": "organism",
             "html": """<section class="relative min-h-[90vh] flex items-center overflow-hidden
@@ -439,7 +441,7 @@ def get_few_shot_examples_for_prompt(
     for comp_type, example in examples:
         lines.append(f"### Example: {comp_type}")
         lines.append(f"**Input:** {example['input']}")
-        lines.append(f"**Key Output Features:**")
+        lines.append("**Key Output Features:**")
         output = example["output"]
         lines.append(f"- Uses rich Tailwind classes: {', '.join(output['tailwind_classes_used'][:5])}...")
         lines.append(f"- Includes accessibility: {', '.join(output['accessibility_features'][:2])}")

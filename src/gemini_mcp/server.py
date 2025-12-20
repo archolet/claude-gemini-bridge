@@ -10,7 +10,6 @@ Provides tools for interacting with Gemini models on Vertex AI:
 
 import json
 import logging
-from typing import Optional
 
 from mcp.server.fastmcp import FastMCP
 
@@ -18,14 +17,9 @@ from .client import get_gemini_client, fix_js_fallbacks
 from .config import AVAILABLE_MODELS, get_config
 from .frontend_presets import (
     build_style_guide,
-    build_system_prompt,
-    build_refinement_prompt,
     get_available_components,
-    get_available_themes,
     get_available_templates,
     get_page_template,
-    get_section_types,
-    get_section_info,
     PAGE_TEMPLATES,
     THEME_PRESETS,
     SECTION_TYPES,
@@ -33,11 +27,49 @@ from .frontend_presets import (
     MICRO_INTERACTIONS,
     VISUAL_EFFECTS,
     SVG_ICONS,
-    get_all_micro_interactions,
-    get_all_visual_effects,
     get_available_icon_names,
     get_icons_by_category,
 )
+
+# =============================================================================
+# THEME FACTORY IMPORTS - Advanced Theme Customization
+# =============================================================================
+from .theme_factories import (
+    # Factory Functions (14 themes)
+    create_modern_minimal_theme,
+    create_brutalist_theme,
+    create_glassmorphism_theme,
+    create_neo_brutalism_theme,
+    create_soft_ui_theme,
+    create_corporate_theme,
+    create_gradient_theme,
+    create_cyberpunk_theme,
+    create_retro_theme,
+    create_pastel_theme,
+    create_dark_mode_first_theme,
+    create_high_contrast_theme,
+    create_nature_theme,
+    create_startup_theme,
+    # Utility Classes
+    BrandColors,
+    # Utility Functions
+    validate_contrast,
+    list_gradients_by_category,
+    # Constants - Presets
+    BRUTALIST_CONTRAST_PAIRS,
+    NEOBRUTALISM_GRADIENTS,
+    GRADIENT_ANIMATIONS,
+    GRADIENT_LIBRARY,
+    NEON_COLORS,
+    GLOW_INTENSITIES,
+    RETRO_FONT_PAIRINGS,
+    PASTEL_ACCESSIBLE_PAIRS,
+    NATURE_SEASONS,
+    STARTUP_ARCHETYPES,
+    CORPORATE_INDUSTRIES,
+    CORPORATE_LAYOUTS,
+)
+
 from .section_utils import (
     extract_section,
     replace_section,
@@ -68,6 +100,193 @@ mcp = FastMCP(
     or gcloud CLI token.
     """,
 )
+
+
+# =============================================================================
+# THEME FACTORY HELPER
+# =============================================================================
+
+def build_advanced_style_guide(
+    theme: str,
+    dark_mode: bool = True,
+    border_radius: str = "",
+    # Modern-Minimal customization
+    brand_primary: str = "",
+    neutral_base: str = "slate",
+    # Brutalist customization
+    contrast_mode: str = "standard",
+    # Glassmorphism customization
+    blur_intensity: str = "xl",
+    glass_opacity: float = 0.7,
+    performance_mode: str = "balanced",
+    # Neo-Brutalism customization
+    gradient_preset: str = "sunset",
+    gradient_animation: str = "flow",
+    # Soft-UI customization
+    neumorphism_intensity: str = "medium",
+    # Corporate customization
+    industry: str = "consulting",
+    layout_style: str = "modern",
+    formality: str = "semi-formal",
+    # Gradient customization
+    primary_gradient: str = "aurora",
+    # Cyberpunk customization
+    primary_neon: str = "cyan",
+    neon_intensity: str = "medium",
+    scanline_effect: bool = False,
+    # Retro customization
+    retro_era: str = "80s_neon",
+    retro_color_scheme: str = "neon",
+    # Pastel customization
+    primary_pastel: str = "rose",
+    wcag_level: str = "AA",
+    # Dark Mode First customization
+    primary_glow: str = "emerald",
+    light_mode_style: str = "minimal",
+    # High Contrast customization
+    softness_level: str = "balanced",
+    hc_color_scheme: str = "blue",
+    # Nature customization
+    season: str = "spring",
+    organic_shapes: bool = True,
+    eco_friendly_mode: bool = False,
+    # Startup customization
+    archetype: str = "disruptor",
+    startup_stage: str = "growth",
+) -> dict:
+    """
+    Build style guide using advanced theme factories.
+    
+    Falls back to basic build_style_guide for simple cases.
+    """
+    
+    # Theme factory mapping
+    if theme == "modern-minimal":
+        if brand_primary:
+            # Custom brand colors
+            try:
+                brand = BrandColors.from_hex(brand_primary)
+            except Exception:
+                brand = None
+        else:
+            brand = None
+        
+        return create_modern_minimal_theme(
+            brand=brand,
+            neutral_base=neutral_base if neutral_base in ["slate", "gray", "zinc", "neutral", "stone"] else "slate",
+            border_radius=border_radius.replace("rounded-", "") if border_radius else "lg",
+            shadow_intensity="sm",
+        )
+    
+    elif theme == "brutalist":
+        return create_brutalist_theme(
+            contrast_mode=contrast_mode if contrast_mode in ["standard", "high", "maximum"] else "high",
+            accent_color="yellow-400",
+            include_focus_indicators=True,
+        )
+    
+    elif theme == "glassmorphism":
+        return create_glassmorphism_theme(
+            blur_intensity=blur_intensity if blur_intensity in ["sm", "md", "lg", "xl", "2xl", "3xl"] else "xl",
+            opacity=glass_opacity if 0.3 <= glass_opacity <= 0.95 else 0.7,
+            tint_color="white",
+            enable_fallback=True,
+            performance_mode=performance_mode if performance_mode in ["quality", "balanced", "performance"] else "balanced",
+        )
+    
+    elif theme == "neo-brutalism":
+        return create_neo_brutalism_theme(
+            gradient_preset=gradient_preset if gradient_preset in ["sunset", "ocean", "forest", "candy", "fire"] else "sunset",
+            animation=gradient_animation if gradient_animation in ["none", "flow", "pulse", "shimmer", "wave"] else "flow",
+            animation_speed="normal",
+            shadow_color="black",
+            include_hover_animations=True,
+        )
+    
+    elif theme == "soft-ui":
+        return create_soft_ui_theme(
+            base_color_light="slate-100",
+            base_color_dark="slate-800",
+            primary_color="blue-500",
+            intensity=neumorphism_intensity if neumorphism_intensity in ["subtle", "medium", "strong"] else "medium",
+        )
+    
+    elif theme == "corporate":
+        return create_corporate_theme(
+            industry=industry if industry in ["finance", "healthcare", "legal", "tech", "manufacturing", "consulting"] else "consulting",
+            layout=layout_style if layout_style in ["traditional", "modern", "editorial"] else "modern",
+            formality=formality if formality in ["formal", "semi-formal", "approachable"] else "semi-formal",
+            include_accent_gradients=False,
+        )
+    
+    elif theme == "gradient":
+        return create_gradient_theme(
+            primary_gradient=primary_gradient if primary_gradient in GRADIENT_LIBRARY else "aurora",
+            secondary_gradient="ocean",
+            button_style="gradient",
+            card_style="subtle",
+            include_animations=True,
+        )
+    
+    elif theme == "cyberpunk":
+        return create_cyberpunk_theme(
+            primary_neon=primary_neon if primary_neon in NEON_COLORS else "cyan",
+            secondary_neon="fuchsia",
+            glow_intensity=neon_intensity if neon_intensity in ["subtle", "medium", "strong", "intense", "extreme"] else "medium",
+            enable_animations=True,
+            scanline_effect=scanline_effect,
+        )
+    
+    elif theme == "retro":
+        return create_retro_theme(
+            era=retro_era if retro_era in ["80s_tech", "80s_neon", "90s_grunge", "90s_web", "retro_futurism", "vintage_americana"] else "80s_neon",
+            color_scheme=retro_color_scheme if retro_color_scheme in ["neon", "pastel", "earthy", "chrome"] else "neon",
+            enable_crt_effects=False,
+        )
+    
+    elif theme == "pastel":
+        return create_pastel_theme(
+            primary_pastel=primary_pastel if primary_pastel in ["rose", "pink", "sky", "violet", "teal", "amber", "lime"] else "rose",
+            secondary_pastel="sky",
+            wcag_level=wcag_level if wcag_level in ["AA", "AAA"] else "AA",
+            dark_mode_handling="desaturate",
+        )
+    
+    elif theme == "dark_mode_first":
+        return create_dark_mode_first_theme(
+            primary_glow=primary_glow if primary_glow in ["emerald", "cyan", "violet", "amber"] else "emerald",
+            contrast_level="high" if contrast_mode == "high" else "normal",
+            light_mode_style=light_mode_style if light_mode_style in ["minimal", "warm", "cool", "inverted"] else "minimal",
+        )
+    
+    elif theme == "high_contrast":
+        return create_high_contrast_theme(
+            softness_level=softness_level if softness_level in ["sharp", "balanced", "smooth"] else "balanced",
+            color_scheme=hc_color_scheme if hc_color_scheme in ["blue", "purple", "green", "neutral"] else "blue",
+            animation_preference="reduced",
+        )
+    
+    elif theme == "nature":
+        return create_nature_theme(
+            season=season if season in ["spring", "summer", "autumn", "winter"] else "spring",
+            organic_shapes=organic_shapes,
+            eco_friendly_mode=eco_friendly_mode,
+        )
+    
+    elif theme == "startup":
+        return create_startup_theme(
+            archetype=archetype if archetype in ["disruptor", "enterprise", "consumer", "fintech", "healthtech", "ai_ml", "sustainability"] else "disruptor",
+            stage=startup_stage if startup_stage in ["seed", "growth", "scale"] else "growth",
+            enable_motion=True,
+        )
+    
+    else:
+        # Fallback to basic style guide
+        return build_style_guide(
+            theme=theme,
+            dark_mode=dark_mode,
+            border_radius=border_radius,
+        )
 
 
 @mcp.tool()
@@ -346,6 +565,52 @@ async def design_frontend(
     project_context: str = "",
     auto_fix: bool = True,
     content_language: str = "tr",
+    # =================================================================
+    # NEW: Advanced Theme Customization Parameters
+    # =================================================================
+    # Modern-Minimal
+    brand_primary: str = "",
+    neutral_base: str = "slate",
+    # Brutalist
+    contrast_mode: str = "standard",
+    # Glassmorphism
+    blur_intensity: str = "xl",
+    glass_opacity: float = 0.7,
+    performance_mode: str = "balanced",
+    # Neo-Brutalism
+    gradient_preset: str = "sunset",
+    gradient_animation: str = "flow",
+    # Soft-UI
+    neumorphism_intensity: str = "medium",
+    # Corporate
+    industry: str = "consulting",
+    layout_style: str = "modern",
+    formality: str = "semi-formal",
+    # Gradient Theme
+    primary_gradient: str = "aurora",
+    # Cyberpunk
+    primary_neon: str = "cyan",
+    neon_intensity: str = "medium",
+    scanline_effect: bool = False,
+    # Retro
+    retro_era: str = "80s_neon",
+    retro_color_scheme: str = "neon",
+    # Pastel
+    primary_pastel: str = "rose",
+    wcag_level: str = "AA",
+    # Dark Mode First
+    primary_glow: str = "emerald",
+    light_mode_style: str = "minimal",
+    # High Contrast
+    softness_level: str = "balanced",
+    hc_color_scheme: str = "blue",
+    # Nature
+    season: str = "spring",
+    organic_shapes: bool = True,
+    eco_friendly_mode: bool = False,
+    # Startup
+    archetype: str = "disruptor",
+    startup_stage: str = "growth",
 ) -> dict:
     """Design a frontend UI component using Gemini 3 Pro.
 
@@ -356,6 +621,10 @@ async def design_frontend(
 
     IMPORTANT: Content language defaults to Turkish (tr). Use content_language
     parameter to generate content in other languages (en, de).
+
+    ADVANCED THEME CUSTOMIZATION:
+    Each theme now supports deep customization via factory parameters.
+    See theme-specific parameters below.
 
     Workflow:
     1. Claude analyzes the feature requirements
@@ -401,10 +670,70 @@ async def design_frontend(
         accessibility_level: WCAG level - "AA" or "AAA" (default: "AA")
         micro_interactions: Include hover/focus animations (default: True)
         max_width: Maximum width constraint (e.g., "1280px", "max-w-7xl")
-        project_context: Project-specific context for design consistency. Example:
-                        "Project: InfoSYS - Enterprise ERP for Turkish businesses.
-                         Target: Corporate users. Tone: Professional, trustworthy.
-                         Industry: Business Software. Colors: Blue primary."
+        project_context: Project-specific context for design consistency.
+        auto_fix: Apply JS fallback fixes automatically (default: True)
+        content_language: Language for generated content (default: "tr")
+        
+        --- THEME-SPECIFIC CUSTOMIZATION ---
+        
+        MODERN-MINIMAL:
+            brand_primary: Hex color for brand (e.g., "#E11D48"). Auto-generates palette.
+            neutral_base: Gray family - "slate", "gray", "zinc", "neutral", "stone"
+        
+        BRUTALIST:
+            contrast_mode: "standard" (4.5:1), "high" (7:1), "maximum" (10:1+)
+        
+        GLASSMORPHISM:
+            blur_intensity: "sm", "md", "lg", "xl", "2xl", "3xl"
+            glass_opacity: 0.3 to 0.95 (default: 0.7)
+            performance_mode: "quality", "balanced", "performance" (Safari optimization)
+        
+        NEO-BRUTALISM:
+            gradient_preset: "sunset", "ocean", "forest", "candy", "fire"
+            gradient_animation: "none", "flow", "pulse", "shimmer", "wave"
+        
+        SOFT-UI:
+            neumorphism_intensity: "subtle", "medium", "strong"
+        
+        CORPORATE:
+            industry: "finance", "healthcare", "legal", "tech", "manufacturing", "consulting"
+            layout_style: "traditional", "modern", "editorial"
+            formality: "formal", "semi-formal", "approachable"
+        
+        GRADIENT:
+            primary_gradient: "aurora", "sunset", "ocean", "forest", "fire", 
+                             "slate_subtle", "mesh_purple", "dark_aurora", etc. (20+ options)
+        
+        CYBERPUNK:
+            primary_neon: "cyan", "fuchsia", "yellow", "green", "pink", "blue", "purple", "red", "orange"
+            neon_intensity: "subtle", "medium", "strong", "intense", "extreme"
+            scanline_effect: True/False for CRT-style scanlines
+        
+        RETRO:
+            retro_era: "80s_tech", "80s_neon", "90s_grunge", "90s_web", "retro_futurism", "vintage_americana"
+            retro_color_scheme: "neon", "pastel", "earthy", "chrome"
+        
+        PASTEL:
+            primary_pastel: "rose", "pink", "sky", "violet", "teal", "amber", "lime"
+            wcag_level: "AA" (4.5:1) or "AAA" (7:1) contrast
+        
+        DARK_MODE_FIRST:
+            primary_glow: "emerald", "cyan", "violet", "amber"
+            light_mode_style: "minimal", "warm", "cool", "inverted"
+        
+        HIGH_CONTRAST:
+            softness_level: "sharp" (no radius), "balanced", "smooth"
+            hc_color_scheme: "blue", "purple", "green", "neutral"
+        
+        NATURE:
+            season: "spring", "summer", "autumn", "winter"
+            organic_shapes: True for blob-like rounded corners
+            eco_friendly_mode: True for simpler visuals (less energy)
+        
+        STARTUP:
+            archetype: "disruptor", "enterprise", "consumer", "fintech", 
+                      "healthtech", "ai_ml", "sustainability"
+            startup_stage: "seed" (bold), "growth" (balanced), "scale" (refined)
 
     Returns:
         Dict containing:
@@ -417,31 +746,48 @@ async def design_frontend(
         - dark_mode_support: Whether dark mode is supported
         - micro_interactions: Animation/transition classes
         - design_notes: Gemini's explanation of design decisions
+        - theme_config: Advanced theme configuration used
         - model_used: Always gemini-3-pro-preview
 
     Examples:
-        # Button (Atom)
+        # Custom Brand Colors (Modern-Minimal)
         design_frontend(
             component_type="button",
-            context="Primary CTA for newsletter signup",
-            content_structure='{"text": "Subscribe", "icon": "mail"}',
-            theme="modern-minimal"
+            theme="modern-minimal",
+            brand_primary="#E11D48",  # Rose brand color
+            neutral_base="zinc"
         )
 
-        # Pricing Card (Molecule)
+        # High Contrast Brutalist
         design_frontend(
-            component_type="pricing_card",
-            context="SaaS pricing tier card",
-            content_structure='{"tier": "Pro", "price": "$29/mo", "features": ["Unlimited users", "Priority support"], "cta": "Get Started"}',
-            theme="modern-minimal"
+            component_type="card",
+            theme="brutalist",
+            contrast_mode="maximum"  # WCAG AAA+
         )
 
-        # Navbar (Organism)
+        # Cyberpunk with Intense Glow
         design_frontend(
             component_type="navbar",
-            context="Main navigation for documentation site",
-            content_structure='{"logo": {"text": "DocsAI"}, "navigation": [{"label": "Docs", "href": "/docs"}], "actions": [{"type": "search"}, {"type": "theme-toggle"}]}',
-            max_width="1280px"
+            theme="cyberpunk",
+            primary_neon="fuchsia",
+            neon_intensity="intense",
+            scanline_effect=True
+        )
+
+        # Nature Theme - Autumn Season
+        design_frontend(
+            component_type="hero",
+            theme="nature",
+            season="autumn",
+            organic_shapes=True
+        )
+
+        # Startup - Fintech Archetype
+        design_frontend(
+            component_type="pricing_card",
+            theme="startup",
+            archetype="fintech",
+            startup_stage="growth"
         )
     """
     try:
@@ -457,11 +803,54 @@ async def design_frontend(
             "content_structure": content,
         }
 
-        # Build style guide from theme
-        style_guide = build_style_guide(
+        # Build ADVANCED style guide using theme factories
+        style_guide = build_advanced_style_guide(
             theme=theme,
             dark_mode=dark_mode,
             border_radius=border_radius,
+            # Modern-Minimal
+            brand_primary=brand_primary,
+            neutral_base=neutral_base,
+            # Brutalist
+            contrast_mode=contrast_mode,
+            # Glassmorphism
+            blur_intensity=blur_intensity,
+            glass_opacity=glass_opacity,
+            performance_mode=performance_mode,
+            # Neo-Brutalism
+            gradient_preset=gradient_preset,
+            gradient_animation=gradient_animation,
+            # Soft-UI
+            neumorphism_intensity=neumorphism_intensity,
+            # Corporate
+            industry=industry,
+            layout_style=layout_style,
+            formality=formality,
+            # Gradient
+            primary_gradient=primary_gradient,
+            # Cyberpunk
+            primary_neon=primary_neon,
+            neon_intensity=neon_intensity,
+            scanline_effect=scanline_effect,
+            # Retro
+            retro_era=retro_era,
+            retro_color_scheme=retro_color_scheme,
+            # Pastel
+            primary_pastel=primary_pastel,
+            wcag_level=wcag_level,
+            # Dark Mode First
+            primary_glow=primary_glow,
+            light_mode_style=light_mode_style,
+            # High Contrast
+            softness_level=softness_level,
+            hc_color_scheme=hc_color_scheme,
+            # Nature
+            season=season,
+            organic_shapes=organic_shapes,
+            eco_friendly_mode=eco_friendly_mode,
+            # Startup
+            archetype=archetype,
+            startup_stage=startup_stage,
         )
 
         # Build constraints
@@ -500,6 +889,15 @@ async def design_frontend(
                 result["js_fixes_applied"] = fixes
                 logger.info(f"Applied {len(fixes)} JS fallback fixes")
 
+        # Add theme configuration to result
+        result["theme_config"] = {
+            "theme": theme,
+            "customizations_applied": _get_applied_customizations(
+                theme, brand_primary, contrast_mode, blur_intensity, 
+                gradient_preset, neon_intensity, retro_era, season, archetype
+            ),
+        }
+
         logger.info(f"design_frontend completed: {component_type} -> {result.get('component_id', 'unknown')}")
         return result
 
@@ -512,12 +910,46 @@ async def design_frontend(
         }
 
 
+def _get_applied_customizations(
+    theme: str,
+    brand_primary: str,
+    contrast_mode: str,
+    blur_intensity: str,
+    gradient_preset: str,
+    neon_intensity: str,
+    retro_era: str,
+    season: str,
+    archetype: str,
+) -> dict:
+    """Get customizations that were applied based on theme."""
+    customizations = {}
+    
+    if theme == "modern-minimal" and brand_primary:
+        customizations["brand_primary"] = brand_primary
+    elif theme == "brutalist" and contrast_mode != "standard":
+        customizations["contrast_mode"] = contrast_mode
+    elif theme == "glassmorphism":
+        customizations["blur_intensity"] = blur_intensity
+    elif theme == "neo-brutalism":
+        customizations["gradient_preset"] = gradient_preset
+    elif theme == "cyberpunk":
+        customizations["neon_intensity"] = neon_intensity
+    elif theme == "retro":
+        customizations["era"] = retro_era
+    elif theme == "nature":
+        customizations["season"] = season
+    elif theme == "startup":
+        customizations["archetype"] = archetype
+    
+    return customizations
+
+
 @mcp.tool()
 def list_frontend_options() -> dict:
-    """List available frontend design options.
+    """List available frontend design options including advanced theme customization.
 
-    Returns all available component types, themes, templates, and section types
-    for the design tools.
+    Returns all available component types, themes, templates, section types,
+    and NEW: advanced theme factory options for deep customization.
 
     Returns:
         Dict containing:
@@ -525,6 +957,10 @@ def list_frontend_options() -> dict:
         - themes: List of available theme presets with descriptions
         - templates: List of available page templates
         - sections: List of available section types for design_section
+        - theme_factories: NEW - Advanced customization options for each theme
+        - micro_interactions: Available interaction presets
+        - visual_effects: Available visual effect presets
+        - icons: Available SVG icons
     """
     # Get theme details
     themes_with_details = {
@@ -568,11 +1004,129 @@ def list_frontend_options() -> dict:
         for name, preset in VISUAL_EFFECTS.items()
     }
 
+    # NEW: Advanced Theme Factory Options
+    theme_factory_options = {
+        "modern-minimal": {
+            "description": "Dynamic brand color customization",
+            "parameters": {
+                "brand_primary": "Hex color (e.g., '#E11D48'). Auto-generates full palette.",
+                "neutral_base": ["slate", "gray", "zinc", "neutral", "stone"],
+            },
+            "example": 'brand_primary="#E11D48", neutral_base="zinc"',
+        },
+        "brutalist": {
+            "description": "WCAG-compliant contrast levels",
+            "parameters": {
+                "contrast_mode": ["standard (4.5:1)", "high (7:1)", "maximum (10:1+)"],
+            },
+            "contrast_pairs": list(BRUTALIST_CONTRAST_PAIRS.keys()),
+        },
+        "glassmorphism": {
+            "description": "Safari-optimized frosted glass with fallbacks",
+            "parameters": {
+                "blur_intensity": ["sm", "md", "lg", "xl", "2xl", "3xl"],
+                "glass_opacity": "0.3 to 0.95 (default: 0.7)",
+                "performance_mode": ["quality", "balanced", "performance"],
+            },
+        },
+        "neo-brutalism": {
+            "description": "Animated gradient system",
+            "parameters": {
+                "gradient_preset": list(NEOBRUTALISM_GRADIENTS.keys()),
+                "gradient_animation": list(GRADIENT_ANIMATIONS.keys()),
+            },
+        },
+        "soft-ui": {
+            "description": "Dual-mode neumorphism with calculated shadows",
+            "parameters": {
+                "neumorphism_intensity": ["subtle", "medium", "strong"],
+            },
+        },
+        "corporate": {
+            "description": "Industry-specific professional themes",
+            "parameters": {
+                "industry": list(CORPORATE_INDUSTRIES.keys()),
+                "layout_style": list(CORPORATE_LAYOUTS.keys()),
+                "formality": ["formal", "semi-formal", "approachable"],
+            },
+            "industries": {k: v.get("personality", "") for k, v in CORPORATE_INDUSTRIES.items()},
+        },
+        "gradient": {
+            "description": "Comprehensive gradient library (20+ presets)",
+            "parameters": {
+                "primary_gradient": list(GRADIENT_LIBRARY.keys()),
+            },
+            "categories": {
+                "vibrant": list_gradients_by_category("vibrant"),
+                "subtle": list_gradients_by_category("subtle"),
+                "mesh": list_gradients_by_category("mesh"),
+                "dark": list_gradients_by_category("dark"),
+                "animated": list_gradients_by_category("animated"),
+            },
+        },
+        "cyberpunk": {
+            "description": "Configurable neon glow system",
+            "parameters": {
+                "primary_neon": list(NEON_COLORS.keys()),
+                "neon_intensity": list(GLOW_INTENSITIES.keys()),
+                "scanline_effect": "True/False",
+            },
+        },
+        "retro": {
+            "description": "Era-specific font pairings and aesthetics",
+            "parameters": {
+                "retro_era": list(RETRO_FONT_PAIRINGS.keys()),
+                "retro_color_scheme": ["neon", "pastel", "earthy", "chrome"],
+            },
+            "eras": {k: v.get("era", "") for k, v in RETRO_FONT_PAIRINGS.items()},
+        },
+        "pastel": {
+            "description": "WCAG-compliant pastel with guaranteed contrast",
+            "parameters": {
+                "primary_pastel": list(PASTEL_ACCESSIBLE_PAIRS.keys()),
+                "wcag_level": ["AA (4.5:1)", "AAA (7:1)"],
+            },
+        },
+        "dark_mode_first": {
+            "description": "Dark-optimized with polished light mode",
+            "parameters": {
+                "primary_glow": ["emerald", "cyan", "violet", "amber"],
+                "light_mode_style": ["minimal", "warm", "cool", "inverted"],
+            },
+        },
+        "high_contrast": {
+            "description": "WCAG AAA with adjustable visual softness",
+            "parameters": {
+                "softness_level": ["sharp", "balanced", "smooth"],
+                "hc_color_scheme": ["blue", "purple", "green", "neutral"],
+            },
+        },
+        "nature": {
+            "description": "Four seasons with organic shapes",
+            "parameters": {
+                "season": list(NATURE_SEASONS.keys()),
+                "organic_shapes": "True/False",
+                "eco_friendly_mode": "True/False (simpler = less energy)",
+            },
+            "seasons": {k: v.get("mood", "") for k, v in NATURE_SEASONS.items()},
+        },
+        "startup": {
+            "description": "Archetype-based startup identity",
+            "parameters": {
+                "archetype": list(STARTUP_ARCHETYPES.keys()),
+                "startup_stage": ["seed (bold)", "growth (balanced)", "scale (refined)"],
+            },
+            "archetypes": {k: v.get("tagline", "") for k, v in STARTUP_ARCHETYPES.items()},
+        },
+    }
+
     return {
         "components": get_available_components(),
         "themes": themes_with_details,
         "templates": templates_with_details,
         "sections": sections_with_details,
+        # NEW: Advanced Theme Factory Options
+        "theme_factories": theme_factory_options,
         # MAXIMUM_RICHNESS mode resources
         "micro_interactions": interactions_with_details,
         "visual_effects": effects_with_details,
@@ -591,7 +1145,9 @@ def list_frontend_options() -> dict:
                 "realistic_turkish_content": True,
             },
         },
-        "note": "Use design_frontend() for components, design_page() for full pages, design_section() for chain-based large pages, refine_frontend() for iterations. MAXIMUM_RICHNESS mode is enabled by default.",
+        "note": "Use design_frontend() for components with advanced theme customization. "
+               "Each theme supports factory parameters for deep customization. "
+               "MAXIMUM_RICHNESS mode is enabled by default.",
     }
 
 
@@ -1198,7 +1754,7 @@ async def replace_section_in_page(
             design_tokens=design_tokens if design_tokens else None,
             content_structure={},
             theme=theme,
-            project_context=f"This is part of an existing page. Maintain visual consistency.",
+            project_context="This is part of an existing page. Maintain visual consistency.",
             content_language=content_language,
         )
 
@@ -1261,6 +1817,83 @@ async def replace_section_in_page(
             "error": str(e),
             "html": page_html,
             "modified_section": None,
+        }
+
+
+@mcp.tool()
+def validate_theme_contrast(
+    foreground: str,
+    background: str,
+    wcag_level: str = "AA",
+    text_size: str = "normal",
+) -> dict:
+    """Validate color contrast ratio for WCAG compliance.
+
+    Use this tool to check if your color combinations meet accessibility
+    standards before using them in designs.
+
+    Args:
+        foreground: Foreground (text) color in hex format (e.g., "#000000")
+        background: Background color in hex format (e.g., "#FFFFFF")
+        wcag_level: Target WCAG level - "AA" or "AAA"
+        text_size: Text size category - "normal" or "large"
+                  (large = 18pt+ or 14pt+ bold)
+
+    Returns:
+        Dict containing:
+        - passes: Boolean indicating if contrast meets requirements
+        - ratio: Calculated contrast ratio (e.g., 7.5)
+        - required_ratio: Minimum required ratio for the level/size
+        - message: Human-readable result message
+        - recommendations: Suggestions if contrast fails
+
+    Example:
+        validate_theme_contrast(
+            foreground="#FFFFFF",
+            background="#3B82F6",  # blue-500
+            wcag_level="AA"
+        )
+    """
+    try:
+        passes, ratio, message = validate_contrast(
+            foreground=foreground,
+            background=background,
+            level=wcag_level,
+            text_size=text_size,
+        )
+
+        requirements = {
+            ("AA", "normal"): 4.5,
+            ("AA", "large"): 3.0,
+            ("AAA", "normal"): 7.0,
+            ("AAA", "large"): 4.5,
+        }
+        required = requirements.get((wcag_level, text_size), 4.5)
+
+        result = {
+            "passes": passes,
+            "ratio": round(ratio, 2),
+            "required_ratio": required,
+            "wcag_level": wcag_level,
+            "text_size": text_size,
+            "message": message,
+        }
+
+        if not passes:
+            # Add recommendations
+            result["recommendations"] = [
+                f"Current ratio ({ratio:.2f}:1) is below required ({required}:1)",
+                "Try darker foreground or lighter background for better contrast",
+                "Consider using WCAG-compliant color pairs from theme factories",
+            ]
+
+        return result
+
+    except Exception as e:
+        return {
+            "error": str(e),
+            "foreground": foreground,
+            "background": background,
         }
 
 

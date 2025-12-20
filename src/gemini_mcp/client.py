@@ -9,10 +9,9 @@ import logging
 import os
 import uuid
 from datetime import datetime
-from functools import wraps
 from pathlib import Path
 import json
-from typing import Any, AsyncIterator, Callable, Dict, List, Optional, TypeVar
+from typing import Any, Dict, List, Optional, TypeVar
 
 from google import genai
 from google.genai import types
@@ -24,34 +23,27 @@ from .config import GeminiConfig, get_config
 from .frontend_presets import (
     build_refinement_prompt,
     build_section_prompt,
-    build_style_guide,
     build_system_prompt,
     extract_design_tokens,
     get_component_preset,
     get_section_info,
 )
 from .schemas import (
-    DesignResponse,
     DesignTokens,
     DesignSystemState,
-    VisionAnalysisResponse,
-    RefinementResponse,
     validate_design_response,
     validate_design_tokens,
     get_language_config,
-    get_available_languages,
 )
 from .cache import DesignCache, get_design_cache
 from .error_recovery import (
-    ErrorType,
     RecoveryStrategy,
-    classify_error,
     repair_json_response,
     extract_html_fallback,
     create_fallback_response,
     ResponseValidator,
 )
-from .few_shot_examples import get_few_shot_example, get_few_shot_examples_for_prompt
+from .few_shot_examples import get_few_shot_examples_for_prompt
 
 logger = logging.getLogger(__name__)
 
@@ -142,12 +134,12 @@ class GeminiClient:
 
             # Check if bucket exists
             try:
-                bucket = storage_client.get_bucket(bucket_name)
+                storage_client.get_bucket(bucket_name)
                 logger.info(f"Using existing bucket: {bucket_name}")
             except NotFound:
                 # Bucket doesn't exist, create it
                 logger.info(f"Creating new bucket: {bucket_name}")
-                bucket = storage_client.create_bucket(
+                storage_client.create_bucket(
                     bucket_name,
                     location=self.config.location if self.config.location != "global" else "us-central1",
                 )
@@ -164,7 +156,7 @@ class GeminiClient:
 
             try:
                 storage_client = storage.Client(project=self.config.project_id)
-                bucket = storage_client.create_bucket(
+                storage_client.create_bucket(
                     bucket_name,
                     location="us-central1",
                 )
@@ -1976,7 +1968,7 @@ def fix_js_fallbacks(html: str) -> tuple[str, list[str]]:
         # We only add display:none to modals, dropdowns etc.
         if any(keyword in match.group(0).lower() for keyword in ['modal', 'dropdown', 'menu', 'popup', 'dialog', 'overlay']):
             if 'style="display: none;"' not in match.group(0):
-                fixes_applied.append(f"Added style=\"display: none;\" for x-show element")
+                fixes_applied.append("Added style=\"display: none;\" for x-show element")
                 return f'{before}{xshow} style="display: none;"{after}'
 
         return match.group(0)

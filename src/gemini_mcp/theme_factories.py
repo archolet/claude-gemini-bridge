@@ -32,14 +32,14 @@ def hex_to_hsl(hex_color: str) -> Tuple[float, float, float]:
     """Convert hex color to HSL values (h: 0-360, s: 0-100, l: 0-100)."""
     r, g, b = hex_to_rgb(hex_color)
     r, g, b = r / 255, g / 255, b / 255
-    h, l, s = colorsys.rgb_to_hls(r, g, b)
-    return h * 360, s * 100, l * 100
+    hue, lum, sat = colorsys.rgb_to_hls(r, g, b)
+    return hue * 360, sat * 100, lum * 100
 
 
-def hsl_to_hex(h: float, s: float, l: float) -> str:
+def hsl_to_hex(h: float, s: float, lightness: float) -> str:
     """Convert HSL (h: 0-360, s: 0-100, l: 0-100) to hex color."""
-    h, s, l = h / 360, s / 100, l / 100
-    r, g, b = colorsys.hls_to_rgb(h, l, s)
+    h, s, lum = h / 360, s / 100, lightness / 100
+    r, g, b = colorsys.hls_to_rgb(h, lum, s)
     return rgb_to_hex(int(r * 255), int(g * 255), int(b * 255))
 
 
@@ -134,14 +134,14 @@ class BrandColors:
     @classmethod
     def from_hex(cls, primary_hex: str) -> "BrandColors":
         """Generate complete color palette from a single hex color."""
-        h, s, l = hex_to_hsl(primary_hex)
+        h, s, lum = hex_to_hsl(primary_hex)
         return cls(
             primary=primary_hex,
-            primary_hover=hsl_to_hex(h, s, max(l - 10, 0)),
+            primary_hover=hsl_to_hex(h, s, max(lum - 10, 0)),
             primary_light=hsl_to_hex(h, s * 0.3, 95),
-            primary_dark=hsl_to_hex(h, s, max(l - 30, 15)),
-            secondary=hsl_to_hex((h + 30) % 360, s * 0.7, l),
-            accent=hsl_to_hex((h + 180) % 360, s, l),
+            primary_dark=hsl_to_hex(h, s, max(lum - 30, 15)),
+            secondary=hsl_to_hex((h + 30) % 360, s * 0.7, lum),
+            accent=hsl_to_hex((h + 180) % 360, s, lum),
         )
 
 
@@ -369,8 +369,8 @@ def create_glassmorphism_theme(
         "description": f"Safari-optimized glassmorphism ({performance_mode} mode)",
 
         # Glass effect
-        "glass_effect": f"{glass_bg} backdrop-blur-{perf['blur']} {border_color} border",
-        "glass_effect_strong": f"bg-white/{int(opacity * 100 + 10)} backdrop-blur-{blur_intensity} border-white/30 border",
+        "glass_effect": f"{glass_bg} backdrop-blur-{perf['blur']} {border_color} border ring-1 ring-white/20 ring-inset",
+        "glass_effect_strong": f"bg-white/{int(opacity * 100 + 10)} backdrop-blur-{blur_intensity} border-white/30 border ring-1 ring-white/40 ring-inset shadow-[0_8px_32px_0_rgba(31,38,135,0.37)]",
         "glass_fallback": f"{glass_bg_fallback} border {border_color}",
 
         # Surface colors
@@ -540,7 +540,7 @@ def create_neo_brutalism_theme(
 
         # Offset shadows
         "shadow": f"shadow-[4px_4px_0px_#{_color_to_hex(shadow_color)}]",
-        "shadow_hover": f"shadow-[6px_6px_0px_#{_color_to_hex(shadow_color)}]",
+        "shadow_hover": f"shadow-[6px_6px_0px_#{_color_to_hex(shadow_color)}] translate-x-[-2px] translate-y-[-2px]",
         "shadow_active": f"shadow-[2px_2px_0px_#{_color_to_hex(shadow_color)}]",
 
         # Text
