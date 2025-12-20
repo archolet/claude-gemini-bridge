@@ -108,6 +108,8 @@ class DesignResponse(BaseModel):
         description="Atomic design level"
     )
     html: str = Field(..., min_length=50, description="Generated HTML with TailwindCSS")
+    css: str = Field(default="", description="Custom CSS for keyframes/scrollbars (NO Tailwind)")
+    javascript: str = Field(default="", description="Alpine.js or Vanilla JS logic (Clean separation)")
     tailwind_classes_used: List[str] = Field(
         default_factory=list,
         description="List of Tailwind classes used"
