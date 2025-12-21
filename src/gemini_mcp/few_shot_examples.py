@@ -318,123 +318,99 @@ COMPONENT_EXAMPLES: Dict[str, Dict[str, Any]] = {
         },
     },
 
-    "pricing_card": {
+    "elite_dashboard_stat": {
         "input": {
-            "component_type": "pricing_card",
-            "context": "Premium tier pricing card for SaaS",
-            "content_structure": {
-                "tier": "Pro",
-                "price": "299",
-                "currency": "TL",
-                "period": "ay",
-                "features": ["Sinirsiz kullanici", "API erisimi", "Oncelikli destek"],
-                "cta": "Hemen Basla",
-                "popular": True,
-            },
-            "theme": "modern-minimal",
+            "component_type": "stat_card",
+            "context": "C-Level Financial Dashboard",
+            "vibe": "elite_corporate",
+            "content": {"label": "Net Profit Margin", "value": "24.8%", "trend": "+2.1%"}
         },
         "output": {
-            "component_id": "pricing_pro_tier",
+            "design_thinking": "1. VIBE DNA: Elite Corporate. Precision is paramount. Using 1px border highlights to define a 'glass slab' aesthetic. 2. TYPOGRAPHY: Inter SemiBold with -0.02em tracking for that 'Swiss Design' premium feel. 3. PHYSICS: Micro-transitions only. Hover lifts the slab by exactly 2px with an indigo-500 shadow-glow.",
+            "component_id": "stat_profit_margin",
             "atomic_level": "molecule",
-            "html": """<div class="relative group">
-  <!-- Popular badge -->
-  <div class="absolute -top-4 left-1/2 -translate-x-1/2 z-10">
-    <span class="inline-flex items-center px-4 py-1
-                 bg-gradient-to-r from-blue-600 to-purple-600
-                 text-white text-sm font-semibold
-                 rounded-full shadow-lg">
-      En Populer
-    </span>
-  </div>
-
-  <!-- Card container -->
-  <div class="relative p-8 pt-12
-              bg-white dark:bg-slate-800
-              border-2 border-blue-500 dark:border-blue-400
-              rounded-2xl shadow-xl
-              hover:shadow-2xl hover:-translate-y-1
-              transition-all duration-300">
-
-    <!-- Tier name -->
-    <h3 class="text-xl font-bold text-slate-900 dark:text-white text-center">
-      Pro
-    </h3>
-
-    <!-- Price -->
-    <div class="mt-4 flex items-baseline justify-center gap-1">
-      <span class="text-5xl font-extrabold text-slate-900 dark:text-white">
-        299
-      </span>
-      <span class="text-xl font-medium text-slate-500 dark:text-slate-400">
-        TL
-      </span>
-      <span class="text-slate-500 dark:text-slate-400">
-        / ay
-      </span>
+            "html": """
+<div class="group relative overflow-hidden rounded-xl bg-slate-900 border border-white/10 p-6 transition-all duration-500 hover:-translate-y-0.5 hover:shadow-[0_20px_40px_-15px_rgba(79,70,229,0.3)]">
+    <!-- Subtle Edge Highlight -->
+    <div class="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/20 to-transparent"></div>
+    
+    <div class="flex items-center justify-between mb-4">
+        <span class="text-xs font-bold uppercase tracking-[0.1em] text-slate-500 font-sans">Financial Matrix</span>
+        <div class="h-8 w-8 rounded-lg bg-indigo-500/10 flex items-center justify-center border border-indigo-500/20">
+            <svg class="w-4 h-4 text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"/></svg>
+        </div>
     </div>
-
-    <!-- Features list -->
-    <ul class="mt-8 space-y-4">
-      <li class="flex items-center gap-3">
-        <svg class="w-5 h-5 text-green-500 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
-          <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/>
-        </svg>
-        <span class="text-slate-700 dark:text-slate-300">Sinirsiz kullanici</span>
-      </li>
-      <li class="flex items-center gap-3">
-        <svg class="w-5 h-5 text-green-500 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
-          <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/>
-        </svg>
-        <span class="text-slate-700 dark:text-slate-300">API erisimi</span>
-      </li>
-      <li class="flex items-center gap-3">
-        <svg class="w-5 h-5 text-green-500 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
-          <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/>
-        </svg>
-        <span class="text-slate-700 dark:text-slate-300">Oncelikli destek</span>
-      </li>
-    </ul>
-
-    <!-- CTA Button -->
-    <button class="mt-8 w-full py-4 px-6
-                   bg-gradient-to-r from-blue-600 to-purple-600
-                   hover:from-blue-700 hover:to-purple-700
-                   text-white font-semibold text-lg
-                   rounded-xl shadow-lg shadow-blue-500/25
-                   hover:shadow-xl hover:shadow-blue-500/40
-                   focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2
-                   active:scale-[0.98]
-                   transition-all duration-200">
-      Hemen Basla
-    </button>
-
-    <!-- Money back guarantee -->
-    <p class="mt-4 text-center text-sm text-slate-500 dark:text-slate-400">
-      14 gun iade garantisi
-    </p>
-  </div>
-
-  <!-- Decorative glow effect -->
-  <div class="absolute -inset-1 bg-gradient-to-r from-blue-600 to-purple-600
-              rounded-2xl blur-lg opacity-25 group-hover:opacity-40
-              transition-opacity duration-300 -z-10"></div>
-</div>""",
-            "tailwind_classes_used": [
-                "relative", "group", "absolute", "-top-4", "left-1/2", "-translate-x-1/2",
-                "bg-gradient-to-r", "from-blue-600", "to-purple-600", "rounded-full",
-                "shadow-lg", "p-8", "pt-12", "bg-white", "dark:bg-slate-800",
-                "border-2", "border-blue-500", "rounded-2xl", "shadow-xl",
-                "hover:shadow-2xl", "hover:-translate-y-1", "transition-all", "duration-300",
-            ],
-            "accessibility_features": [
-                "semantic heading for tier name",
-                "aria-label on button",
-                "focus:ring for keyboard users",
-                "sufficient color contrast",
-            ],
+    
+    <div class="flex flex-col">
+        <h3 class="text-sm font-medium text-slate-400 mb-1">Net Profit Margin</h3>
+        <div class="flex items-baseline gap-2">
+            <span class="text-3xl font-bold tracking-tight text-white font-sans">24.8%</span>
+            <span class="text-xs font-semibold text-emerald-400 bg-emerald-400/10 px-2 py-0.5 rounded-full border border-emerald-400/20">+2.1%</span>
+        </div>
+    </div>
+    
+    <!-- Data Stream Particle (Atmospheric) -->
+    <div class="mt-6 h-1 w-full bg-slate-800 rounded-full overflow-hidden">
+        <div class="h-full bg-indigo-500 w-[70%] animate-pulse"></div>
+    </div>
+</div>
+""",
+            "tailwind_classes_used": ["bg-slate-900", "border-white/10", "tracking-tight", "backdrop-blur-3xl"],
+            "accessibility_features": ["semantic HTML", "high contrast for metrics"],
             "dark_mode_support": True,
-            "design_notes": "Premium pricing card with glow effect, gradient CTA, and subtle hover animations. Popular badge draws attention.",
+            "design_notes": "Premium corporate vibe with high-density detail and subtle data visualization elements."
+        }
+    },
+
+    "playful_video_card": {
+        "input": {
+            "component_type": "action_card",
+            "context": "AI Video Generator for kids",
+            "vibe": "playful_funny",
+            "content": {"title": "Make Magic Video!", "emoji": "🪄"}
         },
+        "output": {
+            "design_thinking": "1. VIBE DNA: Playful AI. Needs to feel alive and bouncy. Using Neo-Brutalism shadows with unusual colors. 2. PHYSICS: Spring-based hover (scale-110 + rotate-3). 3. ATOMIZATION: Floating sparkles as decoration.",
+            "component_id": "card_magic_video",
+            "atomic_level": "molecule",
+            "html": """
+<div class="group relative inline-block p-1">
+    <!-- Offset Shadow (Neo-Brutalism) -->
+    <div class="absolute inset-0 bg-pink-500 rounded-[2rem] translate-x-3 translate-y-3 transition-transform group-hover:translate-x-1 group-hover:translate-y-1"></div>
+    
+    <!-- Main Card -->
+    <div class="relative bg-yellow-400 border-[3px] border-black rounded-[2rem] p-8 transition-transform duration-300 group-hover:scale-[1.05] group-hover:-rotate-2">
+        <!-- Floating Sparkle 1 -->
+        <span class="absolute -top-4 -left-4 text-3xl animate-bounce">✨</span>
+        <!-- Floating Sparkle 2 -->
+        <span class="absolute -bottom-2 -right-4 text-3xl animate-pulse delay-500">🌈</span>
+        
+        <div class="space-y-4 text-center">
+            <div class="text-6xl group-hover:animate-spin-slow">🪄</div>
+            <h3 class="text-2xl font-black italic tracking-tighter text-black uppercase">Süper Video Yap!</h3>
+            <p class="text-sm font-bold text-black/60">Yapay zeka senin için dans etsin! 💃</p>
+            
+            <button class="w-full bg-black text-white py-4 rounded-full font-black text-xl hover:bg-pink-600 active:scale-95 transition-all shadow-[4px_4px_0px_#fff] hover:shadow-none translate-y-0 hover:translate-y-1">
+                BAŞLA BAKALIM!
+            </button>
+        </div>
+    </div>
+</div>
+<style>
+@keyframes spin-slow {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+.animate-spin-slow {
+    animation: spin-slow 8s linear infinite;
+}
+</style>
+""",
+            "tailwind_classes_used": ["bg-yellow-400", "border-black", "rounded-[2rem]", "font-black"],
+            "accessibility_features": ["clear target size", "descriptive labels"],
+            "dark_mode_support": False,
+            "design_notes": "Funny/Playful vibe with high energy, bouncy physics, and bold typography."
+        }
     },
 }
 

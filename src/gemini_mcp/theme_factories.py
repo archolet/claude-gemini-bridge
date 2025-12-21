@@ -89,32 +89,61 @@ def validate_contrast(
     return passes, ratio, message
 
 
-def _next_shadow(current: str) -> str:
-    """Get next shadow intensity level."""
-    scale = ["none", "sm", "md", "lg", "xl", "2xl"]
-    idx = scale.index(current) if current in scale else 1
-    return scale[min(idx + 1, len(scale) - 1)]
-
-
 def _to_css_color(tailwind_color: str) -> str:
     """Convert Tailwind color to CSS RGB values."""
     color_map = {
         "blue-600": "59 130 246",
         "blue-700": "29 78 216",
         "blue-800": "30 64 175",
-        "emerald-500": "16 185 129",
-        "emerald-600": "5 150 105",
-        "rose-600": "225 29 72",
-        "violet-600": "124 58 237",
-        "cyan-400": "34 211 238",
-        "fuchsia-500": "217 70 239",
-        "pink-500": "236 72 153",
-        "amber-500": "245 158 11",
-        "green-600": "22 163 74",
-        "slate-600": "71 85 105",
         "indigo-600": "79 70 229",
+        "indigo-500": "99 102 241",
+        "pink-500": "236, 72, 153",
     }
     return color_map.get(tailwind_color, "59 130 246")
+
+
+def _next_shadow(intensity: str) -> str:
+    """Get the next shadow intensity level for hover states."""
+    shadow_levels = ["none", "sm", "md", "lg", "xl", "2xl"]
+    try:
+        idx = shadow_levels.index(intensity)
+        return shadow_levels[min(idx + 1, len(shadow_levels) - 1)]
+    except ValueError:
+        return "md"
+
+
+def get_vibe_specs(vibe_name: str) -> Dict[str, Any]:
+    """Get technical specifications for a specific design vibe."""
+    vibes = {
+        "elite_corporate": {
+            "easing": "cubic-bezier(0.25, 1, 0.5, 1)",
+            "duration": "500ms",
+            "glass_opacity": 0.05,
+            "border_opacity": 0.1,
+            "shadow_glow": "rgba(99, 102, 241, 0.2)",
+            "typography_tracking": "tracking-tight",
+            "persona_note": "Focus on extreme precision and rhythmic hierarchy."
+        },
+        "playful_funny": {
+            "easing": "cubic-bezier(0.34, 1.56, 0.64, 1)",
+            "duration": "300ms",
+            "glass_opacity": 0.2,
+            "border_opacity": 1.0,
+            "shadow_glow": "rgba(236, 72, 153, 0.5)",
+            "typography_tracking": "tracking-tighter",
+            "persona_note": "Focus on high-energy, bouncy physics and bold color pops."
+        },
+        "cyberpunk_edge": {
+            "easing": "linear",
+            "duration": "200ms",
+            "glass_opacity": 0.1,
+            "border_opacity": 0.3,
+            "shadow_glow": "rgba(34, 211, 238, 0.8)",
+            "typography_tracking": "tracking-widest",
+            "persona_note": "Focus on high contrast, glitch-like snappy transitions."
+        }
+    }
+    return vibes.get(vibe_name, vibes["elite_corporate"])
 
 
 # =============================================================================
