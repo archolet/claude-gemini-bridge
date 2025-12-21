@@ -1,7 +1,7 @@
 [project]
 name = "claude-gemini-bridge"
 version = "0.1.0"
-description = "Claude Code icin Vertex AI uzerinden Gemini 3 modellerine erisim saglayan MCP sunucusu"
+description = "Claude Code icin tasarim odakli MCP sunucusu - Gemini 3 ile frontend UI/UX tasarimi ve gorsel uretim"
 requires-python = ">=3.10"
 license = {text = "MIT"}
 authors = [
@@ -30,7 +30,6 @@ dependencies = [
     "mcp>=1.0.0",
     "google-genai>=1.0.0",
     "google-auth>=2.0.0",
-    "google-cloud-storage>=2.0.0",
     "pydantic>=2.0.0",
 ]
 

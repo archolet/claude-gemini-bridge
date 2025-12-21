@@ -1,11 +1,14 @@
-"""Gemini MCP Server - FastMCP implementation.
+"""Gemini MCP Server - Design-Focused FastMCP implementation.
 
-Provides tools for interacting with Gemini models on Vertex AI:
-- ask_gemini: Text generation with context
-- chat_gemini: Multi-turn conversations
-- generate_image: Image generation
-- design_frontend: Frontend component design with TailwindCSS
-- list_models: Available models
+Provides frontend design tools powered by Gemini models on Vertex AI:
+- design_frontend: High-quality UI component design with TailwindCSS
+- design_page: Full page layout generation
+- design_section: Section-by-section page building
+- design_from_reference: Design based on reference images
+- refine_frontend: Iterative design improvements
+- generate_image: Design asset generation (hero images, product visuals)
+- validate_theme_contrast: WCAG accessibility validation
+- list_models: Available models and capabilities
 """
 
 import json
@@ -87,14 +90,30 @@ logger = logging.getLogger(__name__)
 mcp = FastMCP(
     "Gemini MCP",
     instructions="""
-    Gemini MCP Server provides access to Google's Gemini models via Vertex AI.
+    Gemini MCP Server - Design-Focused Frontend Development
 
-    Available tools:
-    - ask_gemini: Generate text with optional context and system instructions
-    - chat_gemini: Have multi-turn conversations with session management
-    - generate_image: Create images using Gemini or Imagen models
-    - design_frontend: Design high-quality frontend components with TailwindCSS
-    - list_models: See available models and their capabilities
+    This MCP server is specialized for high-quality frontend UI/UX design using
+    Gemini models on Vertex AI. All tools are optimized for generating production-ready
+    HTML components with TailwindCSS.
+
+    Available Design Tools:
+    - design_frontend: Create UI components (buttons, cards, forms, etc.) with 14 themes
+    - design_page: Generate complete page layouts (landing, dashboard, auth, etc.)
+    - design_section: Build pages section-by-section with style consistency
+    - design_from_reference: Design based on reference images using Gemini Vision
+    - refine_frontend: Iterate and improve existing designs
+    - replace_section_in_page: Update specific sections while preserving others
+    - generate_image: Create design assets (hero backgrounds, product images)
+    - validate_theme_contrast: Check WCAG accessibility compliance
+    - list_frontend_options: See all available components, themes, and customization options
+    - list_models: View available Gemini models
+
+    Features:
+    - 14 customizable themes (modern-minimal, cyberpunk, glassmorphism, etc.)
+    - MAXIMUM_RICHNESS mode for detailed, realistic outputs
+    - Turkish content by default, with EN/DE support
+    - WCAG AA/AAA accessibility compliance
+    - Dark mode support in all designs
 
     Authentication is handled automatically via Application Default Credentials
     or gcloud CLI token.
@@ -290,121 +309,6 @@ def build_advanced_style_guide(
 
 
 @mcp.tool()
-async def ask_gemini(
-    prompt: str,
-    context: str = "",
-    system_instruction: str = "",
-    model: str = "gemini-3-flash-preview",
-    temperature: float = 0.7,
-    max_tokens: int = 65536,
-    thinking_level: str = "medium",
-    stream: bool = True,
-) -> dict:
-    """Ask Gemini 3 a question with optional context from Claude.
-
-    Use this tool to get Gemini 3's perspective on a problem, code review,
-    or any task where you want an alternative AI's input.
-
-    Args:
-        prompt: The question or task for Gemini.
-        context: Background context or conversation history to provide.
-        system_instruction: System-level instructions for how Gemini should respond.
-        model: Gemini 3 model to use:
-               - gemini-3-flash-preview: Fast, pro-grade reasoning (default)
-               - gemini-3-pro-preview: Most capable for complex tasks
-        temperature: Response creativity (0.0-1.0). Lower = more focused.
-        max_tokens: Maximum response length.
-        thinking_level: Reasoning depth (minimal, low, medium, high).
-                       Higher = better quality but slower.
-        stream: Whether to use streaming for faster first response.
-
-    Returns:
-        Dict with model_used, response text, and optional usage stats.
-
-    Example:
-        Ask Gemini to review code:
-        prompt="Review this Python function for bugs"
-        context="def add(a, b): return a + b"
-        system_instruction="You are a senior Python developer"
-        thinking_level="high"
-    """
-    try:
-        client = get_gemini_client()
-        result = await client.generate_text(
-            prompt=prompt,
-            context=context,
-            system_instruction=system_instruction,
-            model=model,
-            temperature=temperature,
-            max_tokens=max_tokens,
-            thinking_level=thinking_level,
-            stream=stream,
-        )
-        logger.info(f"ask_gemini completed with model {result['model_used']}")
-        return result
-
-    except Exception as e:
-        logger.error(f"ask_gemini failed: {e}")
-        return {
-            "error": str(e),
-            "model_used": model,
-            "response": None,
-        }
-
-
-@mcp.tool()
-async def chat_gemini(
-    message: str,
-    chat_id: str = "default",
-    model: str = "gemini-3-flash-preview",
-    system_instruction: str = "",
-) -> dict:
-    """Continue a multi-turn conversation with Gemini 3.
-
-    Chat sessions maintain history, allowing for follow-up questions
-    and context-aware responses across multiple messages.
-
-    Args:
-        message: The message to send to Gemini.
-        chat_id: Unique identifier for the chat session. Use the same ID
-                 to continue a conversation, or a new ID to start fresh.
-        model: Gemini 3 model to use (gemini-3-flash-preview, gemini-3-pro-preview).
-        system_instruction: System instructions (only used for new sessions).
-
-    Returns:
-        Dict with response, chat_id, history length, and recent messages.
-
-    Example:
-        Start a code review session:
-        message="I need help reviewing my authentication module"
-        chat_id="auth-review-session"
-        system_instruction="You are a security expert"
-
-        Continue the conversation:
-        message="What about the password hashing?"
-        chat_id="auth-review-session"
-    """
-    try:
-        client = get_gemini_client()
-        result = await client.chat(
-            message=message,
-            chat_id=chat_id,
-            model=model,
-            system_instruction=system_instruction,
-        )
-        logger.info(f"chat_gemini completed, session {chat_id}, history: {result['history_length']}")
-        return result
-
-    except Exception as e:
-        logger.error(f"chat_gemini failed: {e}")
-        return {
-            "error": str(e),
-            "chat_id": chat_id,
-            "response": None,
-        }
-
-
-@mcp.tool()
 async def generate_image(
     prompt: str,
     model: str = "gemini-3-pro-image-preview",
@@ -414,41 +318,56 @@ async def generate_image(
     number_of_images: int = 1,
     output_resolution: str = "1K",
 ) -> dict:
-    """Generate an image using Gemini or Imagen models.
+    """Generate design assets using Gemini or Imagen models.
 
-    Creates high-fidelity images from text descriptions. Supports both
-    Gemini 3 Pro Image and Imagen 4 family models.
+    Creates high-quality images for frontend designs. Perfect for:
+    - Hero section backgrounds and gradients
+    - Product images and mockups
+    - Team member avatars and placeholders
+    - Feature illustrations and icons
+    - Marketing visuals and banners
+
+    Supports both Gemini 3 Pro Image and Imagen 4 family models.
 
     Args:
-        prompt: Text description of the image to generate. Be specific
-                and descriptive for best results.
+        prompt: Detailed description of the design asset to generate.
+                Be specific about style, colors, and composition.
+                Example: "Minimalist gradient background, blue to purple,
+                        soft flowing shapes, suitable for SaaS landing page hero"
         model: Image model to use:
                - gemini-3-pro-image-preview: High-fidelity with reasoning (4096px)
                - imagen-4.0-ultra-generate-001: Highest quality ($0.06/image)
                - imagen-4.0-generate-001: Standard quality ($0.04/image)
                - imagen-4.0-fast-generate-001: Fast generation ($0.02/image)
         aspect_ratio: Image dimensions ratio (1:1, 16:9, 9:16, 4:3, 3:4).
+                     Use 16:9 for hero backgrounds, 1:1 for avatars/icons.
         output_format: How to return the image:
                       - "base64": Return as base64 string (default)
                       - "file": Save to disk only
                       - "both": Return base64 AND save to disk
         output_dir: Directory to save files when using "file" or "both".
-        number_of_images: Number of images to generate (1-4, Imagen 4 only).
+        number_of_images: Number of variations to generate (1-4, Imagen 4 only).
         output_resolution: Output resolution "1K" or "2K" (Imagen 4 only).
 
     Returns:
         Dict with base64 data and/or file_path, plus model info.
         For multiple images, returns "images" list with each image's data.
 
-    Example:
-        Generate with Gemini:
-        prompt="A minimalist tech startup logo with geometric shapes"
-        model="gemini-3-pro-image-preview"
+    Examples:
+        # Hero background for landing page
+        prompt="Abstract gradient background, blue to purple, soft waves,
+                modern tech aesthetic, high resolution"
+        aspect_ratio="16:9"
 
-        Generate with Imagen 4 Ultra:
-        prompt="Photorealistic mountain landscape at sunset"
+        # Product mockup
+        prompt="3D mockup of a mobile app on iPhone, floating, soft shadows,
+                clean white background"
         model="imagen-4.0-ultra-generate-001"
-        number_of_images=4
+
+        # Team avatar placeholder
+        prompt="Professional avatar illustration, minimalist style,
+                warm colors, friendly expression"
+        aspect_ratio="1:1"
     """
     try:
         client = get_gemini_client()
@@ -466,83 +385,6 @@ async def generate_image(
 
     except Exception as e:
         logger.error(f"generate_image failed: {e}")
-        return {
-            "error": str(e),
-            "model_used": model,
-            "prompt": prompt,
-        }
-
-
-@mcp.tool()
-async def generate_video(
-    prompt: str,
-    model: str = "veo-3.1-generate-001",
-    output_gcs_uri: str = "",
-    duration_seconds: int = 8,
-    aspect_ratio: str = "16:9",
-    resolution: str = "720p",
-    generate_audio: bool = True,
-    number_of_videos: int = 1,
-    auto_download: bool = True,
-    output_dir: str = "./videos",
-) -> dict:
-    """Generate a video using Veo 3.1 models.
-
-    Creates high-quality videos with native audio from text descriptions.
-    Videos are saved to Google Cloud Storage and automatically downloaded locally.
-
-    IMPORTANT: This is a long-running operation. Video generation takes
-    1-10 minutes depending on duration and resolution.
-
-    Args:
-        prompt: Text description of the video to generate. Be specific
-                about scenes, actions, camera movements, and mood.
-        model: Veo model to use:
-               - veo-3.1-generate-001: Highest quality (~$0.40/sec)
-               - veo-3.1-fast-generate-001: Faster generation (~$0.15/sec)
-        output_gcs_uri: GCS URI for output (e.g., "gs://my-bucket/videos/").
-                       Optional. If not provided, auto-creates: {project-id}-gemini-videos
-        duration_seconds: Video length (4, 6, or 8 seconds). Default: 8.
-        aspect_ratio: "16:9" (landscape) or "9:16" (portrait). Default: "16:9".
-        resolution: "720p" or "1080p". Default: "720p".
-        generate_audio: Generate synchronized audio (dialogue, music, SFX). Default: True.
-        number_of_videos: Number of video variations (1-4). Default: 1.
-        auto_download: Automatically download videos to local directory. Default: True.
-        output_dir: Local directory for downloaded videos. Default: "./videos".
-
-    Returns:
-        Dict with video_uris (GCS paths), local_paths (if auto_download), and generation info.
-
-    Example:
-        Generate a cinematic video (auto-downloaded to ./videos):
-        prompt="A golden retriever running through a sunlit meadow, slow motion, cinematic"
-        model="veo-3.1-generate-001"
-        duration_seconds=8
-        resolution="1080p"
-
-    Note:
-        GCS bucket is automatically created if not specified.
-        Videos are automatically downloaded to output_dir when auto_download=True.
-    """
-    try:
-        client = get_gemini_client()
-        result = await client.generate_video(
-            prompt=prompt,
-            model=model,
-            output_gcs_uri=output_gcs_uri if output_gcs_uri else None,
-            duration_seconds=duration_seconds,
-            aspect_ratio=aspect_ratio,
-            resolution=resolution,
-            generate_audio=generate_audio,
-            number_of_videos=number_of_videos,
-            auto_download=auto_download,
-            output_dir=output_dir,
-        )
-        logger.info(f"generate_video completed with model {result['model_used']}")
-        return result
-
-    except Exception as e:
-        logger.error(f"generate_video failed: {e}")
         return {
             "error": str(e),
             "model_used": model,
@@ -1608,50 +1450,20 @@ async def design_from_reference(
 
 @mcp.tool()
 def list_models() -> dict:
-    """List available Gemini models and their capabilities.
+    """List available Gemini models for design tasks.
 
-    Returns information about text, image, and video generation models
-    available on Vertex AI.
+    Returns information about image generation models available on Vertex AI.
+    This MCP server is design-focused - use image models for creating
+    design assets like hero backgrounds, product images, and illustrations.
 
     Returns:
-        Dict containing lists of text, image, and video models with their specs.
+        Dict containing image models with their specifications.
     """
     return {
-        "text_models": AVAILABLE_MODELS["text"],
         "image_models": AVAILABLE_MODELS["image"],
-        "video_models": AVAILABLE_MODELS.get("video", []),
-        "default_text_model": get_config().default_model if _config_valid() else "gemini-3-flash-preview",
         "default_image_model": get_config().default_image_model if _config_valid() else "gemini-3-pro-image-preview",
-        "default_video_model": "veo-3.1-generate-001",
+        "note": "This MCP server is design-focused. Use generate_image for design assets.",
     }
-
-
-@mcp.tool()
-def clear_chat_session(chat_id: str) -> dict:
-    """Clear a chat session and its history.
-
-    Use this to start fresh with a new conversation context.
-
-    Args:
-        chat_id: The chat session ID to clear.
-
-    Returns:
-        Dict indicating success or failure.
-    """
-    try:
-        client = get_gemini_client()
-        cleared = client.clear_chat(chat_id)
-        return {
-            "success": cleared,
-            "chat_id": chat_id,
-            "message": f"Chat session '{chat_id}' cleared" if cleared else f"Chat session '{chat_id}' not found",
-        }
-    except Exception as e:
-        return {
-            "success": False,
-            "chat_id": chat_id,
-            "error": str(e),
-        }
 
 
 @mcp.tool()

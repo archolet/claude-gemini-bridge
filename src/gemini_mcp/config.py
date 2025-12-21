@@ -24,9 +24,6 @@ class GeminiConfig:
     # Image output settings
     default_image_output_dir: str = field(default_factory=lambda: os.getenv("GEMINI_IMAGE_OUTPUT_DIR", "./images"))
 
-    # Video output settings (requires GCS bucket)
-    default_video_gcs_uri: str = field(default_factory=lambda: os.getenv("GEMINI_VIDEO_GCS_URI", ""))
-
     def __post_init__(self):
         """Validate configuration after initialization."""
         if not self.project_id:
@@ -92,26 +89,6 @@ AVAILABLE_MODELS = {
             "max_resolution": "2K",
             "price": "$0.02/image",
             "features": ["fast generation", "SynthID watermark", "best with simple prompts"],
-        },
-    ],
-    "video": [
-        {
-            "id": "veo-3.1-generate-001",
-            "name": "Veo 3.1",
-            "description": "Latest video generation with native audio, up to 8 seconds at 1080p",
-            "max_duration": "8 seconds",
-            "max_resolution": "1080p",
-            "price": "~$0.40/second",
-            "features": ["native audio", "dialogue sync", "1080p", "text-to-video", "image-to-video", "SynthID"],
-        },
-        {
-            "id": "veo-3.1-fast-generate-001",
-            "name": "Veo 3.1 Fast",
-            "description": "Fast video generation for quick iterations",
-            "max_duration": "8 seconds",
-            "max_resolution": "1080p",
-            "price": "~$0.15/second",
-            "features": ["fast generation", "native audio", "1080p", "SynthID"],
         },
     ],
 }
