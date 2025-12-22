@@ -100,6 +100,26 @@ from .error_recovery import (
     ResponseValidator,
 )
 
+# GAP 4, 5, 6: Validation Layer
+from .validators import (
+    # Token extraction (GAP 4)
+    extract_all_tokens,
+    extract_color_palette,
+    parse_tailwind_class,
+    TailwindTokenType,
+    # Responsive validation (GAP 5)
+    validate_responsive,
+    ResponsiveReport,
+    # Accessibility validation (GAP 6)
+    A11yValidator,
+    A11yLevel,
+    A11yReport,
+    # Combined validation
+    validate_design_output,
+    auto_fix_design,
+    ValidationReport,
+)
+
 # Logger instance - configured in main() to use stderr (not stdout)
 # IMPORTANT: Do NOT use logging.basicConfig() here - it breaks MCP stdio protocol
 logger = logging.getLogger(__name__)
@@ -1098,6 +1118,38 @@ def list_frontend_options() -> dict:
         "note": "Use design_frontend() for components with advanced theme customization. "
                "Each theme supports factory parameters for deep customization. "
                "MAXIMUM_RICHNESS mode is enabled by default.",
+        # Phase 2: Validation capabilities
+        "validation": {
+            "responsive": {
+                "description": "Breakpoint coverage validation",
+                "default_breakpoints": ["sm", "md", "lg"],
+                "touch_target_min": "44px (WCAG 2.5.5)",
+            },
+            "accessibility": {
+                "description": "WCAG AA/AAA compliance checking",
+                "levels": ["A", "AA", "AAA"],
+                "checks": [
+                    "heading_hierarchy",
+                    "aria_attributes",
+                    "focus_states",
+                    "form_labels",
+                    "image_alt",
+                    "link_text",
+                    "color_contrast_hints",
+                ],
+                "auto_fix": True,
+            },
+            "token_extraction": {
+                "description": "Advanced Tailwind class parsing",
+                "supports": [
+                    "arbitrary_values ([#E11D48], [2.5rem])",
+                    "opacity_modifiers (/50, /80)",
+                    "responsive_prefixes (sm:, md:, lg:)",
+                    "state_variants (hover:, focus:)",
+                    "dark_mode (dark:)",
+                ],
+            },
+        },
     }
 
 
