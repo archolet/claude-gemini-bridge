@@ -169,20 +169,20 @@ def build_advanced_style_guide(
     season: str = "spring",
     organic_shapes: bool = True,
     eco_friendly_mode: bool = False,
-    # Startup customization
     archetype: str = "disruptor",
     startup_stage: str = "growth",
+    vibe: str = "",
 ) -> dict:
     """
     Build style guide using advanced theme factories.
     
     Falls back to basic build_style_guide for simple cases.
     """
+    # 1. First, compute the base theme from factory
+    style_guide = {}
     
-    # Theme factory mapping
     if theme == "modern-minimal":
         if brand_primary:
-            # Custom brand colors
             try:
                 brand = BrandColors.from_hex(brand_primary)
             except Exception:
@@ -190,7 +190,7 @@ def build_advanced_style_guide(
         else:
             brand = None
         
-        return create_modern_minimal_theme(
+        style_guide = create_modern_minimal_theme(
             brand=brand,
             neutral_base=neutral_base if neutral_base in ["slate", "gray", "zinc", "neutral", "stone"] else "slate",
             border_radius=border_radius.replace("rounded-", "") if border_radius else "lg",
@@ -198,14 +198,14 @@ def build_advanced_style_guide(
         )
     
     elif theme == "brutalist":
-        return create_brutalist_theme(
+        style_guide = create_brutalist_theme(
             contrast_mode=contrast_mode if contrast_mode in ["standard", "high", "maximum"] else "high",
             accent_color="yellow-400",
             include_focus_indicators=True,
         )
     
     elif theme == "glassmorphism":
-        return create_glassmorphism_theme(
+        style_guide = create_glassmorphism_theme(
             blur_intensity=blur_intensity if blur_intensity in ["sm", "md", "lg", "xl", "2xl", "3xl"] else "xl",
             opacity=glass_opacity if 0.3 <= glass_opacity <= 0.95 else 0.7,
             tint_color="white",
@@ -214,7 +214,7 @@ def build_advanced_style_guide(
         )
     
     elif theme == "neo-brutalism":
-        return create_neo_brutalism_theme(
+        style_guide = create_neo_brutalism_theme(
             gradient_preset=gradient_preset if gradient_preset in ["sunset", "ocean", "forest", "candy", "fire"] else "sunset",
             animation=gradient_animation if gradient_animation in ["none", "flow", "pulse", "shimmer", "wave"] else "flow",
             animation_speed="normal",
@@ -223,7 +223,7 @@ def build_advanced_style_guide(
         )
     
     elif theme == "soft-ui":
-        return create_soft_ui_theme(
+        style_guide = create_soft_ui_theme(
             base_color_light="slate-100",
             base_color_dark="slate-800",
             primary_color="blue-500",
@@ -231,7 +231,7 @@ def build_advanced_style_guide(
         )
     
     elif theme == "corporate":
-        return create_corporate_theme(
+        style_guide = create_corporate_theme(
             industry=industry if industry in ["finance", "healthcare", "legal", "tech", "manufacturing", "consulting"] else "consulting",
             layout=layout_style if layout_style in ["traditional", "modern", "editorial"] else "modern",
             formality=formality if formality in ["formal", "semi-formal", "approachable"] else "semi-formal",
@@ -239,7 +239,7 @@ def build_advanced_style_guide(
         )
     
     elif theme == "gradient":
-        return create_gradient_theme(
+        style_guide = create_gradient_theme(
             primary_gradient=primary_gradient if primary_gradient in GRADIENT_LIBRARY else "aurora",
             secondary_gradient="ocean",
             button_style="gradient",
@@ -248,7 +248,7 @@ def build_advanced_style_guide(
         )
     
     elif theme == "cyberpunk":
-        return create_cyberpunk_theme(
+        style_guide = create_cyberpunk_theme(
             primary_neon=primary_neon if primary_neon in NEON_COLORS else "cyan",
             secondary_neon="fuchsia",
             glow_intensity=neon_intensity if neon_intensity in ["subtle", "medium", "strong", "intense", "extreme"] else "medium",
@@ -257,14 +257,14 @@ def build_advanced_style_guide(
         )
     
     elif theme == "retro":
-        return create_retro_theme(
+        style_guide = create_retro_theme(
             era=retro_era if retro_era in ["80s_tech", "80s_neon", "90s_grunge", "90s_web", "retro_futurism", "vintage_americana"] else "80s_neon",
             color_scheme=retro_color_scheme if retro_color_scheme in ["neon", "pastel", "earthy", "chrome"] else "neon",
             enable_crt_effects=False,
         )
     
     elif theme == "pastel":
-        return create_pastel_theme(
+        style_guide = create_pastel_theme(
             primary_pastel=primary_pastel if primary_pastel in ["rose", "pink", "sky", "violet", "teal", "amber", "lime"] else "rose",
             secondary_pastel="sky",
             wcag_level=wcag_level if wcag_level in ["AA", "AAA"] else "AA",
@@ -272,28 +272,28 @@ def build_advanced_style_guide(
         )
     
     elif theme == "dark_mode_first":
-        return create_dark_mode_first_theme(
+        style_guide = create_dark_mode_first_theme(
             primary_glow=primary_glow if primary_glow in ["emerald", "cyan", "violet", "amber"] else "emerald",
             contrast_level="high" if contrast_mode == "high" else "normal",
             light_mode_style=light_mode_style if light_mode_style in ["minimal", "warm", "cool", "inverted"] else "minimal",
         )
     
     elif theme == "high_contrast":
-        return create_high_contrast_theme(
+        style_guide = create_high_contrast_theme(
             softness_level=softness_level if softness_level in ["sharp", "balanced", "smooth"] else "balanced",
             color_scheme=hc_color_scheme if hc_color_scheme in ["blue", "purple", "green", "neutral"] else "blue",
             animation_preference="reduced",
         )
     
     elif theme == "nature":
-        return create_nature_theme(
+        style_guide = create_nature_theme(
             season=season if season in ["spring", "summer", "autumn", "winter"] else "spring",
             organic_shapes=organic_shapes,
             eco_friendly_mode=eco_friendly_mode,
         )
     
     elif theme == "startup":
-        return create_startup_theme(
+        style_guide = create_startup_theme(
             archetype=archetype if archetype in ["disruptor", "enterprise", "consumer", "fintech", "healthtech", "ai_ml", "sustainability"] else "disruptor",
             stage=startup_stage if startup_stage in ["seed", "growth", "scale"] else "growth",
             enable_motion=True,
@@ -301,11 +301,30 @@ def build_advanced_style_guide(
     
     else:
         # Fallback to basic style guide
-        return build_style_guide(
+        style_guide = build_style_guide(
             theme=theme,
             dark_mode=dark_mode,
             border_radius=border_radius,
         )
+    
+    # 2. Add Vibe Specifications if requested
+    if vibe:
+        from .theme_factories import get_vibe_specs
+        vibe_specs = get_vibe_specs(vibe)
+        style_guide["vibe_specs"] = vibe_specs
+        style_guide["vibe"] = vibe
+        
+        # Inject vibe-specific CSS variables
+        if "css_variables" not in style_guide:
+            style_guide["css_variables"] = {}
+        
+        style_guide["css_variables"].update({
+            "--vibe-easing": vibe_specs.get("easing", "ease-in-out"),
+            "--vibe-duration": vibe_specs.get("duration", "300ms"),
+            "--vibe-shadow-glow": vibe_specs.get("shadow_glow", "transparent"),
+        })
+        
+    return style_guide
 
 
 @mcp.tool()
@@ -319,55 +338,15 @@ async def generate_image(
     output_resolution: str = "1K",
 ) -> dict:
     """Generate design assets using Gemini or Imagen models.
-
-    Creates high-quality images for frontend designs. Perfect for:
-    - Hero section backgrounds and gradients
-    - Product images and mockups
-    - Team member avatars and placeholders
-    - Feature illustrations and icons
-    - Marketing visuals and banners
-
-    Supports both Gemini 3 Pro Image and Imagen 4 family models.
-
+    
     Args:
-        prompt: Detailed description of the design asset to generate.
-                Be specific about style, colors, and composition.
-                Example: "Minimalist gradient background, blue to purple,
-                        soft flowing shapes, suitable for SaaS landing page hero"
-        model: Image model to use:
-               - gemini-3-pro-image-preview: High-fidelity with reasoning (4096px)
-               - imagen-4.0-ultra-generate-001: Highest quality ($0.06/image)
-               - imagen-4.0-generate-001: Standard quality ($0.04/image)
-               - imagen-4.0-fast-generate-001: Fast generation ($0.02/image)
-        aspect_ratio: Image dimensions ratio (1:1, 16:9, 9:16, 4:3, 3:4).
-                     Use 16:9 for hero backgrounds, 1:1 for avatars/icons.
-        output_format: How to return the image:
-                      - "base64": Return as base64 string (default)
-                      - "file": Save to disk only
-                      - "both": Return base64 AND save to disk
-        output_dir: Directory to save files when using "file" or "both".
-        number_of_images: Number of variations to generate (1-4, Imagen 4 only).
-        output_resolution: Output resolution "1K" or "2K" (Imagen 4 only).
-
-    Returns:
-        Dict with base64 data and/or file_path, plus model info.
-        For multiple images, returns "images" list with each image's data.
-
-    Examples:
-        # Hero background for landing page
-        prompt="Abstract gradient background, blue to purple, soft waves,
-                modern tech aesthetic, high resolution"
-        aspect_ratio="16:9"
-
-        # Product mockup
-        prompt="3D mockup of a mobile app on iPhone, floating, soft shadows,
-                clean white background"
-        model="imagen-4.0-ultra-generate-001"
-
-        # Team avatar placeholder
-        prompt="Professional avatar illustration, minimalist style,
-                warm colors, friendly expression"
-        aspect_ratio="1:1"
+        prompt: Description of the asset.
+        model: Model name.
+        aspect_ratio: Image ratio.
+        output_format: base64 or file.
+        output_dir: Save directory.
+        number_of_images: Image count.
+        output_resolution: Resolution (1K/2K).
     """
     try:
         client = get_gemini_client()
@@ -453,6 +432,7 @@ async def design_frontend(
     # Startup
     archetype: str = "disruptor",
     startup_stage: str = "growth",
+    vibe: str = "",
 ) -> dict:
     """Design a frontend UI component using Gemini 3 Pro.
 
@@ -506,6 +486,11 @@ async def design_frontend(
                - high_contrast: WCAG AAA accessible
                - nature: Earth tones, organic feel
                - startup: Tech startup aesthetic
+        vibe: Optional design spirit / persona. Options:
+               - elite_corporate: Precise, luxury corporate
+               - playful_funny: High energy, bouncy, witty
+               - cyberpunk_edge: High contrast, neon, industrial
+               - luxury_editorial: Elegant, spacious, serif-heavy
         dark_mode: Include dark: variants for dark mode support (default: True)
         border_radius: Custom border radius override (e.g., "rounded-xl")
         responsive_breakpoints: Comma-separated breakpoints (default: "sm,md,lg")
@@ -693,6 +678,7 @@ async def design_frontend(
             # Startup
             archetype=archetype,
             startup_stage=startup_stage,
+            vibe=vibe,
         )
 
         # Build constraints
@@ -959,6 +945,12 @@ def list_frontend_options() -> dict:
                 "startup_stage": ["seed (bold)", "growth (balanced)", "scale (refined)"],
             },
             "archetypes": {k: v.get("tagline", "") for k, v in STARTUP_ARCHETYPES.items()},
+        },
+        "vibes": {
+            "elite_corporate": "Precise, luxury corporate",
+            "playful_funny": "High energy, bouncy, witty",
+            "cyberpunk_edge": "High contrast, neon, industrial",
+            "luxury_editorial": "Elegant, spacious, serif-heavy",
         },
     }
 

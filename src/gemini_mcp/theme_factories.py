@@ -97,7 +97,7 @@ def _to_css_color(tailwind_color: str) -> str:
         "blue-800": "30 64 175",
         "indigo-600": "79 70 229",
         "indigo-500": "99 102 241",
-        "pink-500": "236, 72, 153",
+        "pink-500": "236 72 153",
     }
     return color_map.get(tailwind_color, "59 130 246")
 
@@ -141,6 +141,15 @@ def get_vibe_specs(vibe_name: str) -> Dict[str, Any]:
             "shadow_glow": "rgba(34, 211, 238, 0.8)",
             "typography_tracking": "tracking-widest",
             "persona_note": "Focus on high contrast, glitch-like snappy transitions."
+        },
+        "luxury_editorial": {
+            "easing": "cubic-bezier(0.4, 0, 0.2, 1)",
+            "duration": "800ms",
+            "glass_opacity": 0.02,
+            "border_opacity": 0.05,
+            "shadow_glow": "rgba(168, 162, 158, 0.1)",
+            "typography_tracking": "tracking-wide",
+            "persona_note": "Focus on expansive white space, artistic asymmetry, and elegant slow transitions."
         }
     }
     return vibes.get(vibe_name, vibes["elite_corporate"])
