@@ -1,0 +1,436 @@
+<!DOCTYPE html>
+<html lang="tr" class="scroll-smooth">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gemini MCP Demo - All Features</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-slate-100">
+
+<!-- SECTION: hero -->
+<section class="py-24 px-8 bg-gradient-to-br from-blue-600 to-indigo-700 text-white">
+    <div class="max-w-6xl mx-auto text-center">
+        <h1 class="text-3xl md:text-4xl leading-tight tracking-tight font-semibold mb-6">
+            Gemini MCP Design Tools
+        </h1>
+        <p class="text-lg leading-relaxed tracking-normal font-normal text-blue-100 mb-8 max-w-2xl mx-auto">
+            Phase 1-4 tamamlandı. 12 GAP, 155 test, 4 yeni modül.
+        </p>
+        <button class="px-6 py-3 text-base bg-white text-blue-600 rounded-lg transition-all duration-200 ease-out hover:bg-blue-50 focus-visible:ring-2 focus-visible:ring-white">
+            Başla
+        </button>
+    </div>
+</section>
+<!-- /SECTION: hero -->
+
+<!-- SECTION: features -->
+<section class="py-24 px-8">
+    <div class="max-w-6xl mx-auto">
+        <h2 class="text-2xl md:text-3xl leading-snug tracking-tight font-semibold text-center mb-12">Özellikler</h2>
+        <div class="grid md:grid-cols-3 gap-8">
+            <div class="bg-white dark:bg-slate-800 p-6 rounded-xl shadow-sm">
+                <h3 class="text-lg md:text-xl leading-normal tracking-normal font-medium mb-2">Design System</h3>
+                <p class="text-sm leading-normal tracking-normal font-normal text-slate-600 dark:text-slate-400">
+                    Spacing, typography, component sizes standardizasyonu.
+                </p>
+            </div>
+            <div class="bg-white dark:bg-slate-800 p-6 rounded-xl shadow-sm">
+                <h3 class="text-lg md:text-xl leading-normal tracking-normal font-medium mb-2">Workflow</h3>
+                <p class="text-sm leading-normal tracking-normal font-normal text-slate-600 dark:text-slate-400">
+                    Parallel execution, checkpoints, progress tracking.
+                </p>
+            </div>
+            <div class="bg-white dark:bg-slate-800 p-6 rounded-xl shadow-sm">
+                <h3 class="text-lg md:text-xl leading-normal tracking-normal font-medium mb-2">Validators</h3>
+                <p class="text-sm leading-normal tracking-normal font-normal text-slate-600 dark:text-slate-400">
+                    A11y, responsive, token extraction validation.
+                </p>
+            </div>
+        </div>
+    </div>
+</section>
+<!-- /SECTION: features -->
+
+<!-- SECTION: stats -->
+<section class="py-24 px-8 bg-slate-100 dark:bg-slate-800">
+    <div class="max-w-6xl mx-auto">
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-8 text-center">
+            <div>
+                <div class="text-4xl font-bold text-blue-600">4</div>
+                <div class="text-sm leading-none tracking-wide font-medium text-slate-600">Phase</div>
+            </div>
+            <div>
+                <div class="text-4xl font-bold text-blue-600">12</div>
+                <div class="text-sm leading-none tracking-wide font-medium text-slate-600">GAP</div>
+            </div>
+            <div>
+                <div class="text-4xl font-bold text-blue-600">155</div>
+                <div class="text-sm leading-none tracking-wide font-medium text-slate-600">Test</div>
+            </div>
+            <div>
+                <div class="text-4xl font-bold text-blue-600">4</div>
+                <div class="text-sm leading-none tracking-wide font-medium text-slate-600">Yeni Modül</div>
+            </div>
+        </div>
+    </div>
+</section>
+<!-- /SECTION: stats -->
+
+<!-- Interactive Demo with Tabs -->
+<section class="py-24 px-8">
+    <div class="max-w-4xl mx-auto">
+        <h2 class="text-2xl md:text-3xl leading-snug tracking-tight font-semibold text-center mb-8">Interactive Demo</h2>
+
+        <!-- Tabs -->
+        <div class="tabs" role="tablist" aria-label="Demo tabs">
+            <div class="flex border-b border-slate-200 dark:border-slate-700 mb-6">
+                <button role="tab" aria-selected="true" aria-controls="panel-1"
+                    class="px-4 py-2 font-medium text-blue-600 border-b-2 border-blue-600">
+                    Design System
+                </button>
+                <button role="tab" aria-selected="false" aria-controls="panel-2"
+                    class="px-4 py-2 font-medium text-slate-500 hover:text-slate-700">
+                    Workflow
+                </button>
+                <button role="tab" aria-selected="false" aria-controls="panel-3"
+                    class="px-4 py-2 font-medium text-slate-500 hover:text-slate-700">
+                    Telemetry
+                </button>
+            </div>
+
+            <div id="panel-1" role="tabpanel" class="bg-slate-100 dark:bg-slate-800 p-6 rounded-lg">
+                <pre class="text-sm overflow-auto"><code>from gemini_mcp.design_system import DESIGN_SYSTEM
+
+# Spacing
+spacing_class("p", SpacingScale.BASE)  # "p-4"
+
+# Typography
+get_type_classes("heading-lg")  # "text-2xl md:text-3xl..."
+
+# Component sizes
+get_component_size("button", "lg")  # "px-6 py-3 text-base"</code></pre>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- Modal Demo -->
+<div class="text-center py-8">
+    <button data-modal-trigger="demo-modal"
+        class="px-6 py-3 text-base bg-blue-600 text-white rounded-lg transition-all duration-200 ease-out hover:bg-blue-700 focus-visible:ring-2 focus-visible:ring-blue-500">
+        Modal Aç
+    </button>
+</div>
+
+<div id="demo-modal" class="modal hidden fixed inset-0 bg-black/50 flex items-center justify-center z-50" role="dialog" aria-modal="true">
+    <div class="bg-white dark:bg-slate-800 rounded-xl p-8 max-w-md mx-4 shadow-2xl">
+        <h3 class="text-xl md:text-2xl leading-snug tracking-normal font-semibold mb-4">JS Fallback Demo</h3>
+        <p class="text-base leading-relaxed tracking-normal font-normal text-slate-600 dark:text-slate-400 mb-6">
+            Bu modal vanilla JS ile çalışıyor. innerHTML kullanılmadı (XSS güvenliği).
+        </p>
+        <button data-modal-close class="px-4 py-2 text-sm bg-slate-200 dark:bg-slate-700 rounded-lg transition-all duration-200 ease-out hover:bg-slate-300">
+            Kapat
+        </button>
+    </div>
+</div>
+
+<!-- SECTION: footer -->
+<footer class="py-12 px-8 bg-slate-900 text-slate-400 text-center">
+    <p class="text-sm leading-normal tracking-normal font-normal">
+        Gemini MCP Design Tools © 2024 | Phase 1-4 Complete
+    </p>
+</footer>
+<!-- /SECTION: footer -->
+
+
+<script>
+(function() {
+
+// Utility Functions
+const utils = {
+    debounce(fn, delay = 150) {
+        let timeout;
+        return (...args) => {
+            clearTimeout(timeout);
+            timeout = setTimeout(() => fn.apply(this, args), delay);
+        };
+    },
+    throttle(fn, limit = 100) {
+        let inThrottle;
+        return (...args) => {
+            if (!inThrottle) {
+                fn.apply(this, args);
+                inThrottle = true;
+                setTimeout(() => inThrottle = false, limit);
+            }
+        };
+    },
+    qs: (sel, ctx = document) => ctx.querySelector(sel),
+    qsa: (sel, ctx = document) => [...ctx.querySelectorAll(sel)],
+    on: (el, evt, fn, opts) => el?.addEventListener(evt, fn, opts),
+    off: (el, evt, fn, opts) => el?.removeEventListener(evt, fn, opts),
+    addClass: (el, ...cls) => el?.classList.add(...cls),
+    removeClass: (el, ...cls) => el?.classList.remove(...cls),
+    toggleClass: (el, cls, force) => el?.classList.toggle(cls, force),
+    hasClass: (el, cls) => el?.classList.contains(cls),
+    attr: (el, name, val) => val !== undefined ? el?.setAttribute(name, val) : el?.getAttribute(name),
+    emit: (el, name, detail = {}) => el?.dispatchEvent(new CustomEvent(name, { detail, bubbles: true })),
+    // Safe DOM creation
+    createElement: (tag, attrs = {}, children = []) => {
+        const el = document.createElement(tag);
+        Object.entries(attrs).forEach(([k, v]) => {
+            if (k === 'className') el.className = v;
+            else if (k === 'textContent') el.textContent = v;
+            else el.setAttribute(k, v);
+        });
+        children.forEach(child => {
+            if (typeof child === 'string') {
+                el.appendChild(document.createTextNode(child));
+            } else if (child) {
+                el.appendChild(child);
+            }
+        });
+        return el;
+    },
+    // Create SVG element safely
+    createSvg: (paths, className = 'w-5 h-5') => {
+        const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+        svg.setAttribute('class', className);
+        svg.setAttribute('fill', 'none');
+        svg.setAttribute('stroke', 'currentColor');
+        svg.setAttribute('viewBox', '0 0 24 24');
+        paths.forEach(d => {
+            const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+            path.setAttribute('stroke-linecap', 'round');
+            path.setAttribute('stroke-linejoin', 'round');
+            path.setAttribute('stroke-width', '2');
+            path.setAttribute('d', d);
+            svg.appendChild(path);
+        });
+        return svg;
+    }
+};
+
+
+
+// Modal with Focus Trap
+const Modal = {
+    activeModal: null,
+    previousFocus: null,
+
+    init(selector = '[data-modal]') {
+        // Modal triggers
+        utils.qsa('[data-modal-open]').forEach(trigger => {
+            utils.on(trigger, 'click', () => {
+                const modalId = trigger.dataset.modalOpen;
+                const modal = utils.qs('[data-modal="' + modalId + '"]');
+                if (modal) this.open(modal);
+            });
+        });
+
+        // Close buttons
+        utils.qsa('[data-modal-close]').forEach(btn => {
+            utils.on(btn, 'click', () => this.close());
+        });
+
+        // Backdrop click
+        utils.qsa(selector).forEach(modal => {
+            utils.on(modal, 'click', (e) => {
+                if (e.target === modal) this.close();
+            });
+        });
+
+        // Escape key
+        utils.on(document, 'keydown', (e) => {
+            if (e.key === 'Escape' && this.activeModal) {
+                this.close();
+            }
+        });
+    },
+
+    open(modal) {
+        if (this.activeModal) this.close();
+
+        // Store previous focus
+        this.previousFocus = document.activeElement;
+        this.activeModal = modal;
+
+        // Show modal
+        utils.addClass(modal, 'modal-open');
+        utils.attr(modal, 'aria-hidden', 'false');
+        document.body.style.overflow = 'hidden';
+
+        // Focus trap
+        this.trapFocus(modal);
+
+        // Focus first focusable element
+        const firstFocusable = this.getFocusableElements(modal)[0];
+        if (firstFocusable) {
+            setTimeout(() => firstFocusable.focus(), 50);
+        }
+
+        utils.emit(modal, 'modal:open');
+    },
+
+    close() {
+        if (!this.activeModal) return;
+
+        const modal = this.activeModal;
+
+        utils.removeClass(modal, 'modal-open');
+        utils.attr(modal, 'aria-hidden', 'true');
+        document.body.style.overflow = '';
+
+        // Restore focus
+        if (this.previousFocus) {
+            this.previousFocus.focus();
+        }
+
+        this.activeModal = null;
+        this.previousFocus = null;
+
+        utils.emit(modal, 'modal:close');
+    },
+
+    getFocusableElements(container) {
+        const focusableSelectors = [
+            'a[href]',
+            'button:not([disabled])',
+            'input:not([disabled])',
+            'select:not([disabled])',
+            'textarea:not([disabled])',
+            '[tabindex]:not([tabindex="-1"])',
+        ];
+        return utils.qsa(focusableSelectors.join(','), container);
+    },
+
+    trapFocus(modal) {
+        const focusHandler = (e) => {
+            if (e.key !== 'Tab') return;
+
+            const focusable = this.getFocusableElements(modal);
+            const first = focusable[0];
+            const last = focusable[focusable.length - 1];
+
+            if (e.shiftKey && document.activeElement === first) {
+                e.preventDefault();
+                if (last) last.focus();
+            } else if (!e.shiftKey && document.activeElement === last) {
+                e.preventDefault();
+                if (first) first.focus();
+            }
+        };
+
+        // Remove old handler if exists
+        if (modal._focusTrapHandler) utils.off(modal, 'keydown', modal._focusTrapHandler);
+
+        // Add new handler
+        modal._focusTrapHandler = focusHandler;
+        utils.on(modal, 'keydown', focusHandler);
+    }
+};
+
+// Modal styles
+(function() {
+    if (document.getElementById('modal-styles')) return;
+    const style = utils.createElement('style', { id: 'modal-styles' });
+    style.textContent = [
+        '[data-modal] {',
+        '    position: fixed; inset: 0; z-index: 100;',
+        '    display: flex; align-items: center; justify-content: center;',
+        '    opacity: 0; visibility: hidden; transition: opacity 0.2s ease, visibility 0.2s;',
+        '}',
+        '[data-modal].modal-open { opacity: 1; visibility: visible; }',
+        '[data-modal] > *:not(.modal-backdrop) {',
+        '    transform: scale(0.95) translateY(10px); transition: transform 0.2s ease;',
+        '}',
+        '[data-modal].modal-open > *:not(.modal-backdrop) { transform: scale(1) translateY(0); }'
+    ].join('\n');
+    document.head.appendChild(style);
+})();
+
+document.addEventListener('DOMContentLoaded', () => Modal.init());
+
+
+
+// Tabs Component
+const Tabs = {
+    init(selector = '[data-tabs]') {
+        utils.qsa(selector).forEach(tabContainer => {
+            const tabs = utils.qsa('[role="tab"]', tabContainer);
+            const panels = utils.qsa('[role="tabpanel"]', tabContainer);
+
+            tabs.forEach((tab, index) => {
+                // Click handler
+                utils.on(tab, 'click', () => this.activate(tabContainer, index));
+
+                // Keyboard navigation
+                utils.on(tab, 'keydown', (e) => {
+                    let newIndex = index;
+
+                    if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
+                        newIndex = (index + 1) % tabs.length;
+                    } else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
+                        newIndex = (index - 1 + tabs.length) % tabs.length;
+                    } else if (e.key === 'Home') {
+                        newIndex = 0;
+                    } else if (e.key === 'End') {
+                        newIndex = tabs.length - 1;
+                    } else {
+                        return;
+                    }
+
+                    e.preventDefault();
+                    this.activate(tabContainer, newIndex);
+                    tabs[newIndex].focus();
+                });
+            });
+
+            // Activate first tab by default
+            const activeIndex = tabs.findIndex(t => t.getAttribute('aria-selected') === 'true');
+            this.activate(tabContainer, activeIndex >= 0 ? activeIndex : 0);
+        });
+    },
+
+    activate(container, index) {
+        const tabs = utils.qsa('[role="tab"]', container);
+        const panels = utils.qsa('[role="tabpanel"]', container);
+
+        tabs.forEach((tab, i) => {
+            const isActive = i === index;
+            tab.setAttribute('aria-selected', isActive);
+            tab.setAttribute('tabindex', isActive ? '0' : '-1');
+            utils.toggleClass(tab, 'tab-active', isActive);
+        });
+
+        panels.forEach((panel, i) => {
+            const isActive = i === index;
+            panel.hidden = !isActive;
+            utils.toggleClass(panel, 'tabpanel-active', isActive);
+        });
+
+        utils.emit(container, 'tabs:change', { index });
+    }
+};
+
+// Tab styles
+(function() {
+    if (document.getElementById('tabs-styles')) return;
+    const style = utils.createElement('style', { id: 'tabs-styles' });
+    style.textContent = [
+        '[role="tab"] { cursor: pointer; transition: color 0.2s, border-color 0.2s, background 0.2s; }',
+        '[role="tab"]:focus-visible { outline: 2px solid currentColor; outline-offset: 2px; }',
+        '[role="tabpanel"] { animation: tabFadeIn 0.2s ease; }',
+        '[role="tabpanel"][hidden] { display: none; }',
+        '@keyframes tabFadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }'
+    ].join('\n');
+    document.head.appendChild(style);
+})();
+
+document.addEventListener('DOMContentLoaded', () => Tabs.init());
+
+})();
+</script>
+</body>
+</html>
