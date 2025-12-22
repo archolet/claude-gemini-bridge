@@ -318,3 +318,184 @@ def migrate_to_markers(html: str, section_mapping: Dict[str, str]) -> str:
                 result = result[:match.start()] + wrapped + result[match.end():]
 
     return result
+
+
+# =============================================================================
+# GAP 2 Fix: Section Marker Enforcement
+# =============================================================================
+
+def ensure_section_markers(html: str, section_type: str) -> str:
+    """Ensure HTML content has proper section markers.
+
+    If the content already has markers, validates and returns as-is.
+    If not, wraps the content with appropriate markers.
+
+    Args:
+        html: The HTML content (may or may not have markers).
+        section_type: The expected section type.
+
+    Returns:
+        HTML with guaranteed section markers.
+
+    Example:
+        >>> ensure_section_markers('<nav>Nav</nav>', 'navbar')
+        '<!-- SECTION: navbar -->\\n<nav>Nav</nav>\\n<!-- /SECTION: navbar -->'
+    """
+    html = html.strip()
+
+    # Check if already has this section's markers
+    pattern = rf'<!-- SECTION: {section_type} -->'
+    if re.search(pattern, html):
+        # Validate closing marker exists
+        closing_pattern = rf'<!-- /SECTION: {section_type} -->'
+        if re.search(closing_pattern, html):
+            return html
+        # Has opening but not closing - add closing
+        return html + f"\n<!-- /SECTION: {section_type} -->"
+
+    # No markers - wrap the content
+    return wrap_content_with_markers(html, section_type)
+
+
+def combine_sections(sections: List[Tuple[str, str]], page_wrapper: bool = True) -> str:
+    """Combine multiple sections into a complete page HTML.
+
+    Each section is wrapped with markers if not already wrapped.
+    Sections are combined in the order provided.
+
+    Args:
+        sections: List of (section_type, html_content) tuples.
+                  Example: [("navbar", "<nav>...</nav>"), ("hero", "<section>...</section>")]
+        page_wrapper: If True, wrap the combined sections in a basic page structure.
+
+    Returns:
+        Complete HTML with all sections properly marked.
+
+    Example:
+        >>> sections = [
+        ...     ("navbar", "<nav>Navigation</nav>"),
+        ...     ("hero", "<section>Hero</section>"),
+        ...     ("footer", "<footer>Footer</footer>")
+        ... ]
+        >>> combine_sections(sections)
+        # Returns complete HTML with all sections marked
+    """
+    marked_sections = []
+
+    for section_type, content in sections:
+        marked = ensure_section_markers(content, section_type)
+        marked_sections.append(marked)
+
+    combined = "\n\n".join(marked_sections)
+
+    if page_wrapper:
+        return f"""<!DOCTYPE html>
+<html lang="tr" class="scroll-smooth">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+</head>
+<body class="min-h-screen bg-white dark:bg-gray-900">
+{combined}
+</body>
+</html>"""
+
+    return combined
+
+
+def extract_all_sections(html: str) -> Dict[str, str]:
+    """Extract all sections from HTML into a dictionary.
+
+    Args:
+        html: The full HTML content with section markers.
+
+    Returns:
+        Dictionary mapping section types to their content (without markers).
+
+    Example:
+        >>> html = '''<!-- SECTION: navbar --><nav>Nav</nav><!-- /SECTION: navbar -->
+        ... <!-- SECTION: hero --><section>Hero</section><!-- /SECTION: hero -->'''
+        >>> extract_all_sections(html)
+        {'navbar': '<nav>Nav</nav>', 'hero': '<section>Hero</section>'}
+    """
+    sections = {}
+    for match in re.finditer(SECTION_PATTERN, html, re.DOTALL):
+        section_type = match.group(1)
+        content = match.group(2).strip()
+        sections[section_type] = content
+    return sections
+
+
+def validate_page_structure(html: str, required_sections: Optional[List[str]] = None) -> Tuple[bool, List[str]]:
+    """Validate that a page has the required section structure.
+
+    Args:
+        html: The full HTML content.
+        required_sections: List of section types that must be present.
+                          If None, just checks for any valid section structure.
+
+    Returns:
+        Tuple of (is_valid, list of missing or invalid sections).
+
+    Example:
+        >>> html = '''<!-- SECTION: navbar -->...<!-- /SECTION: navbar -->
+        ... <!-- SECTION: hero -->...<!-- /SECTION: hero -->'''
+        >>> validate_page_structure(html, ['navbar', 'hero', 'footer'])
+        (False, ['footer'])
+    """
+    found_sections = set(list_sections(html))
+    issues = []
+
+    if required_sections:
+        missing = set(required_sections) - found_sections
+        issues.extend([f"missing:{s}" for s in missing])
+
+    # Check for unclosed markers
+    opening_markers = set(re.findall(r'<!-- SECTION: (\w+) -->', html))
+    closing_markers = set(re.findall(r'<!-- /SECTION: (\w+) -->', html))
+
+    unclosed = opening_markers - closing_markers
+    issues.extend([f"unclosed:{s}" for s in unclosed])
+
+    unopened = closing_markers - opening_markers
+    issues.extend([f"unopened:{s}" for s in unopened])
+
+    return len(issues) == 0, issues
+
+
+def reorder_sections(html: str, section_order: List[str]) -> str:
+    """Reorder sections in HTML according to a specified order.
+
+    Sections not in the order list are appended at the end.
+
+    Args:
+        html: The full HTML content with section markers.
+        section_order: Desired order of sections.
+
+    Returns:
+        HTML with sections reordered.
+
+    Example:
+        >>> html = '''<!-- SECTION: footer -->...<!-- /SECTION: footer -->
+        ... <!-- SECTION: navbar -->...<!-- /SECTION: navbar -->'''
+        >>> reorder_sections(html, ['navbar', 'footer'])
+        # Returns with navbar before footer
+    """
+    all_sections = extract_all_sections(html)
+
+    # Build ordered list
+    ordered_sections = []
+
+    # First, add sections in specified order
+    for section_type in section_order:
+        if section_type in all_sections:
+            ordered_sections.append((section_type, all_sections[section_type]))
+
+    # Then, add any remaining sections
+    for section_type, content in all_sections.items():
+        if section_type not in section_order:
+            ordered_sections.append((section_type, content))
+
+    return combine_sections(ordered_sections, page_wrapper=False)

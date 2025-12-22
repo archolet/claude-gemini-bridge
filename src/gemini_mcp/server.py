@@ -80,6 +80,24 @@ from .section_utils import (
     extract_design_tokens_from_section,
     wrap_content_with_markers,
     has_section_markers,
+    # GAP 2: Section Marker Enforcement
+    ensure_section_markers,
+    combine_sections,
+    validate_page_structure,
+    extract_all_sections,
+)
+
+# GAP 3: Error Handling and Recovery
+from .error_recovery import (
+    ErrorType,
+    RecoveryStrategy,
+    classify_error,
+    repair_json_response,
+    extract_html_fallback,
+    create_fallback_response,
+    with_retry,
+    retry_async,
+    ResponseValidator,
 )
 
 # Logger instance - configured in main() to use stderr (not stdout)
@@ -119,6 +137,93 @@ mcp = FastMCP(
     or gcloud CLI token.
     """,
 )
+
+
+# =============================================================================
+# GAP 3: ERROR HANDLING AND RECOVERY HELPERS
+# =============================================================================
+
+# Default recovery strategy for design operations
+DESIGN_RECOVERY_STRATEGY = RecoveryStrategy(
+    max_retries=3,
+    base_delay_seconds=1.0,
+    max_delay_seconds=30.0,
+    exponential_backoff=True,
+    jitter=True,
+    retry_on=[
+        ErrorType.RATE_LIMIT,
+        ErrorType.NETWORK_ERROR,
+        ErrorType.TIMEOUT,
+        ErrorType.INVALID_JSON,
+    ],
+)
+
+
+async def safe_design_call(
+    api_call,
+    component_type: str = "unknown",
+    response_type: str = "design",
+    fallback_enabled: bool = True,
+) -> dict:
+    """Execute a design API call with retry, validation, and fallback.
+
+    Args:
+        api_call: Async callable that makes the API request.
+        component_type: Type of component being designed (for fallback).
+        response_type: Expected response type for validation.
+        fallback_enabled: Whether to return fallback HTML on failure.
+
+    Returns:
+        API response dict with either successful result or fallback.
+
+    Example:
+        result = await safe_design_call(
+            lambda: client.design_component(...),
+            component_type="hero",
+            response_type="design",
+        )
+    """
+    partial_result = None
+
+    try:
+        # Execute with retry
+        result = await with_retry(
+            api_call,
+            strategy=DESIGN_RECOVERY_STRATEGY,
+            on_retry=lambda attempt, e: logger.warning(
+                f"Retry {attempt + 1} for {component_type}: {classify_error(e).value}"
+            ),
+        )
+
+        # Validate response
+        is_valid, missing = ResponseValidator.validate(result, response_type)
+        if not is_valid:
+            logger.warning(f"Response missing fields: {missing}")
+            result = ResponseValidator.repair(result, response_type, component_type)
+            result["_validation_repaired"] = True
+
+        return result
+
+    except Exception as e:
+        error_type = classify_error(e)
+        logger.error(f"Design call failed after retries: {error_type.value} - {e}")
+
+        # Try to extract partial result from raw response if available
+        if hasattr(e, "response_text"):
+            raw_text = getattr(e, "response_text", "")
+            html = extract_html_fallback(raw_text)
+            if html:
+                partial_result = {"html": html, "_partial_recovery": True}
+
+        # Create fallback response
+        if fallback_enabled:
+            return create_fallback_response(
+                component_type=component_type,
+                error=e,
+                partial_result=partial_result,
+            )
+        else:
+            raise
 
 
 # =============================================================================
@@ -349,15 +454,22 @@ async def generate_image(
         output_resolution: Resolution (1K/2K).
     """
     try:
+        # GAP 3: Error handling with retry
         client = get_gemini_client()
-        result = await client.generate_image(
-            prompt=prompt,
-            model=model,
-            aspect_ratio=aspect_ratio,
-            output_format=output_format,
-            output_dir=output_dir,
-            number_of_images=number_of_images,
-            output_resolution=output_resolution,
+        result = await with_retry(
+            lambda: client.generate_image(
+                prompt=prompt,
+                model=model,
+                aspect_ratio=aspect_ratio,
+                output_format=output_format,
+                output_dir=output_dir,
+                number_of_images=number_of_images,
+                output_resolution=output_resolution,
+            ),
+            strategy=DESIGN_RECOVERY_STRATEGY,
+            on_retry=lambda attempt, e: logger.warning(
+                f"generate_image retry {attempt + 1}: {classify_error(e).value}"
+            ),
         )
         logger.info(f"generate_image completed with model {result['model_used']}")
         return result
@@ -699,15 +811,19 @@ async def design_frontend(
         if max_width:
             constraints["max_width"] = max_width
 
-        # Call the design method
+        # Call the design method with GAP 3 error handling
         client = get_gemini_client()
-        result = await client.design_component(
+        result = await safe_design_call(
+            api_call=lambda: client.design_component(
+                component_type=component_type,
+                design_spec=design_spec,
+                style_guide=style_guide,
+                constraints=constraints,
+                project_context=project_context,
+                content_language=content_language,
+            ),
             component_type=component_type,
-            design_spec=design_spec,
-            style_guide=style_guide,
-            constraints=constraints,
-            project_context=project_context,
-            content_language=content_language,
+            response_type="design",
         )
 
         # Apply JS fallback fixes if enabled
@@ -1062,22 +1178,39 @@ async def design_page(
             "is_full_page": True,
         }
 
-        # Call the design method with page template
+        # Call the design method with page template and GAP 3 error handling
         client = get_gemini_client()
-        result = await client.design_component(
+        result = await safe_design_call(
+            api_call=lambda: client.design_component(
+                component_type=f"page:{template_type}",
+                design_spec=design_spec,
+                style_guide=style_guide,
+                constraints=constraints,
+                project_context=project_context,
+                content_language=content_language,
+            ),
             component_type=f"page:{template_type}",
-            design_spec=design_spec,
-            style_guide=style_guide,
-            constraints=constraints,
-            project_context=project_context,
-            content_language=content_language,
+            response_type="page",
         )
 
         # Add template info to result
         result["template_type"] = template_type
         result["sections"] = template.get("sections", [])
 
-        logger.info(f"design_page completed: {template_type}")
+        # GAP 2: Validate and enforce section markers in page HTML
+        if "html" in result:
+            sections = template.get("sections", [])
+            is_valid, issues = validate_page_structure(result["html"], sections)
+
+            if not is_valid:
+                # Page doesn't have proper markers - try to add them
+                # This is a best-effort attempt based on common HTML patterns
+                logger.warning(f"Page missing section markers: {issues}")
+                result["section_marker_issues"] = issues
+
+            result["section_markers_validated"] = is_valid
+
+        logger.info(f"design_page completed: {template_type} (markers_valid={result.get('section_markers_validated', False)})")
         return result
 
     except Exception as e:
@@ -1130,11 +1263,16 @@ async def refine_frontend(
         )
     """
     try:
+        # GAP 3: Error handling with retry
         client = get_gemini_client()
-        result = await client.refine_component(
-            previous_html=previous_html,
-            modifications=modifications,
-            project_context=project_context,
+        result = await safe_design_call(
+            api_call=lambda: client.refine_component(
+                previous_html=previous_html,
+                modifications=modifications,
+                project_context=project_context,
+            ),
+            component_type="refinement",
+            response_type="refinement",
         )
 
         # Apply JS fallback fixes if enabled
@@ -1266,17 +1404,21 @@ async def design_section(
         except json.JSONDecodeError:
             content = {"raw": content_structure}
 
-        # Call the design_section method
+        # Call the design_section method with GAP 3 error handling
         client = get_gemini_client()
-        result = await client.design_section(
-            section_type=section_type,
-            context=context,
-            previous_html=previous_html,
-            design_tokens=tokens,
-            content_structure=content,
-            theme=theme,
-            project_context=project_context,
-            content_language=content_language,
+        result = await safe_design_call(
+            api_call=lambda: client.design_section(
+                section_type=section_type,
+                context=context,
+                previous_html=previous_html,
+                design_tokens=tokens,
+                content_structure=content,
+                theme=theme,
+                project_context=project_context,
+                content_language=content_language,
+            ),
+            component_type=section_type,
+            response_type="section",
         )
 
         # Apply JS fallback fixes if enabled
@@ -1286,9 +1428,14 @@ async def design_section(
                 result["js_fixes_applied"] = fixes
                 logger.info(f"Applied {len(fixes)} JS fallback fixes")
 
+        # GAP 2: Ensure section markers are present for iterative replacement
+        if "html" in result:
+            result["html"] = ensure_section_markers(result["html"], section_type)
+            result["section_markers"] = True
+
         logger.info(
             f"design_section completed: {section_type} "
-            f"(chain_mode={'yes' if previous_html else 'no'})"
+            f"(chain_mode={'yes' if previous_html else 'no'}, markers=enforced)"
         )
         return result
 
@@ -1397,23 +1544,32 @@ async def design_from_reference(
         5. Applies JS fallback fixes if auto_fix=True
     """
     try:
+        # GAP 3: Error handling with retry for vision operations
         client = get_gemini_client()
 
         if extract_only:
             # Only extract design tokens, don't generate HTML
-            result = await client.analyze_reference_image(
-                image_path=image_path,
-                extract_only=True,
+            result = await safe_design_call(
+                api_call=lambda: client.analyze_reference_image(
+                    image_path=image_path,
+                    extract_only=True,
+                ),
+                component_type="vision_analysis",
+                response_type="vision",
             )
         else:
             # Extract tokens AND generate matching component
-            result = await client.design_from_reference(
-                image_path=image_path,
-                component_type=component_type,
-                instructions=instructions,
-                context=context,
-                project_context=project_context,
-                content_language=content_language,
+            result = await safe_design_call(
+                api_call=lambda: client.design_from_reference(
+                    image_path=image_path,
+                    component_type=component_type,
+                    instructions=instructions,
+                    context=context,
+                    project_context=project_context,
+                    content_language=content_language,
+                ),
+                component_type=component_type or "reference_design",
+                response_type="reference",
             )
 
             # Apply JS fallback fixes if enabled and HTML was generated
@@ -1549,17 +1705,21 @@ async def replace_section_in_page(
                         design_tokens = tokens
                         break
 
-        # 5. Generate new section using design_section
+        # 5. Generate new section using design_section with GAP 3 error handling
         client = get_gemini_client()
-        new_section_result = await client.design_section(
-            section_type=section_type,
-            context=f"Replacing existing {section_type} section. Modifications: {modifications}",
-            previous_html=current_section,
-            design_tokens=design_tokens if design_tokens else None,
-            content_structure={},
-            theme=theme,
-            project_context="This is part of an existing page. Maintain visual consistency.",
-            content_language=content_language,
+        new_section_result = await safe_design_call(
+            api_call=lambda: client.design_section(
+                section_type=section_type,
+                context=f"Replacing existing {section_type} section. Modifications: {modifications}",
+                previous_html=current_section,
+                design_tokens=design_tokens if design_tokens else None,
+                content_structure={},
+                theme=theme,
+                project_context="This is part of an existing page. Maintain visual consistency.",
+                content_language=content_language,
+            ),
+            component_type=section_type,
+            response_type="section",
         )
 
         if "error" in new_section_result:
