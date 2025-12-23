@@ -766,6 +766,10 @@ async def design_frontend(
     # TRIFECTA ENGINE - Multi-Agent Pipeline Mode
     # =================================================================
     use_trifecta: bool = False,
+    # =================================================================
+    # AUTO PREVIEW - Open in browser automatically
+    # =================================================================
+    auto_preview: bool = True,
 ) -> dict:
     """Design a frontend UI component using Gemini 3 Pro.
 
@@ -1084,6 +1088,59 @@ async def design_frontend(
              
          result["_saved_draft_path"] = path
          logger.info(f"Auto-saved draft to {path}")
+
+    # =================================================================
+    # AUTO PREVIEW - Open HTML in browser automatically
+    # =================================================================
+    if auto_preview and "html" in result:
+        try:
+            import tempfile
+            import webbrowser
+            from pathlib import Path
+
+            # Create a complete HTML document with CDN dependencies
+            html_content = result["html"]
+
+            # Wrap in full HTML document if not already
+            if not html_content.strip().lower().startswith("<!doctype"):
+                full_html = f'''<!DOCTYPE html>
+<html lang="{content_language}">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{component_type} Preview</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <style>
+        .no-scrollbar::-webkit-scrollbar {{ display: none; }}
+        .no-scrollbar {{ -ms-overflow-style: none; scrollbar-width: none; }}
+    </style>
+</head>
+<body class="bg-slate-950 min-h-screen">
+{html_content}
+</body>
+</html>'''
+            else:
+                full_html = html_content
+
+            # Save to temp file
+            preview_dir = Path(tempfile.gettempdir()) / "gemini_mcp_previews"
+            preview_dir.mkdir(exist_ok=True)
+
+            preview_file = preview_dir / f"{component_type}_preview.html"
+            preview_file.write_text(full_html, encoding="utf-8")
+
+            # Open in default browser
+            webbrowser.open(f"file://{preview_file}")
+
+            result["_preview_opened"] = True
+            result["_preview_path"] = str(preview_file)
+            logger.info(f"Auto-preview opened: {preview_file}")
+
+        except Exception as e:
+            logger.warning(f"Auto-preview failed: {e}")
+            result["_preview_opened"] = False
+            result["_preview_error"] = str(e)
 
     return result
 
