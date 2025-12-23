@@ -90,8 +90,9 @@ class QualityGuardAgent(BaseAgent):
         """Quality Guard-specific default configuration."""
         return AgentConfig(
             model="gemini-3-pro-preview",
-            thinking_budget=2048,  # Lower budget - mostly validation
-            temperature=0.3,  # Low creativity - precise fixes
+            thinking_level="low",  # Validation - minimal reasoning needed
+            thinking_budget=2048,  # Deprecated
+            temperature=1.0,  # Gemini 3 optimized
             max_output_tokens=8192,
             strict_mode=True,
             auto_fix=True,

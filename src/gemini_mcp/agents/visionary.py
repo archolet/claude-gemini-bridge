@@ -96,8 +96,9 @@ class VisionaryAgent(BaseAgent):
         """Visionary-specific default configuration."""
         return AgentConfig(
             model="gemini-3-pro-preview",  # Pro for vision capabilities
-            thinking_budget=4096,
-            temperature=0.5,  # Balanced for analysis
+            thinking_level="high",  # Vision analysis is complex
+            thinking_budget=4096,  # Deprecated
+            temperature=1.0,  # Gemini 3 optimized
             max_output_tokens=4096,
             strict_mode=False,  # Advisory output
             auto_fix=False,
@@ -147,8 +148,8 @@ class VisionaryAgent(BaseAgent):
             # Build the prompt
             prompt = self._build_vision_prompt(context)
 
-            # Call Gemini Vision API
-            response = await self._call_vision_api(prompt, image_data)
+            # Call Gemini Vision API (now includes thought signature handling)
+            response = await self._call_vision_api(prompt, image_data, context)
 
             # Parse response
             parsed_data = self._parse_response(response)
@@ -222,8 +223,13 @@ class VisionaryAgent(BaseAgent):
             logger.error(f"[Visionary] Failed to load image: {e}")
             return None
 
-    async def _call_vision_api(self, prompt: str, image_data: dict) -> str:
-        """Call Gemini Vision API with image and prompt."""
+    async def _call_vision_api(
+        self, prompt: str, image_data: dict, context: "AgentContext"
+    ) -> str:
+        """Call Gemini Vision API with image and prompt.
+
+        Returns the response text. Thought signatures are added to context.
+        """
         try:
             # Use client's vision method if available
             if hasattr(self.client, "generate_with_image"):
@@ -235,6 +241,12 @@ class VisionaryAgent(BaseAgent):
                     temperature=self.config.temperature,
                     max_output_tokens=self.config.max_output_tokens,
                 )
+                # Handle both string and dict responses
+                if isinstance(response, dict):
+                    # === GEMINI 3: Add thought signature to context ===
+                    if response.get("thought_signature"):
+                        context.add_thought_signature(response["thought_signature"])
+                    return response.get("text", "")
                 return response
             else:
                 # Fallback: Use standard generate with image in prompt
@@ -244,8 +256,15 @@ class VisionaryAgent(BaseAgent):
                     system_instruction=self.get_system_prompt(),
                     temperature=self.config.temperature,
                     max_output_tokens=self.config.max_output_tokens,
+                    thinking_level=self.config.thinking_level,
                 )
-                return response
+
+                # === GEMINI 3: Extract text and thought signature ===
+                response_text = response.get("text", "")
+                if response.get("thought_signature"):
+                    context.add_thought_signature(response["thought_signature"])
+
+                return response_text
 
         except Exception as e:
             logger.error(f"[Visionary] Vision API call failed: {e}")

@@ -65,8 +65,9 @@ class ArchitectAgent(BaseAgent):
         """Architect-specific default configuration."""
         return AgentConfig(
             model="gemini-3-pro-preview",
-            thinking_budget=8192,
-            temperature=0.7,
+            thinking_level="high",  # Complex HTML structure generation
+            thinking_budget=8192,  # Deprecated
+            temperature=1.0,  # Gemini 3 optimized
             max_output_tokens=16384,
             strict_mode=True,
             auto_fix=True,
@@ -94,16 +95,24 @@ class ArchitectAgent(BaseAgent):
             # Build the prompt
             prompt = self._build_architect_prompt(context)
 
-            # Call Gemini API
+            # Call Gemini API with Gemini 3 optimizations
             response = await self.client.generate_text(
                 prompt=prompt,
                 system_instruction=self.get_system_prompt(),
                 temperature=self.config.temperature,
                 max_output_tokens=self.config.max_output_tokens,
+                thinking_level=self.config.thinking_level,
             )
 
+            # Extract text and thought signature from response
+            response_text = response.get("text", "")
+
+            # === GEMINI 3: Add thought signature to context ===
+            if response.get("thought_signature"):
+                context.add_thought_signature(response["thought_signature"])
+
             # Extract HTML from response
-            html_output = self._extract_html(response)
+            html_output = self._extract_html(response_text)
 
             # Validate output
             is_valid, issues = self.validate_output(html_output)

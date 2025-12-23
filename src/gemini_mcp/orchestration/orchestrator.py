@@ -36,9 +36,19 @@ from gemini_mcp.orchestration.telemetry import get_telemetry
 
 if TYPE_CHECKING:
     from gemini_mcp.agents.base import AgentResult, BaseAgent
+    from gemini_mcp.agents.critic import CriticAgent, CriticScores
     from gemini_mcp.client import GeminiClient
 
 logger = logging.getLogger(__name__)
+
+# === Refiner Loop Constants (Gemini 3 Quality Loop) ===
+# Quality threshold for CSS refinement. Alchemist will be re-run
+# until Critic scores reach this level or max iterations is hit.
+QUALITY_THRESHOLD = 8.0
+
+# Maximum iterations for the refiner loop to prevent infinite loops.
+# Each iteration: Alchemist -> Critic -> (if score < threshold) repeat
+MAX_REFINER_ITERATIONS = 3
 
 
 @dataclass
@@ -457,6 +467,151 @@ class AgentOrchestrator:
                 result.warnings.extend(issues)
 
         return result
+
+    async def _run_refiner_loop(
+        self,
+        context: AgentContext,
+        initial_css: str = "",
+    ) -> tuple[str, "CriticScores", int]:
+        """
+        Run the Alchemist → Critic → Alchemist refinement loop.
+
+        This is a Gemini 3 optimization that iteratively improves CSS quality
+        until the Critic scores reach the quality threshold or max iterations.
+
+        The loop:
+        1. Alchemist generates/refines CSS
+        2. Critic evaluates with 5-dimension scoring
+        3. If score < QUALITY_THRESHOLD, feed improvements back to Alchemist
+        4. Repeat until score >= threshold or MAX_REFINER_ITERATIONS
+
+        Args:
+            context: Pipeline context with HTML output
+            initial_css: Optional initial CSS to refine (empty for new generation)
+
+        Returns:
+            Tuple of (final_css, final_scores, iterations_used)
+        """
+        from gemini_mcp.agents.critic import CriticAgent, CriticScores
+
+        # Get agents
+        alchemist = self.get_agent("alchemist")
+        critic_agent = self.get_agent("critic")
+
+        if alchemist is None:
+            logger.warning("[RefinerLoop] Alchemist agent not registered")
+            return initial_css, CriticScores(), 0
+
+        if critic_agent is None or not isinstance(critic_agent, CriticAgent):
+            logger.warning("[RefinerLoop] Critic agent not registered or wrong type")
+            return initial_css, CriticScores(), 0
+
+        critic: CriticAgent = critic_agent
+
+        # Initialize
+        current_css = initial_css
+        context.refiner_iteration = 0
+        best_css = initial_css
+        best_scores = CriticScores()
+
+        logger.info(
+            f"[RefinerLoop] Starting refinement. "
+            f"Threshold: {QUALITY_THRESHOLD}, Max iterations: {MAX_REFINER_ITERATIONS}"
+        )
+
+        for iteration in range(MAX_REFINER_ITERATIONS):
+            context.refiner_iteration = iteration + 1
+
+            # Step 1: Alchemist generates/refines CSS
+            if iteration == 0 and not initial_css:
+                # First iteration: generate from scratch
+                logger.info(f"[RefinerLoop] Iteration {iteration + 1}: Generating CSS")
+            else:
+                # Subsequent iterations: refine with feedback
+                logger.info(
+                    f"[RefinerLoop] Iteration {iteration + 1}: Refining CSS. "
+                    f"Feedback: {len(context.critic_feedback)} items"
+                )
+
+            alchemist_result = await alchemist.execute(context)
+
+            if not alchemist_result.success:
+                logger.warning(
+                    f"[RefinerLoop] Alchemist failed at iteration {iteration + 1}"
+                )
+                break
+
+            current_css = alchemist_result.output
+
+            # Step 2: Critic evaluates quality
+            scores, improvements = await critic.evaluate(
+                html=context.html_output,
+                css=current_css,
+                js=context.js_output,
+                context=context,
+            )
+
+            logger.info(
+                f"[RefinerLoop] Iteration {iteration + 1} scores: "
+                f"layout={scores.layout:.1f}, typography={scores.typography:.1f}, "
+                f"color={scores.color:.1f}, interaction={scores.interaction:.1f}, "
+                f"accessibility={scores.accessibility:.1f}, "
+                f"overall={scores.overall:.2f}"
+            )
+
+            # Track best result
+            if scores.overall > best_scores.overall:
+                best_css = current_css
+                best_scores = scores
+
+            # Step 3: Check threshold
+            if scores.overall >= QUALITY_THRESHOLD:
+                logger.info(
+                    f"[RefinerLoop] Quality threshold reached at iteration {iteration + 1}! "
+                    f"Score: {scores.overall:.2f} >= {QUALITY_THRESHOLD}"
+                )
+                return current_css, scores, iteration + 1
+
+            # Step 4: Feed improvements back for next iteration
+            context.critic_feedback = improvements
+            context.css_output = current_css  # Update for next Alchemist run
+
+        # Max iterations reached - return best result
+        logger.info(
+            f"[RefinerLoop] Max iterations reached. Best score: {best_scores.overall:.2f}"
+        )
+        return best_css, best_scores, MAX_REFINER_ITERATIONS
+
+    async def run_refiner_for_css(
+        self,
+        context: AgentContext,
+    ) -> tuple[str, float]:
+        """
+        Convenience method to run refiner loop and update context.
+
+        This is the primary entry point for CSS refinement in pipelines.
+
+        Args:
+            context: Pipeline context (should have html_output set)
+
+        Returns:
+            Tuple of (refined_css, overall_score)
+        """
+        css, scores, iterations = await self._run_refiner_loop(
+            context=context,
+            initial_css=context.css_output,
+        )
+
+        # Update context
+        context.css_output = css
+        context.refiner_iteration = iterations
+
+        logger.info(
+            f"[RefinerLoop] Complete. Iterations: {iterations}, "
+            f"Final score: {scores.overall:.2f}"
+        )
+
+        return css, scores.overall
 
     async def _execute_parallel_group(
         self,

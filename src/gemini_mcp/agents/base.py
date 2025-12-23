@@ -48,8 +48,16 @@ class AgentConfig:
     """Configuration for an agent's execution behavior."""
 
     model: str = "gemini-3-pro-preview"
-    thinking_budget: int = 8192
-    temperature: float = 0.7
+
+    # Gemini 3 Thinking Configuration
+    # thinking_level: Controls reasoning depth (Gemini 3+)
+    # - "high": Complex tasks requiring optimal thinking (default)
+    # - "low": Latency-sensitive tasks (extraction, summarization)
+    # - "minimal": Flash only - zero-budget thinking
+    thinking_level: str = "high"
+    thinking_budget: int = 8192  # Deprecated: Use thinking_level instead
+
+    temperature: float = 1.0  # Gemini 3 optimized - DO NOT lower
     max_output_tokens: int = 16384
     timeout_seconds: float = 120.0
 

@@ -141,8 +141,9 @@ class StrategistAgent(BaseAgent):
         """Strategist-specific default configuration."""
         return AgentConfig(
             model="gemini-3-pro-preview",
-            thinking_budget=4096,
-            temperature=0.5,  # Lower temperature for analysis
+            thinking_level="high",  # Planning requires deep thinking
+            thinking_budget=4096,  # Deprecated
+            temperature=1.0,  # Gemini 3 optimized
             max_output_tokens=4096,
             strict_mode=False,  # Strategist output is advisory
             auto_fix=False,
@@ -170,16 +171,24 @@ class StrategistAgent(BaseAgent):
             # Build the prompt
             prompt = self._build_strategist_prompt(context)
 
-            # Call Gemini API
+            # Call Gemini API with Gemini 3 optimizations
             response = await self.client.generate_text(
                 prompt=prompt,
                 system_instruction=self.get_system_prompt(),
                 temperature=self.config.temperature,
                 max_output_tokens=self.config.max_output_tokens,
+                thinking_level=self.config.thinking_level,
             )
 
+            # Extract text and thought signature from response
+            response_text = response.get("text", "")
+
+            # === GEMINI 3: Add thought signature to context ===
+            if response.get("thought_signature"):
+                context.add_thought_signature(response["thought_signature"])
+
             # Parse JSON response
-            parsed_data = self._parse_response(response)
+            parsed_data = self._parse_response(response_text)
 
             # Extract DNA if present
             design_dna = None

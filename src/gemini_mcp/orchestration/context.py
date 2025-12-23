@@ -312,8 +312,15 @@ class AgentContext:
     # === Error Handling ===
     errors: list[str] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
-    correction_feedback: str = ""
+    correction_feedback: str = ""  # Syntax validation feedback
     attempt: int = 0
+
+    # === Refiner Loop (Gemini 3 Quality Loop) ===
+    # critic_feedback is separate from correction_feedback:
+    # - correction_feedback: Syntax/validation errors (agent.validate_output failed)
+    # - critic_feedback: Design quality improvements (CriticScores < threshold)
+    critic_feedback: list[str] = field(default_factory=list)
+    refiner_iteration: int = 0  # Current iteration in refiner loop
 
     # === Performance ===
     quality_target: QualityTarget = QualityTarget.PRODUCTION
@@ -323,6 +330,11 @@ class AgentContext:
     # === Timestamps ===
     created_at: datetime = field(default_factory=datetime.now)
     updated_at: datetime = field(default_factory=datetime.now)
+
+    # === Gemini 3 Thought Signatures (REQUIRED for multi-turn) ===
+    # Thought signatures maintain reasoning continuity across API calls.
+    # Without them, Gemini 3 may return 4xx validation errors.
+    thought_signatures: list[str] = field(default_factory=list)
 
     # === Section-specific (for design_page, replace_section_in_page) ===
     sections: list[dict[str, Any]] = field(default_factory=list)
@@ -355,6 +367,48 @@ class AgentContext:
         """Add a warning to the context."""
         self.warnings.append(warning)
         self.update_timestamp()
+
+    def add_thought_signature(self, signature: str) -> None:
+        """
+        Add a thought signature from Gemini 3 response.
+
+        Thought signatures are REQUIRED for multi-turn conversations
+        with Gemini 3. They maintain reasoning continuity and must be
+        passed back in subsequent requests.
+
+        Args:
+            signature: The thought signature string from API response
+        """
+        if signature and signature.strip():
+            self.thought_signatures.append(signature.strip())
+            self.update_timestamp()
+
+    def get_latest_signatures(self, count: int = 3) -> list[str]:
+        """
+        Get the most recent thought signatures.
+
+        Args:
+            count: Number of signatures to return (default 3)
+
+        Returns:
+            List of most recent signatures (newest last)
+        """
+        if not self.thought_signatures:
+            return []
+        return self.thought_signatures[-count:]
+
+    def get_signatures_for_request(self) -> str:
+        """
+        Format thought signatures for inclusion in API request.
+
+        Returns a formatted string suitable for system prompt injection.
+        """
+        signatures = self.get_latest_signatures()
+        if not signatures:
+            return ""
+
+        formatted = "\n".join(f"[{i+1}] {sig}" for i, sig in enumerate(signatures))
+        return f"## Previous Thought Signatures\n{formatted}"
 
     def set_output(self, agent_type: str, output: str) -> None:
         """Set the output for a specific agent type."""
@@ -552,6 +606,8 @@ class AgentContext:
             # Refinement-specific
             "modification_request": self.modification_request,
             "previous_html": self.previous_html,
+            # Gemini 3 thought signatures
+            "thought_signatures": self.thought_signatures,
         }
         return json.dumps(data, ensure_ascii=False)
 
@@ -596,6 +652,8 @@ class AgentContext:
             # Refinement-specific
             modification_request=data.get("modification_request", ""),
             previous_html=data.get("previous_html", ""),
+            # Gemini 3 thought signatures
+            thought_signatures=data.get("thought_signatures", []),
         )
 
         if data.get("design_dna"):

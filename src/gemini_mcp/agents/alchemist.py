@@ -66,8 +66,9 @@ class AlchemistAgent(BaseAgent):
         """Alchemist-specific default configuration."""
         return AgentConfig(
             model="gemini-3-pro-preview",
-            thinking_budget=4096,  # CSS is typically shorter
-            temperature=0.7,
+            thinking_level="low",  # CSS generation - latency optimized
+            thinking_budget=4096,  # Deprecated
+            temperature=1.0,  # Gemini 3 optimized
             max_output_tokens=8192,
             strict_mode=True,
             auto_fix=True,
@@ -95,16 +96,24 @@ class AlchemistAgent(BaseAgent):
             # Build the prompt
             prompt = self._build_alchemist_prompt(context)
 
-            # Call Gemini API
+            # Call Gemini API with Gemini 3 optimizations
             response = await self.client.generate_text(
                 prompt=prompt,
                 system_instruction=self.get_system_prompt(),
                 temperature=self.config.temperature,
                 max_output_tokens=self.config.max_output_tokens,
+                thinking_level=self.config.thinking_level,
             )
 
+            # Extract text and thought signature from response
+            response_text = response.get("text", "")
+
+            # === GEMINI 3: Add thought signature to context ===
+            if response.get("thought_signature"):
+                context.add_thought_signature(response["thought_signature"])
+
             # Extract CSS from response
-            css_output = self._extract_css(response)
+            css_output = self._extract_css(response_text)
 
             # Validate output
             is_valid, issues = self.validate_output(css_output)
@@ -189,12 +198,23 @@ class AlchemistAgent(BaseAgent):
                 if theme_classes:
                     parts.append(f"## Key Tailwind Classes\n{', '.join(theme_classes[:30])}")
 
-        # Correction feedback
+        # Correction feedback (syntax validation errors)
         if context.correction_feedback:
             parts.append(
                 f"## CORRECTION REQUIRED\n"
                 f"Previous output had issues:\n{context.correction_feedback}\n"
                 f"Fix these issues in this attempt."
+            )
+
+        # Critic feedback (design quality improvements from refiner loop)
+        if context.critic_feedback:
+            iteration_info = f" (Iteration {context.refiner_iteration})" if context.refiner_iteration else ""
+            feedback_list = "\n".join(f"- {item}" for item in context.critic_feedback)
+            parts.append(
+                f"## DESIGN IMPROVEMENT REQUIRED{iteration_info}\n"
+                f"The Critic agent scored the previous CSS below quality threshold.\n"
+                f"Address these design improvements:\n{feedback_list}\n\n"
+                f"Focus on the highest-impact improvements first."
             )
 
         return "\n\n".join(parts)

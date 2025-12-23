@@ -16,7 +16,7 @@ import json
 import logging
 import re
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any, Optional
+from typing import TYPE_CHECKING, Optional
 
 from gemini_mcp.agents.base import AgentConfig, AgentResult, AgentRole, BaseAgent
 from gemini_mcp.prompts import CRITIC_SYSTEM_PROMPT
@@ -35,6 +35,57 @@ class DesignAnalysis:
     current_strengths: list[str] = field(default_factory=list)
     current_weaknesses: list[str] = field(default_factory=list)
     user_intent: str = ""
+
+
+# === PHASE 3: Quality Scoring Dataclass ===
+@dataclass
+class CriticScores:
+    """Quality scores for design evaluation (1-10 scale)."""
+
+    layout: float = 5.0       # Layout hierarchy, spacing, alignment
+    typography: float = 5.0   # Font choices, readability, hierarchy
+    color: float = 5.0        # Color harmony, contrast, consistency
+    interaction: float = 5.0  # Hover states, animations, feedback
+    accessibility: float = 5.0  # WCAG compliance, semantic HTML
+
+    @property
+    def overall(self) -> float:
+        """Calculate weighted average score."""
+        # Weights: accessibility highest, then layout and color
+        weights = {
+            "layout": 0.25,
+            "typography": 0.15,
+            "color": 0.20,
+            "interaction": 0.15,
+            "accessibility": 0.25,
+        }
+        return (
+            self.layout * weights["layout"]
+            + self.typography * weights["typography"]
+            + self.color * weights["color"]
+            + self.interaction * weights["interaction"]
+            + self.accessibility * weights["accessibility"]
+        )
+
+    def to_dict(self) -> dict:
+        return {
+            "layout": self.layout,
+            "typography": self.typography,
+            "color": self.color,
+            "interaction": self.interaction,
+            "accessibility": self.accessibility,
+            "overall": round(self.overall, 2),
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "CriticScores":
+        return cls(
+            layout=data.get("layout", 5.0),
+            typography=data.get("typography", 5.0),
+            color=data.get("color", 5.0),
+            interaction=data.get("interaction", 5.0),
+            accessibility=data.get("accessibility", 5.0),
+        )
 
 
 @dataclass
@@ -124,8 +175,9 @@ class CriticAgent(BaseAgent):
         """Critic-specific default configuration."""
         return AgentConfig(
             model="gemini-3-pro-preview",
-            thinking_budget=4096,
-            temperature=0.5,  # Balanced for analysis
+            thinking_level="high",  # Art direction requires deep analysis
+            thinking_budget=4096,  # Deprecated
+            temperature=1.0,  # Gemini 3 optimized
             max_output_tokens=4096,
             strict_mode=False,  # Advisory output
             auto_fix=False,
@@ -153,16 +205,24 @@ class CriticAgent(BaseAgent):
             # Build the prompt
             prompt = self._build_critic_prompt(context)
 
-            # Call Gemini API
+            # Call Gemini API with Gemini 3 optimizations
             response = await self.client.generate_text(
                 prompt=prompt,
                 system_instruction=self.get_system_prompt(),
                 temperature=self.config.temperature,
                 max_output_tokens=self.config.max_output_tokens,
+                thinking_level=self.config.thinking_level,
             )
 
+            # Extract text and thought signature from response
+            response_text = response.get("text", "")
+
+            # === GEMINI 3: Add thought signature to context ===
+            if response.get("thought_signature"):
+                context.add_thought_signature(response["thought_signature"])
+
             # Parse response
-            parsed_data = self._parse_response(response)
+            parsed_data = self._parse_response(response_text)
             critic_report = CriticReport.from_dict(parsed_data)
 
             # Create result
@@ -317,7 +377,7 @@ Output JSON format as specified in your system prompt.
         """Critic output doesn't need auto-fix."""
         return output
 
-    def quick_analyze(self, html: str, modification: str) -> dict:
+    def quick_analyze(self, html: str, modification: str) -> dict:  # noqa: ARG002
         """
         Quick analysis without API call.
 
@@ -388,3 +448,235 @@ Output JSON format as specified in your system prompt.
 
         # Minimal change indicators (or default)
         return "minimal"
+
+    # === PHASE 3: Quality Evaluation for Refiner Loop ===
+
+    async def evaluate(
+        self,
+        html: str,
+        css: str,
+        js: str = "",
+        context: Optional["AgentContext"] = None,
+    ) -> tuple[CriticScores, list[str]]:
+        """
+        Evaluate design quality and return scores with improvements.
+
+        Used in the refiner loop to determine if quality threshold is met.
+
+        Args:
+            html: HTML output to evaluate
+            css: CSS output to evaluate
+            js: Optional JS output to evaluate
+            context: Optional context for thought signature handling
+
+        Returns:
+            Tuple of (CriticScores, list of improvement suggestions)
+        """
+        import time
+
+        start_time = time.time()
+
+        try:
+            # Build evaluation prompt
+            prompt = self._build_evaluation_prompt(html, css, js)
+
+            # Call Gemini API with Gemini 3 optimizations
+            response = await self.client.generate_text(
+                prompt=prompt,
+                system_instruction=self._get_evaluation_system_prompt(),
+                temperature=self.config.temperature,
+                max_output_tokens=self.config.max_output_tokens,
+                thinking_level=self.config.thinking_level,
+            )
+
+            # Extract text and thought signature
+            response_text = response.get("text", "")
+
+            # Add thought signature to context if provided
+            if context and response.get("thought_signature"):
+                context.add_thought_signature(response["thought_signature"])
+
+            # Parse scores and improvements
+            scores, improvements = self._parse_evaluation_response(response_text)
+
+            logger.info(
+                f"[Critic] Evaluation complete. Overall: {scores.overall:.2f}, "
+                f"Improvements: {len(improvements)}, "
+                f"Time: {(time.time() - start_time) * 1000:.0f}ms"
+            )
+
+            return scores, improvements
+
+        except Exception as e:
+            logger.error(f"[Critic] Evaluation failed: {e}")
+            # Return default scores on error
+            return CriticScores(), [f"Evaluation error: {str(e)}"]
+
+    def _build_evaluation_prompt(self, html: str, css: str, js: str = "") -> str:
+        """Build prompt for design quality evaluation."""
+        parts = [
+            "## DESIGN QUALITY EVALUATION",
+            "",
+            "Evaluate the following design on a 1-10 scale for each category.",
+            "",
+        ]
+
+        # HTML (truncate if too long)
+        html_preview = html[:4000] if len(html) > 4000 else html
+        parts.append(f"### HTML\n```html\n{html_preview}\n```")
+
+        # CSS
+        if css:
+            css_preview = css[:3000] if len(css) > 3000 else css
+            parts.append(f"### CSS\n```css\n{css_preview}\n```")
+
+        # JS
+        if js:
+            js_preview = js[:2000] if len(js) > 2000 else js
+            parts.append(f"### JavaScript\n```javascript\n{js_preview}\n```")
+
+        # Scoring criteria
+        parts.append("""
+### Evaluation Criteria (1-10 scale)
+
+1. **Layout (25%)**: Visual hierarchy, spacing consistency, alignment, responsive design
+2. **Typography (15%)**: Font choices, readability, text hierarchy, line heights
+3. **Color (20%)**: Color harmony, contrast ratios, palette consistency, dark mode
+4. **Interaction (15%)**: Hover states, transitions, animations, feedback cues
+5. **Accessibility (25%)**: WCAG compliance, semantic HTML, ARIA labels, focus states
+
+### Output Format
+
+Return JSON with scores and specific improvements:
+```json
+{
+    "scores": {
+        "layout": 8.5,
+        "typography": 7.0,
+        "color": 9.0,
+        "interaction": 6.5,
+        "accessibility": 8.0
+    },
+    "improvements": [
+        "Add more spacing between sections (gap-8 → gap-12)",
+        "Improve contrast on secondary text (#9ca3af → #6b7280)",
+        "Add hover:scale-105 to CTA buttons for better feedback"
+    ]
+}
+```
+
+Be specific in improvements - include exact Tailwind classes or CSS values to change.
+""")
+
+        return "\n".join(parts)
+
+    def _get_evaluation_system_prompt(self) -> str:
+        """System prompt for design quality evaluation."""
+        return """You are an expert UI/UX design critic specializing in:
+- Visual design principles (Gestalt, hierarchy, balance)
+- Tailwind CSS optimization
+- WCAG 2.1 accessibility guidelines
+- Modern web design patterns
+
+Your role is to:
+1. Objectively score design quality on a 1-10 scale
+2. Identify specific, actionable improvements
+3. Focus on high-impact changes first
+4. Reference Tailwind classes when suggesting CSS changes
+
+Be critical but constructive. A score of 10 is reserved for exceptional designs.
+Average designs should score 5-6. Good designs score 7-8. Excellent designs 9+.
+
+IMPORTANT: Output ONLY valid JSON. No markdown, no explanation, just the JSON object."""
+
+    def _parse_evaluation_response(self, response: str) -> tuple[CriticScores, list[str]]:
+        """Parse evaluation response into scores and improvements."""
+        # Try to extract JSON
+        json_pattern = r"```(?:json)?\s*(\{[\s\S]*?\})\s*```"
+        matches = re.findall(json_pattern, response)
+
+        parsed_data = None
+        if matches:
+            for match in matches:
+                try:
+                    parsed_data = json.loads(match)
+                    break
+                except json.JSONDecodeError:
+                    continue
+
+        # Try raw JSON if no code blocks
+        if not parsed_data:
+            try:
+                start = response.find("{")
+                end = response.rfind("}") + 1
+                if start != -1 and end > start:
+                    parsed_data = json.loads(response[start:end])
+            except json.JSONDecodeError:
+                pass
+
+        # Parse or use defaults
+        if parsed_data:
+            scores_data = parsed_data.get("scores", {})
+            scores = CriticScores(
+                layout=float(scores_data.get("layout", 5.0)),
+                typography=float(scores_data.get("typography", 5.0)),
+                color=float(scores_data.get("color", 5.0)),
+                interaction=float(scores_data.get("interaction", 5.0)),
+                accessibility=float(scores_data.get("accessibility", 5.0)),
+            )
+            improvements = parsed_data.get("improvements", [])
+        else:
+            logger.warning("[Critic] Could not parse evaluation response")
+            scores = CriticScores()
+            improvements = ["Unable to parse evaluation - manual review recommended"]
+
+        return scores, improvements
+
+    def quick_evaluate(self, html: str, css: str = "") -> CriticScores:
+        """
+        Quick heuristic-based evaluation without API call.
+
+        Useful for initial filtering before full evaluation.
+        """
+        scores = CriticScores()
+
+        # Layout scoring heuristics
+        if "flex" in html or "grid" in html:
+            scores.layout += 1.0
+        if "gap-" in html:
+            scores.layout += 0.5
+        if any(bp in html for bp in ["sm:", "md:", "lg:", "xl:"]):
+            scores.layout += 1.5  # Responsive
+
+        # Typography scoring
+        if "font-" in html:
+            scores.typography += 0.5
+        if "text-" in html:
+            scores.typography += 0.5
+        if "leading-" in html:
+            scores.typography += 0.5
+
+        # Color scoring
+        if "bg-" in html and "text-" in html:
+            scores.color += 1.0
+        if "dark:" in html:
+            scores.color += 1.5  # Dark mode support
+
+        # Interaction scoring
+        if "hover:" in html:
+            scores.interaction += 1.0
+        if "transition" in html or "transition" in css:
+            scores.interaction += 1.0
+        if "@keyframes" in css:
+            scores.interaction += 0.5
+
+        # Accessibility scoring
+        if 'aria-' in html:
+            scores.accessibility += 1.0
+        if 'role=' in html:
+            scores.accessibility += 0.5
+        semantic_tags = ["<nav", "<main", "<section", "<article", "<aside", "<footer", "<header"]
+        if any(tag in html for tag in semantic_tags):
+            scores.accessibility += 1.5
+
+        return scores

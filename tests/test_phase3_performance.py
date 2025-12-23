@@ -464,182 +464,157 @@ class TestGAP9Caching:
 # =============================================================================
 # GAP 12: Telemetry Tests
 # =============================================================================
+# NOTE: The old Telemetry API tests were removed because they tested a
+# non-existent API. The actual implementation is PipelineTelemetry in
+# gemini_mcp.orchestration.telemetry with a different interface.
+# New tests should use the PipelineTelemetry class.
 
-class TestGAP12Telemetry:
-    """Tests for telemetry and observability."""
 
-    def test_telemetry_track_operation(self):
-        """Test tracking an operation."""
-        from gemini_mcp.telemetry import Telemetry
+class TestGAP12PipelineTelemetry:
+    """Tests for PipelineTelemetry observability."""
 
-        Telemetry.init()
-        Telemetry.clear()
+    def test_telemetry_basic_pipeline(self):
+        """Test basic pipeline tracking."""
+        from gemini_mcp.orchestration.telemetry import PipelineTelemetry
 
-        with Telemetry.track("design_frontend") as ctx:
-            ctx.set_component("button")
-            ctx.set_theme("modern-minimal")
-            ctx.set_tokens(input_tokens=100, output_tokens=200, thinking_tokens=50)
-            time.sleep(0.01)  # Small delay
+        telemetry = PipelineTelemetry()
 
-        metrics = Telemetry.get_metrics()
-
-        assert metrics["total_operations"] == 1
-        assert metrics["completed_operations"] == 1
-        assert metrics["tokens"]["input_tokens"] == 100
-        assert metrics["tokens"]["output_tokens"] == 200
-        assert metrics["latency"]["avg_ms"] > 0
-
-    def test_telemetry_track_failure(self):
-        """Test tracking a failed operation."""
-        from gemini_mcp.telemetry import Telemetry
-
-        Telemetry.init()
-        Telemetry.clear()
-
-        try:
-            with Telemetry.track("design_frontend") as ctx:
-                ctx.set_component("navbar")
-                raise ValueError("Test error")
-        except ValueError:
-            pass
-
-        metrics = Telemetry.get_metrics()
-
-        assert metrics["total_operations"] == 1
-        assert metrics["failed_operations"] == 1
-        assert "ValueError" in metrics["errors_by_type"]
-
-    def test_telemetry_request_id(self):
-        """Test request ID generation."""
-        from gemini_mcp.telemetry import Telemetry
-
-        Telemetry.init()
-
-        request_id = Telemetry.generate_request_id()
-
-        assert len(request_id) == 8
-        assert request_id.isalnum()
-
-    def test_telemetry_get_recent_operations(self):
-        """Test getting recent operations."""
-        from gemini_mcp.telemetry import Telemetry
-
-        Telemetry.init()
-        Telemetry.clear()
-
-        with Telemetry.track("op1") as ctx:
-            ctx.set_component("button")
-
-        with Telemetry.track("op2") as ctx:
-            ctx.set_component("card")
-
-        recent = Telemetry.get_recent_operations(limit=10)
-
-        assert len(recent) == 2
-        assert recent[0]["operation_type"] == "op1"
-        assert recent[1]["operation_type"] == "op2"
-
-    def test_telemetry_metrics_by_operation(self):
-        """Test metrics by operation type."""
-        from gemini_mcp.telemetry import Telemetry
-
-        Telemetry.init()
-        Telemetry.clear()
-
-        with Telemetry.track("design_frontend"):
-            pass
-        with Telemetry.track("design_frontend"):
-            pass
-        with Telemetry.track("design_section"):
-            pass
-
-        metrics = Telemetry.get_metrics_by_operation("design_frontend")
-
-        assert metrics["total"] == 2
-        assert metrics["completed"] == 2
-
-    def test_telemetry_export(self):
-        """Test telemetry export."""
-        from gemini_mcp.telemetry import Telemetry
-
-        Telemetry.init()
-        Telemetry.clear()
-
-        with Telemetry.track("test_op"):
-            pass
-
-        export = Telemetry.export()
-
-        assert "metrics" in export
-        assert "recent_operations" in export
-        assert "exported_at" in export
-
-    def test_telemetry_disabled(self):
-        """Test telemetry when disabled."""
-        from gemini_mcp.telemetry import Telemetry
-
-        Telemetry.init()
-        Telemetry.clear()
-        Telemetry.set_enabled(False)
-
-        with Telemetry.track("test_op") as ctx:
-            ctx.set_component("button")
-
-        metrics = Telemetry.get_metrics()
-        # Should not record when disabled
-        assert metrics["total_operations"] == 0
-
-        # Re-enable for other tests
-        Telemetry.set_enabled(True)
-
-    def test_token_usage_class(self):
-        """Test TokenUsage dataclass."""
-        from gemini_mcp.telemetry import TokenUsage
-
-        usage = TokenUsage(
-            input_tokens=100,
-            output_tokens=200,
-            thinking_tokens=50,
+        # Start pipeline
+        telemetry.start_pipeline(
+            pipeline_type="trifecta",
+            pipeline_id="test_001",
+            component_type="button",
+            theme="modern-minimal",
         )
 
-        assert usage.total_tokens == 350
+        # Record agent execution
+        telemetry.record_agent_execution(
+            pipeline_id="test_001",
+            agent_name="architect",
+            execution_time_ms=1500.0,
+            tokens_used=2048,
+            success=True,
+        )
 
-        dict_repr = usage.to_dict()
-        assert dict_repr["total_tokens"] == 350
+        # End pipeline
+        metrics = telemetry.end_pipeline("test_001", success=True)
+
+        assert metrics is not None
+        assert metrics.success is True
+        assert metrics.total_tokens == 2048
+        assert metrics.total_execution_time_ms == 1500.0
+
+    def test_telemetry_multiple_agents(self):
+        """Test tracking multiple agent executions."""
+        from gemini_mcp.orchestration.telemetry import PipelineTelemetry
+
+        telemetry = PipelineTelemetry()
+
+        telemetry.start_pipeline("trifecta", "test_002")
+
+        # Architect
+        telemetry.record_agent_execution("test_002", "architect", 1000.0, 1024, True)
+        # Alchemist
+        telemetry.record_agent_execution("test_002", "alchemist", 800.0, 512, True)
+        # Physicist
+        telemetry.record_agent_execution("test_002", "physicist", 600.0, 256, True)
+
+        metrics = telemetry.end_pipeline("test_002", True)
+
+        assert len(metrics.agent_metrics) == 3
+        assert metrics.total_tokens == 1024 + 512 + 256
+        assert metrics.error_count == 0
+
+    def test_telemetry_failure_tracking(self):
+        """Test tracking failed agent execution."""
+        from gemini_mcp.orchestration.telemetry import PipelineTelemetry
+
+        telemetry = PipelineTelemetry()
+
+        telemetry.start_pipeline("trifecta", "test_003")
+
+        # Success
+        telemetry.record_agent_execution("test_003", "architect", 1000.0, 1024, True)
+        # Failure
+        telemetry.record_agent_execution(
+            "test_003", "alchemist", 500.0, 256, False, "API timeout"
+        )
+
+        metrics = telemetry.end_pipeline("test_003", False)
+
+        assert metrics.error_count == 1
+        assert metrics.success is False
 
     def test_telemetry_summary(self):
         """Test telemetry summary generation."""
-        from gemini_mcp.telemetry import Telemetry, get_telemetry_summary
+        from gemini_mcp.orchestration.telemetry import PipelineTelemetry
 
-        Telemetry.init()
-        Telemetry.clear()
+        telemetry = PipelineTelemetry()
 
-        with Telemetry.track("test_op") as ctx:
-            ctx.set_tokens(input_tokens=100, output_tokens=200)
+        # Run two pipelines
+        telemetry.start_pipeline("trifecta", "p1")
+        telemetry.record_agent_execution("p1", "architect", 1000.0, 500, True)
+        telemetry.end_pipeline("p1", True)
 
-        summary = get_telemetry_summary()
+        telemetry.start_pipeline("trifecta", "p2")
+        telemetry.record_agent_execution("p2", "architect", 1200.0, 600, True)
+        telemetry.end_pipeline("p2", True)
 
-        assert "Telemetry Summary" in summary
-        assert "Total Operations: 1" in summary
-        assert "Input: 100" in summary
+        summary = telemetry.get_summary()
 
-    def test_operation_context_metadata(self):
-        """Test adding custom metadata."""
-        from gemini_mcp.telemetry import Telemetry
+        assert summary["total_pipelines"] == 2
+        assert summary["successful_pipelines"] == 2
+        assert summary["success_rate"] == 1.0
+        assert summary["total_tokens_used"] == 1100
 
-        Telemetry.init()
-        Telemetry.clear()
+    def test_telemetry_agent_stats(self):
+        """Test per-agent statistics."""
+        from gemini_mcp.orchestration.telemetry import PipelineTelemetry
 
-        with Telemetry.track("test_op") as ctx:
-            ctx.add_metadata("custom_key", "custom_value")
-            ctx.set_cached(True)
-            ctx.set_model("gemini-3-pro")
+        telemetry = PipelineTelemetry()
 
-        recent = Telemetry.get_recent_operations(limit=1)
+        # Multiple executions for same agent
+        for i in range(3):
+            telemetry.start_pipeline("trifecta", f"p{i}")
+            telemetry.record_agent_execution(f"p{i}", "architect", 1000.0, 500, True)
+            telemetry.end_pipeline(f"p{i}", True)
 
-        assert recent[0]["metadata"]["custom_key"] == "custom_value"
-        assert recent[0]["cached"] is True
-        assert recent[0]["model"] == "gemini-3-pro"
+        stats = telemetry.get_agent_stats("architect")
+
+        assert stats is not None
+        assert stats["total_executions"] == 3
+        assert stats["success_rate"] == 1.0
+        assert stats["avg_tokens"] == 500.0
+
+    def test_telemetry_get_report(self):
+        """Test getting pipeline report."""
+        from gemini_mcp.orchestration.telemetry import PipelineTelemetry
+
+        telemetry = PipelineTelemetry()
+
+        telemetry.start_pipeline("trifecta", "report_test", "button", "cyberpunk")
+        telemetry.record_agent_execution("report_test", "architect", 1500.0, 2048, True)
+        telemetry.end_pipeline("report_test", True)
+
+        report = telemetry.get_report("report_test")
+
+        assert report is not None
+        assert report["pipeline_id"] == "report_test"
+        assert report["component_type"] == "button"
+        assert report["theme"] == "cyberpunk"
+        assert len(report["agents"]) == 1
+
+    def test_global_telemetry_instance(self):
+        """Test global telemetry singleton."""
+        from gemini_mcp.orchestration.telemetry import get_telemetry, reset_telemetry
+
+        t1 = get_telemetry()
+        t2 = get_telemetry()
+
+        assert t1 is t2
+
+        # Reset for other tests
+        reset_telemetry()
 
 
 # =============================================================================
@@ -686,21 +661,26 @@ class TestPhase3Integration:
 
     def test_telemetry_with_cache(self):
         """Test telemetry tracking cache operations."""
-        from gemini_mcp.telemetry import Telemetry
+        from gemini_mcp.orchestration.telemetry import PipelineTelemetry
         from gemini_mcp.cache import DesignCache
 
-        Telemetry.init()
-        Telemetry.clear()
-
+        telemetry = PipelineTelemetry()
         cache = DesignCache(ttl_hours=1, max_entries=10)
 
-        # Simulate cache hit tracking
-        with Telemetry.track("cache_lookup") as ctx:
-            result = cache.get(key="test")
-            ctx.set_cached(result is not None)
+        # Start pipeline to track cache lookup
+        telemetry.start_pipeline("cache_test", "cache_001")
 
-        metrics = Telemetry.get_metrics()
-        assert metrics["total_operations"] == 1
+        # Simulate cache lookup
+        result = cache.get(key="test")
+        cached = result is not None
+
+        # Record the cache operation
+        telemetry.record_agent_execution(
+            "cache_001", "cache_lookup", 1.0, 0, True
+        )
+
+        metrics = telemetry.end_pipeline("cache_001", True)
+        assert metrics.total_execution_time_ms == 1.0
 
     def test_modules_importable(self):
         """Test that all Phase 3 modules are importable."""
@@ -708,9 +688,9 @@ class TestPhase3Integration:
         from gemini_mcp.prompt_builder import PromptBuilder
         from gemini_mcp.js_fallbacks import inject_js_fallbacks
         from gemini_mcp.cache import DesignCache
-        from gemini_mcp.telemetry import Telemetry
+        from gemini_mcp.orchestration.telemetry import PipelineTelemetry
 
         assert PromptBuilder is not None
         assert inject_js_fallbacks is not None
         assert DesignCache is not None
-        assert Telemetry is not None
+        assert PipelineTelemetry is not None

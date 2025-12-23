@@ -134,6 +134,135 @@ class GeminiClient:
             )
         return self._client
 
+    # =========================================================================
+    # Generic Text Generation (Used by Agents)
+    # =========================================================================
+
+    async def generate_text(
+        self,
+        prompt: str,
+        system_instruction: str = "",
+        temperature: float = 1.0,
+        max_output_tokens: int = 8192,
+        thinking_level: str = "high",
+        model: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """Generate text using Gemini API with Gemini 3 optimizations.
+
+        This method is used by pipeline agents for text generation tasks.
+        It supports Gemini 3's thought signatures and thinking configuration.
+
+        IMPORTANT: Gemini 3 requires temperature=1.0 for optimal performance.
+        Lower values may cause response loops.
+
+        Args:
+            prompt: The text prompt to send to the model.
+            system_instruction: System-level instructions for the model.
+            temperature: Generation temperature (default 1.0 for Gemini 3).
+            max_output_tokens: Maximum tokens in response.
+            thinking_level: Thinking depth - "high", "low", or "minimal".
+                - "high": 32768 budget for complex tasks
+                - "low": 8192 budget for simple tasks
+                - "minimal": 1024 budget for trivial tasks
+            model: Model to use (defaults to gemini-3-pro-preview).
+
+        Returns:
+            Dict containing:
+                - text: The generated text response
+                - thought_signature: Gemini 3 thought signature (if available)
+                - model_used: Model that generated the response
+                - thinking_level: Thinking level used
+        """
+        model = model or "gemini-3-pro-preview"
+
+        # Map thinking level to budget
+        thinking_budgets = {
+            "high": 32768,
+            "low": 8192,
+            "minimal": 1024,
+        }
+        thinking_budget = thinking_budgets.get(thinking_level, 32768)
+
+        # Build config with Gemini 3 optimizations
+        gen_config = types.GenerateContentConfig(
+            temperature=temperature,  # Should be 1.0 for Gemini 3
+            max_output_tokens=max_output_tokens,
+            thinking_config=types.ThinkingConfig(
+                thinking_budget=thinking_budget,
+            ),
+        )
+
+        # Add system instruction if provided
+        if system_instruction:
+            gen_config.system_instruction = system_instruction
+
+        # Retry logic for authentication errors
+        max_retries = 2
+        last_error = None
+
+        for attempt in range(max_retries):
+            try:
+                response = await self.client.aio.models.generate_content(
+                    model=model,
+                    contents=prompt,
+                    config=gen_config,
+                )
+
+                # Extract text from response
+                response_text = response.text.strip() if response.text else ""
+
+                # Build result
+                result: Dict[str, Any] = {
+                    "text": response_text,
+                    "model_used": model,
+                    "thinking_level": thinking_level,
+                }
+
+                # === GEMINI 3 THOUGHT SIGNATURE EXTRACTION ===
+                # Thought signatures maintain reasoning continuity across API calls.
+                # They are REQUIRED for multi-turn conversations with Gemini 3.
+                thought_signature = None
+
+                # Try to extract from response metadata
+                if hasattr(response, "thought_signature"):
+                    thought_signature = response.thought_signature
+                elif hasattr(response, "candidates") and response.candidates:
+                    candidate = response.candidates[0]
+                    # Check candidate for thought signature
+                    if hasattr(candidate, "thought_signature"):
+                        thought_signature = candidate.thought_signature
+                    elif hasattr(candidate, "grounding_metadata"):
+                        # Some responses store it in grounding metadata
+                        metadata = candidate.grounding_metadata
+                        if hasattr(metadata, "thought_signature"):
+                            thought_signature = metadata.thought_signature
+
+                if thought_signature:
+                    result["thought_signature"] = thought_signature
+                    logger.debug(f"Extracted thought signature: {thought_signature[:50]}...")
+
+                logger.info(
+                    f"generate_text completed: {len(response_text)} chars, "
+                    f"thinking_level={thinking_level}"
+                )
+                return result
+
+            except Exception as e:
+                last_error = e
+                if self._is_auth_error(e) and attempt < max_retries - 1:
+                    logger.warning(f"Text gen auth error (attempt {attempt + 1}): {e}")
+                    self._refresh_credentials_and_client()
+                    continue
+                else:
+                    logger.error(f"Text generation failed: {e}")
+                    break
+
+        raise RuntimeError(f"Failed to generate text: {last_error}")
+
+    # =========================================================================
+    # Image Generation
+    # =========================================================================
+
     async def generate_image(
         self,
         prompt: str,
