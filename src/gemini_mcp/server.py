@@ -1015,27 +1015,34 @@ async def design_frontend(
         return result
 
     # 3. Standard Gemini Mode (Original Logic)
-    # Construct prompt...
-    from .prompt_builder import build_design_prompt
-    
-    full_prompt = build_design_prompt(
-        component_type=component_type,
-        context=context,
-        theme=theme,
-        style_guide=style_guide,
-        content_structure=content_structure,
-        project_context=project_context,
-        content_language=content_language
-    )
+    # Parse content_structure JSON to dict
+    try:
+        content_dict = json.loads(content_structure) if content_structure else {}
+    except json.JSONDecodeError:
+        content_dict = {}
 
-    # Call Gemini Tool
+    # Create design_spec matching GeminiClient.design_component() signature
+    design_spec = {
+        "context": context,
+        "content_structure": content_dict,
+    }
+
+    # Convert style_guide string to dict format expected by design_component
+    if isinstance(style_guide, str):
+        style_guide_dict = {"style_guide_text": style_guide, "theme": theme}
+    else:
+        style_guide_dict = style_guide if style_guide else {"theme": theme}
+
+    # Call Gemini Tool with correct parameters
     client = get_gemini_client()
-    
+
     result = await safe_design_call(
         lambda: client.design_component(
-            prompt=full_prompt,
-            model="gemini-1.5-pro-preview-0409", # Use stable model for standard calls
-            response_format="json"
+            component_type=component_type,
+            design_spec=design_spec,
+            style_guide=style_guide_dict,
+            project_context=project_context,
+            content_language=content_language,
         ),
         component_type=component_type,
         response_type="design"
