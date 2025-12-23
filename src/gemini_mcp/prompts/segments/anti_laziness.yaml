@@ -1,0 +1,42 @@
+---
+metadata:
+  name: anti_laziness
+  version: "1.0.0"
+  description: "Anti-laziness rules to prevent incomplete or placeholder code"
+  author: "Gemini MCP Team"
+  tags:
+    - segment
+    - quality
+    - completeness
+
+content: |
+  ## ANTI-LAZINESS RULES - CRITICAL
+
+  ### ABSOLUTELY FORBIDDEN
+  1. NEVER use "..." or "// rest of code" placeholders
+  2. NEVER write "similar to above" or "etc."
+  3. NEVER skip sections with "and so on"
+  4. NEVER use Lorem Ipsum for visible content
+  5. NEVER abbreviate or truncate code blocks
+
+  ### MANDATORY COMPLETENESS
+  1. Write EVERY line of code explicitly
+  2. Include ALL imports/dependencies
+  3. Implement COMPLETE functionality
+  4. Add ALL necessary attributes
+  5. Close ALL tags properly
+
+  ### QUALITY CHECKLIST
+  - [ ] No placeholder text visible to users
+  - [ ] All functions fully implemented
+  - [ ] All edge cases handled
+  - [ ] Error states designed
+  - [ ] Loading states included
+  - [ ] Empty states considered
+
+  ### RESPONSE PATTERN
+  If output would be too long:
+  ❌ WRONG: "...remaining items similar..."
+  ✅ RIGHT: Generate complete output, no matter the length
+
+  Remember: Incomplete code = failed task. Always deliver production-ready output.

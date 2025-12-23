@@ -1,0 +1,141 @@
+---
+metadata:
+  name: responsive
+  version: "1.0.0"
+  description: "Responsive design patterns for TailwindCSS"
+  author: "Gemini MCP Team"
+  tags:
+    - segment
+    - responsive
+    - mobile-first
+
+variables:
+  breakpoints: "sm,md,lg"
+
+content: |
+  ## RESPONSIVE DESIGN - MANDATORY
+
+  ### TAILWIND BREAKPOINTS
+  | Prefix | Min-width | Devices |
+  |--------|-----------|---------|
+  | (none) | 0px | Mobile (default) |
+  | sm: | 640px | Large phones |
+  | md: | 768px | Tablets |
+  | lg: | 1024px | Laptops |
+  | xl: | 1280px | Desktops |
+  | 2xl: | 1536px | Large screens |
+
+  ### MOBILE-FIRST APPROACH
+  Always start with mobile styles, add breakpoints for larger screens:
+
+  ```html
+  <!-- ❌ WRONG: Desktop-first -->
+  <div class="flex-row sm:flex-col">
+
+  <!-- ✅ RIGHT: Mobile-first -->
+  <div class="flex-col sm:flex-row">
+  ```
+
+  ### GRID LAYOUTS
+  ```html
+  <!-- 1 column mobile → 2 tablet → 3 desktop -->
+  <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+
+  <!-- Sidebar layout -->
+  <div class="grid grid-cols-1 lg:grid-cols-[250px_1fr] gap-8">
+  ```
+
+  ### TYPOGRAPHY SCALING
+  ```html
+  <!-- Headlines -->
+  <h1 class="text-2xl sm:text-3xl md:text-4xl lg:text-5xl xl:text-6xl">
+
+  <!-- Body text -->
+  <p class="text-sm sm:text-base lg:text-lg">
+
+  <!-- Spacing scales too -->
+  <section class="py-12 md:py-16 lg:py-24">
+  ```
+
+  ### CONTAINER PATTERNS
+  ```html
+  <!-- Centered container with responsive padding -->
+  <div class="container mx-auto px-4 sm:px-6 lg:px-8">
+
+  <!-- Max-width variants -->
+  <div class="max-w-7xl mx-auto">
+  <div class="max-w-4xl mx-auto"> <!-- For text content -->
+  ```
+
+  ### NAVIGATION
+  ```html
+  <!-- Mobile: hamburger, Desktop: full nav -->
+  <nav>
+    <!-- Mobile menu button -->
+    <button class="md:hidden">
+      <svg><!-- Hamburger icon --></svg>
+    </button>
+
+    <!-- Desktop navigation -->
+    <div class="hidden md:flex md:items-center md:space-x-8">
+      <a href="#">Link 1</a>
+      <a href="#">Link 2</a>
+    </div>
+  </nav>
+  ```
+
+  ### FLEX PATTERNS
+  ```html
+  <!-- Stack on mobile, row on desktop -->
+  <div class="flex flex-col md:flex-row md:items-center md:justify-between">
+
+  <!-- Gap changes -->
+  <div class="flex flex-wrap gap-2 sm:gap-4 lg:gap-6">
+  ```
+
+  ### IMAGES
+  ```html
+  <!-- Responsive sizing -->
+  <img class="w-full md:w-1/2 lg:w-1/3">
+
+  <!-- Aspect ratio -->
+  <div class="aspect-video md:aspect-square lg:aspect-[4/3]">
+
+  <!-- Object fit -->
+  <img class="object-cover object-center">
+  ```
+
+  ### HIDING/SHOWING
+  ```html
+  <!-- Show only on mobile -->
+  <div class="block md:hidden">Mobile only</div>
+
+  <!-- Show only on desktop -->
+  <div class="hidden lg:block">Desktop only</div>
+
+  <!-- Show from tablet up -->
+  <div class="hidden md:block">Tablet and up</div>
+  ```
+
+  ### PADDING/MARGIN SCALING
+  ```html
+  <!-- Responsive padding -->
+  <div class="p-4 sm:p-6 md:p-8 lg:p-12">
+
+  <!-- Responsive margins -->
+  <div class="mt-8 md:mt-12 lg:mt-16">
+
+  <!-- Responsive gaps -->
+  <div class="space-y-4 md:space-y-6 lg:space-y-8">
+  ```
+
+  ### TESTING CHECKLIST
+  - [ ] Test at 320px (smallest phones)
+  - [ ] Test at 375px (iPhone)
+  - [ ] Test at 768px (iPad portrait)
+  - [ ] Test at 1024px (iPad landscape / laptop)
+  - [ ] Test at 1440px (desktop)
+  - [ ] Test at 1920px+ (large screens)
+  - [ ] Touch targets min 44x44px on mobile
+  - [ ] Text readable without zooming
+  - [ ] No horizontal scroll

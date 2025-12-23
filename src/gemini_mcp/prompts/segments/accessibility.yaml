@@ -1,0 +1,80 @@
+---
+metadata:
+  name: accessibility
+  version: "1.0.0"
+  description: "WCAG accessibility compliance guidelines"
+  author: "Gemini MCP Team"
+  tags:
+    - segment
+    - a11y
+    - wcag
+
+variables:
+  wcag_level: "AA"
+
+content: |
+  ## ACCESSIBILITY (WCAG {{wcag_level}}) - MANDATORY
+
+  ### COLOR CONTRAST
+  - Normal text: minimum 4.5:1 contrast ratio
+  - Large text (18pt+): minimum 3:1 contrast ratio
+  - UI components: minimum 3:1 against background
+  - Focus indicators: clearly visible (min 3:1)
+
+  ### KEYBOARD NAVIGATION
+  - All interactive elements must be focusable
+  - Logical tab order (tabindex when needed)
+  - Visible focus states (focus:ring-2, focus:outline)
+  - Skip links for main content
+  - Escape key closes modals/dropdowns
+
+  ### ARIA ATTRIBUTES
+  ```html
+  <!-- Buttons with icons only -->
+  <button aria-label="Close modal">
+    <svg>...</svg>
+  </button>
+
+  <!-- Form labels -->
+  <label for="email">Email</label>
+  <input id="email" type="email" aria-describedby="email-hint">
+  <span id="email-hint">We'll never share your email</span>
+
+  <!-- Live regions -->
+  <div aria-live="polite" aria-atomic="true">
+    Status messages here
+  </div>
+  ```
+
+  ### SEMANTIC HTML
+  - Use `<header>`, `<nav>`, `<main>`, `<footer>`, `<aside>`
+  - Use `<h1>` through `<h6>` in logical order
+  - Use `<button>` for actions, `<a>` for navigation
+  - Use `<ul>/<ol>` for lists
+  - Use `<table>` with proper `<th>` for data tables
+
+  ### IMAGES & MEDIA
+  - All `<img>` must have `alt` attribute
+  - Decorative images: `alt=""`
+  - Complex images: longer description via `aria-describedby`
+  - Videos: captions/transcripts when possible
+
+  ### MOTION & ANIMATION
+  - Respect `prefers-reduced-motion`:
+    ```css
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after {
+        animation-duration: 0.01ms !important;
+        transition-duration: 0.01ms !important;
+      }
+    }
+    ```
+  - No auto-playing videos with sound
+  - Pause/stop controls for animations
+
+  ### FORM ACCESSIBILITY
+  - Labels associated with inputs (for/id)
+  - Error messages linked via aria-describedby
+  - Required fields marked with aria-required="true"
+  - Error states: aria-invalid="true"
+  - Group related fields with `<fieldset>` and `<legend>`

@@ -14,6 +14,10 @@ Provides frontend design tools powered by Gemini models on Vertex AI:
 import json
 import logging
 
+# GAP 7: State Management & Persistence
+from .state import draft_manager, DesignArtifact
+
+
 from mcp.server.fastmcp import FastMCP
 
 from .client import get_gemini_client, fix_js_fallbacks
@@ -100,6 +104,17 @@ from .error_recovery import (
     ResponseValidator,
 )
 
+# =============================================================================
+# TRIFECTA ENGINE - Multi-Agent Pipeline System
+# =============================================================================
+from .orchestration import (
+    AgentOrchestrator,
+    AgentContext,
+    PipelineType,
+    PipelineResult,
+    get_orchestrator,
+)
+
 # GAP 4, 5, 6: Validation Layer
 from .validators import (
     # Token extraction (GAP 4)
@@ -155,8 +170,13 @@ mcp = FastMCP(
 
     Authentication is handled automatically via Application Default Credentials
     or gcloud CLI token.
+
+    PERSISTENCE:
+    All generated designs are automatically saved to .gemini/drafts (or configured path)
+    to prevent data loss. Use list_drafts() to recover previous work.
     """,
 )
+
 
 
 # =============================================================================
@@ -244,6 +264,104 @@ async def safe_design_call(
             )
         else:
             raise
+
+
+# =============================================================================
+# TRIFECTA PIPELINE HELPER
+# =============================================================================
+
+async def run_trifecta_pipeline(
+    pipeline_type: PipelineType,
+    component_type: str = "",
+    theme: str = "modern-minimal",
+    style_guide: dict = None,
+    content_structure: dict = None,
+    context: str = "",
+    project_context: str = "",
+    content_language: str = "tr",
+    previous_html: str = "",
+    modification_request: str = "",
+    **kwargs,
+) -> dict:
+    """Run a Trifecta multi-agent pipeline for design generation.
+
+    This helper wraps the AgentOrchestrator for MCP tool integration.
+
+    Args:
+        pipeline_type: Type of pipeline (COMPONENT, PAGE, SECTION, REFINE, etc.)
+        component_type: Target component type
+        theme: Visual theme preset
+        style_guide: Pre-built style guide from theme factories
+        content_structure: Content JSON structure
+        context: Usage context
+        project_context: Project-specific context
+        content_language: Output language (tr, en, de)
+        previous_html: Previous HTML for chain/refine pipelines
+        modification_request: User's modification request (for REFINE pipeline)
+        **kwargs: Additional pipeline-specific parameters
+
+    Returns:
+        Dict with pipeline result in MCP-compatible format
+    """
+    try:
+        # Get or initialize the orchestrator
+        client = get_gemini_client()
+        orchestrator = get_orchestrator(client)
+
+        # Build AgentContext
+        agent_context = AgentContext(
+            pipeline_type=pipeline_type,
+            component_type=component_type,
+            theme=theme,
+            style_guide=style_guide or {},
+            content_structure=content_structure or {},
+            user_requirements=context,
+            project_context=project_context,
+            content_language=content_language,
+            previous_output=previous_html,
+            modification_request=modification_request,
+        )
+
+        # Log pipeline start
+        logger.info(
+            f"[Trifecta] Starting {pipeline_type.value} pipeline for {component_type or 'page'}"
+        )
+
+        # Run the pipeline
+        result = await orchestrator.run_pipeline(
+            pipeline_type=pipeline_type,
+            context=agent_context,
+            on_step_complete=lambda step, res: logger.debug(
+                f"[Trifecta] Step {step} completed: {res.agent_role.value}"
+            ),
+        )
+
+        # Convert to MCP response format
+        mcp_response = result.to_mcp_response()
+
+        # Add Trifecta metadata
+        mcp_response["trifecta_enabled"] = True
+        mcp_response["agents_executed"] = [
+            step.agent_role.value for step in result.step_results
+        ]
+
+        logger.info(
+            f"[Trifecta] Pipeline completed: "
+            f"agents={len(result.step_results)}, "
+            f"time={result.execution_time_ms:.0f}ms, "
+            f"tokens={result.total_tokens}"
+        )
+
+        return mcp_response
+
+    except Exception as e:
+        logger.error(f"[Trifecta] Pipeline failed: {e}")
+        return {
+            "error": str(e),
+            "trifecta_enabled": True,
+            "pipeline_type": pipeline_type.value,
+            "component_type": component_type,
+        }
 
 
 # =============================================================================
@@ -565,6 +683,10 @@ async def design_frontend(
     archetype: str = "disruptor",
     startup_stage: str = "growth",
     vibe: str = "",
+    # =================================================================
+    # TRIFECTA ENGINE - Multi-Agent Pipeline Mode
+    # =================================================================
+    use_trifecta: bool = False,
 ) -> dict:
     """Design a frontend UI component using Gemini 3 Pro.
 
@@ -632,7 +754,12 @@ async def design_frontend(
         project_context: Project-specific context for design consistency.
         auto_fix: Apply JS fallback fixes automatically (default: True)
         content_language: Language for generated content (default: "tr")
-        
+        use_trifecta: Enable multi-agent Trifecta Engine pipeline for higher
+                     quality output. Uses 4 specialized agents (Architect,
+                     Alchemist, Physicist, QualityGuard) instead of single
+                     API call. Produces separate HTML/CSS/JS outputs.
+                     (default: False)
+
         --- THEME-SPECIFIC CUSTOMIZATION ---
         
         MODERN-MINIMAL:
@@ -708,6 +835,12 @@ async def design_frontend(
         - theme_config: Advanced theme configuration used
         - model_used: Always gemini-3-pro-preview
 
+        When use_trifecta=True, additional fields:
+        - trifecta_enabled: True
+        - agents_executed: List of agents that ran (e.g., ["architect", "alchemist"])
+        - css_output: Separate CSS generated by Alchemist agent
+        - js_output: Separate JS generated by Physicist agent
+
     Examples:
         # Custom Brand Colors (Modern-Minimal)
         design_frontend(
@@ -723,189 +856,222 @@ async def design_frontend(
             theme="brutalist",
             contrast_mode="maximum"  # WCAG AAA+
         )
-
-        # Cyberpunk with Intense Glow
-        design_frontend(
-            component_type="navbar",
-            theme="cyberpunk",
-            primary_neon="fuchsia",
-            neon_intensity="intense",
-            scanline_effect=True
-        )
-
-        # Nature Theme - Autumn Season
-        design_frontend(
-            component_type="hero",
-            theme="nature",
-            season="autumn",
-            organic_shapes=True
-        )
-
-        # Startup - Fintech Archetype
-        design_frontend(
-            component_type="pricing_card",
-            theme="startup",
-            archetype="fintech",
-            startup_stage="growth"
-        )
     """
-    try:
-        # Parse content_structure from JSON string
-        try:
-            content = json.loads(content_structure) if content_structure else {}
-        except json.JSONDecodeError:
-            content = {"raw": content_structure}
-
-        # Build design specification
-        design_spec = {
-            "context": context,
-            "content_structure": content,
-        }
-
-        # Build ADVANCED style guide using theme factories
-        style_guide = build_advanced_style_guide(
-            theme=theme,
-            dark_mode=dark_mode,
-            border_radius=border_radius,
-            # Modern-Minimal
-            brand_primary=brand_primary,
-            neutral_base=neutral_base,
-            # Brutalist
-            contrast_mode=contrast_mode,
-            # Glassmorphism
-            blur_intensity=blur_intensity,
-            glass_opacity=glass_opacity,
-            performance_mode=performance_mode,
-            # Neo-Brutalism
-            gradient_preset=gradient_preset,
-            gradient_animation=gradient_animation,
-            # Soft-UI
-            neumorphism_intensity=neumorphism_intensity,
-            # Corporate
-            industry=industry,
-            layout_style=layout_style,
-            formality=formality,
-            # Gradient
-            primary_gradient=primary_gradient,
-            # Cyberpunk
-            primary_neon=primary_neon,
-            neon_intensity=neon_intensity,
-            scanline_effect=scanline_effect,
-            # Retro
-            retro_era=retro_era,
-            retro_color_scheme=retro_color_scheme,
-            # Pastel
-            primary_pastel=primary_pastel,
-            wcag_level=wcag_level,
-            # Dark Mode First
-            primary_glow=primary_glow,
-            light_mode_style=light_mode_style,
-            # High Contrast
-            softness_level=softness_level,
-            hc_color_scheme=hc_color_scheme,
-            # Nature
-            season=season,
-            organic_shapes=organic_shapes,
-            eco_friendly_mode=eco_friendly_mode,
-            # Startup
-            archetype=archetype,
-            startup_stage=startup_stage,
-            vibe=vibe,
-        )
-
-        # Build constraints
-        constraints = {
-            "responsive_breakpoints": [bp.strip() for bp in responsive_breakpoints.split(",")],
-            "accessibility_level": accessibility_level,
-            "micro_interactions": micro_interactions,
-            # MAXIMUM_RICHNESS mode directives
-            "output_mode": "MAXIMUM_RICHNESS",
-            "min_table_rows": 8,
-            "min_list_items": 6,
-            "generate_all_states": True,  # hover, focus, active, disabled, loading, error
-            "inline_svgs": True,  # Use real SVG markup, not placeholders
-            "realistic_turkish_content": True,
-            "available_effects": list(VISUAL_EFFECTS.keys()),
-            "available_icons": list(SVG_ICONS.keys())[:25],  # Top 25 icons for reference
-        }
-        if max_width:
-            constraints["max_width"] = max_width
-
-        # Call the design method with GAP 3 error handling
-        client = get_gemini_client()
-        result = await safe_design_call(
-            api_call=lambda: client.design_component(
-                component_type=component_type,
-                design_spec=design_spec,
-                style_guide=style_guide,
-                constraints=constraints,
-                project_context=project_context,
-                content_language=content_language,
-            ),
+    
+    # Capture inputs for metadata
+    input_params = locals()
+    input_params.pop("context", None) # Keep it cleaner
+    
+    logger.info(f"Designing {component_type} with theme {theme} (Vibe: {vibe})")
+    
+    # Project Context Management
+    project_name = "default"
+    # Extract project name from context if possible, or use default
+    # Future improvement: Add explicit project_name param
+    
+    # 1. Build Style Guide using Advanced Factory
+    style_guide = build_advanced_style_guide(
+        theme=theme,
+        dark_mode=dark_mode,
+        border_radius=border_radius,
+        # Theme-specific params
+        brand_primary=brand_primary, neutral_base=neutral_base,
+        contrast_mode=contrast_mode,
+        blur_intensity=blur_intensity, glass_opacity=glass_opacity, performance_mode=performance_mode,
+        gradient_preset=gradient_preset, gradient_animation=gradient_animation,
+        neumorphism_intensity=neumorphism_intensity,
+        industry=industry, layout_style=layout_style, formality=formality,
+        primary_gradient=primary_gradient,
+        primary_neon=primary_neon, neon_intensity=neon_intensity, scanline_effect=scanline_effect,
+        retro_era=retro_era, retro_color_scheme=retro_color_scheme,
+        primary_pastel=primary_pastel, wcag_level=wcag_level,
+        primary_glow=primary_glow, light_mode_style=light_mode_style,
+        softness_level=softness_level, hc_color_scheme=hc_color_scheme,
+        season=season, organic_shapes=organic_shapes, eco_friendly_mode=eco_friendly_mode,
+        archetype=archetype, startup_stage=startup_stage,
+        vibe=vibe,
+    )
+    
+    # 2. Check Trifecta Mode
+    if use_trifecta:
+        result = await run_trifecta_pipeline(
+            pipeline_type=PipelineType.COMPONENT,
             component_type=component_type,
-            response_type="design",
+            theme=theme,
+            style_guide=style_guide,
+            content_structure=content_structure,
+            context=context,
+            project_context=project_context,
+            content_language=content_language
         )
+        
+        # SAVE DRAFT AUTOMATICALLY
+        if "html" in result:
+             # Save primary HTML
+             path = draft_manager.save_artifact(
+                 content=result["html"],
+                 extension="html",
+                 project_name=project_name,
+                 component_type=component_type,
+                 metadata={
+                     "tool": "design_frontend", 
+                     "params": str(input_params),
+                     "model_used": result.get("model_used", "gemini-3-pro")
+                 }
+             )
+             result["_saved_draft_path"] = path
+             
+             # Save sidecar CSS/JS if present
+             if result.get("css_output"):
+                 draft_manager.save_artifact(
+                     content=result["css_output"], extension="css", 
+                     project_name=project_name, component_type=component_type
+                 )
+             if result.get("js_output"):
+                 draft_manager.save_artifact(
+                     content=result["js_output"], extension="js", 
+                     project_name=project_name, component_type=component_type
+                 )
 
-        # Apply JS fallback fixes if enabled
-        if auto_fix and "html" in result:
-            result["html"], fixes = fix_js_fallbacks(result["html"])
-            if fixes:
-                result["js_fixes_applied"] = fixes
-                logger.info(f"Applied {len(fixes)} JS fallback fixes")
-
-        # Add theme configuration to result
-        result["theme_config"] = {
-            "theme": theme,
-            "customizations_applied": _get_applied_customizations(
-                theme, brand_primary, contrast_mode, blur_intensity, 
-                gradient_preset, neon_intensity, retro_era, season, archetype
-            ),
-        }
-
-        logger.info(f"design_frontend completed: {component_type} -> {result.get('component_id', 'unknown')}")
         return result
 
-    except Exception as e:
-        logger.error(f"design_frontend failed: {e}")
-        return {
-            "error": str(e),
-            "component_type": component_type,
-            "model_used": "gemini-3-pro-preview",
-        }
+    # 3. Standard Gemini Mode (Original Logic)
+    # Construct prompt...
+    from .prompt_builder import build_design_prompt
+    
+    full_prompt = build_design_prompt(
+        component_type=component_type,
+        context=context,
+        theme=theme,
+        style_guide=style_guide,
+        content_structure=content_structure,
+        project_context=project_context,
+        content_language=content_language
+    )
+
+    # Call Gemini Tool
+    client = get_gemini_client()
+    
+    result = await safe_design_call(
+        lambda: client.design_component(
+            prompt=full_prompt,
+            model="gemini-1.5-pro-preview-0409", # Use stable model for standard calls
+            response_format="json"
+        ),
+        component_type=component_type,
+        response_type="design"
+    )
+
+    # Apply Auto-Fixes (JS Fallbacks)
+    if auto_fix and "html" in result and "script" in result.get("html", ""):
+        try:
+             # Fix commonly broken JS patterns in generated code
+             fixed_html = fix_js_fallbacks(result["html"])
+             result["html"] = fixed_html
+             if "js_fixes_applied" not in result:
+                 result["js_fixes_applied"] = []
+             result["js_fixes_applied"].append("interactive_fallbacks")
+        except Exception as e:
+            logger.warning(f"Auto-fix failed: {e}")
+
+    # SAVE DRAFT AUTOMATICALLY (Middleware)
+    if "html" in result:
+         path = draft_manager.save_artifact(
+             content=result["html"],
+             extension="html",
+             project_name=project_name,
+             component_type=component_type,
+             metadata={
+                 "tool": "design_frontend", 
+                 "params": str(input_params),
+                 "model_used": result.get("model_used", "gemini-1.5-pro")
+             }
+         )
+         # Verify saving metadata JSON as well (handled by save_artifact)
+         if "design_tokens" in result and result["design_tokens"]:
+             draft_manager.save_artifact(
+                 content=result["design_tokens"],
+                 extension="json",
+                 project_name=project_name,
+                 component_type=f"{component_type}_tokens"
+             )
+             
+         result["_saved_draft_path"] = path
+         logger.info(f"Auto-saved draft to {path}")
+
+    return result
 
 
-def _get_applied_customizations(
-    theme: str,
-    brand_primary: str,
-    contrast_mode: str,
-    blur_intensity: str,
-    gradient_preset: str,
-    neon_intensity: str,
-    retro_era: str,
-    season: str,
-    archetype: str,
-) -> dict:
-    """Get customizations that were applied based on theme."""
-    customizations = {}
+@mcp.tool()
+def list_drafts(project_name: str = "default") -> list:
+    """List all saved design drafts for a given project.
     
-    if theme == "modern-minimal" and brand_primary:
-        customizations["brand_primary"] = brand_primary
-    elif theme == "brutalist" and contrast_mode != "standard":
-        customizations["contrast_mode"] = contrast_mode
-    elif theme == "glassmorphism":
-        customizations["blur_intensity"] = blur_intensity
-    elif theme == "neo-brutalism":
-        customizations["gradient_preset"] = gradient_preset
-    elif theme == "cyberpunk":
-        customizations["neon_intensity"] = neon_intensity
-    elif theme == "retro":
-        customizations["era"] = retro_era
-    elif theme == "nature":
-        customizations["season"] = season
-    elif theme == "startup":
-        customizations["archetype"] = archetype
+    Use this to recover lost work or see previous versions.
     
-    return customizations
+    Args:
+        project_name: Name of the project (folder in temp_designs)
+    """
+    return draft_manager.list_drafts(project_name)
+
+
+@mcp.tool()
+def start_project(project_name: str) -> str:
+    """Initialize a new design project folder.
+    
+    Args:
+        project_name: Name of the project (e.g. 'burger_landing')
+    """
+    path = draft_manager._get_project_dir(project_name)
+    return f"Project '{project_name}' initialized at {path}. Future drafts will be saved here."
+
+
+@mcp.tool()
+def compile_project_drafts(project_name: str, output_filename: str = "index.html") -> str:
+    """Combine all HTML drafts in a project into a single file.
+    
+    Simple concatenation of latest version of each component.
+    """
+    drafts = draft_manager.list_drafts(project_name)
+    if not drafts:
+        return "No drafts found."
+        
+    # Simple logic: Sort by type, dedup
+    # This is a naive implementation for the MVP
+    
+    unique_components = {}
+    for d in sorted(drafts, key=lambda x: x['created_at']):
+        if d['type'] == 'html':
+              unique_components[d['component_type']] = d['path']
+              
+    combined_html = """<!DOCTYPE html><html lang="tr"><head>
+    <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    </head><body class="bg-gray-50">"""
+    
+    for c_type, path in unique_components.items():
+        try:
+            with open(path, 'r', encoding='utf-8') as f:
+                content = f.read()
+                # Strip <html> tags if full page
+                if "<body" in content:
+                    import re
+                    match = re.search(r'<body[^>]*>(.*?)</body>', content, re.DOTALL)
+                    if match:
+                        content = match.group(1)
+                combined_html += f"\n<!-- SECTION: {c_type} -->\n{content}\n"
+        except Exception as e:
+            combined_html += f"\n<!-- FAILED TO LOAD {c_type}: {e} -->\n"
+            
+    combined_html += "</body></html>"
+    
+    # Save compilation
+    save_path = draft_manager.save_artifact(
+        combined_html, "html", project_name, component_type="compiled_full_page"
+    )
+    
+    return f"Compiled {len(unique_components)} components into {save_path}"
 
 
 @mcp.tool()
@@ -1162,6 +1328,8 @@ async def design_page(
     dark_mode: bool = True,
     project_context: str = "",
     content_language: str = "tr",
+    # TRIFECTA ENGINE
+    use_trifecta: bool = False,
 ) -> dict:
     """Design a full page layout using Gemini 3 Pro.
 
@@ -1230,20 +1398,36 @@ async def design_page(
             "is_full_page": True,
         }
 
-        # Call the design method with page template and GAP 3 error handling
-        client = get_gemini_client()
-        result = await safe_design_call(
-            api_call=lambda: client.design_component(
+        # =================================================================
+        # TRIFECTA ENGINE - Multi-Agent Pipeline Mode
+        # =================================================================
+        if use_trifecta:
+            logger.info(f"[Trifecta] Using PAGE pipeline for {template_type}")
+            result = await run_trifecta_pipeline(
+                pipeline_type=PipelineType.PAGE,
                 component_type=f"page:{template_type}",
-                design_spec=design_spec,
+                theme=theme,
                 style_guide=style_guide,
-                constraints=constraints,
+                content_structure=content,
+                context=context,
                 project_context=project_context,
                 content_language=content_language,
-            ),
-            component_type=f"page:{template_type}",
-            response_type="page",
-        )
+            )
+        else:
+            # Call the design method with page template and GAP 3 error handling
+            client = get_gemini_client()
+            result = await safe_design_call(
+                api_call=lambda: client.design_component(
+                    component_type=f"page:{template_type}",
+                    design_spec=design_spec,
+                    style_guide=style_guide,
+                    constraints=constraints,
+                    project_context=project_context,
+                    content_language=content_language,
+                ),
+                component_type=f"page:{template_type}",
+                response_type="page",
+            )
 
         # Add template info to result
         result["template_type"] = template_type
@@ -1280,6 +1464,8 @@ async def refine_frontend(
     modifications: str,
     project_context: str = "",
     auto_fix: bool = True,
+    # TRIFECTA ENGINE
+    use_trifecta: bool = False,
 ) -> dict:
     """Refine an existing component design based on feedback.
 
@@ -1315,17 +1501,30 @@ async def refine_frontend(
         )
     """
     try:
-        # GAP 3: Error handling with retry
-        client = get_gemini_client()
-        result = await safe_design_call(
-            api_call=lambda: client.refine_component(
+        # =================================================================
+        # TRIFECTA ENGINE - Multi-Agent Pipeline Mode
+        # =================================================================
+        if use_trifecta:
+            logger.info("[Trifecta] Using REFINE pipeline with Critic agent")
+            result = await run_trifecta_pipeline(
+                pipeline_type=PipelineType.REFINE,
+                component_type="refinement",
                 previous_html=previous_html,
-                modifications=modifications,
+                modification_request=modifications,
                 project_context=project_context,
-            ),
-            component_type="refinement",
-            response_type="refinement",
-        )
+            )
+        else:
+            # GAP 3: Error handling with retry
+            client = get_gemini_client()
+            result = await safe_design_call(
+                api_call=lambda: client.refine_component(
+                    previous_html=previous_html,
+                    modifications=modifications,
+                    project_context=project_context,
+                ),
+                component_type="refinement",
+                response_type="refinement",
+            )
 
         # Apply JS fallback fixes if enabled
         if auto_fix and "html" in result:
@@ -1357,6 +1556,8 @@ async def design_section(
     project_context: str = "",
     auto_fix: bool = True,
     content_language: str = "tr",
+    # TRIFECTA ENGINE
+    use_trifecta: bool = False,
 ) -> dict:
     """Design a single page section that matches previous sections.
 
@@ -1456,22 +1657,38 @@ async def design_section(
         except json.JSONDecodeError:
             content = {"raw": content_structure}
 
-        # Call the design_section method with GAP 3 error handling
-        client = get_gemini_client()
-        result = await safe_design_call(
-            api_call=lambda: client.design_section(
-                section_type=section_type,
+        # =================================================================
+        # TRIFECTA ENGINE - Multi-Agent Pipeline Mode
+        # =================================================================
+        if use_trifecta:
+            logger.info(f"[Trifecta] Using SECTION pipeline for {section_type}")
+            result = await run_trifecta_pipeline(
+                pipeline_type=PipelineType.SECTION,
+                component_type=section_type,
+                theme=theme,
+                content_structure=content,
                 context=context,
                 previous_html=previous_html,
-                design_tokens=tokens,
-                content_structure=content,
-                theme=theme,
                 project_context=project_context,
                 content_language=content_language,
-            ),
-            component_type=section_type,
-            response_type="section",
-        )
+            )
+        else:
+            # Call the design_section method with GAP 3 error handling
+            client = get_gemini_client()
+            result = await safe_design_call(
+                api_call=lambda: client.design_section(
+                    section_type=section_type,
+                    context=context,
+                    previous_html=previous_html,
+                    design_tokens=tokens,
+                    content_structure=content,
+                    theme=theme,
+                    project_context=project_context,
+                    content_language=content_language,
+                ),
+                component_type=section_type,
+                response_type="section",
+            )
 
         # Apply JS fallback fixes if enabled
         if auto_fix and "html" in result:
@@ -1510,6 +1727,8 @@ async def design_from_reference(
     extract_only: bool = False,
     auto_fix: bool = True,
     content_language: str = "tr",
+    # TRIFECTA ENGINE
+    use_trifecta: bool = False,
 ) -> dict:
     """Design a component based on a reference image using Gemini Vision.
 
@@ -1596,40 +1815,56 @@ async def design_from_reference(
         5. Applies JS fallback fixes if auto_fix=True
     """
     try:
-        # GAP 3: Error handling with retry for vision operations
-        client = get_gemini_client()
-
-        if extract_only:
-            # Only extract design tokens, don't generate HTML
-            result = await safe_design_call(
-                api_call=lambda: client.analyze_reference_image(
-                    image_path=image_path,
-                    extract_only=True,
-                ),
-                component_type="vision_analysis",
-                response_type="vision",
+        # =================================================================
+        # TRIFECTA ENGINE - Multi-Agent Pipeline Mode
+        # =================================================================
+        if use_trifecta and not extract_only:
+            logger.info(f"[Trifecta] Using REFERENCE pipeline for vision-based design")
+            result = await run_trifecta_pipeline(
+                pipeline_type=PipelineType.REFERENCE,
+                component_type=component_type or "reference_design",
+                context=context,
+                project_context=project_context,
+                content_language=content_language,
+                # Pass image path via kwargs for vision agent
+                image_path=image_path,
+                instructions=instructions,
             )
         else:
-            # Extract tokens AND generate matching component
-            result = await safe_design_call(
-                api_call=lambda: client.design_from_reference(
-                    image_path=image_path,
-                    component_type=component_type,
-                    instructions=instructions,
-                    context=context,
-                    project_context=project_context,
-                    content_language=content_language,
-                ),
-                component_type=component_type or "reference_design",
-                response_type="reference",
-            )
+            # GAP 3: Error handling with retry for vision operations
+            client = get_gemini_client()
 
-            # Apply JS fallback fixes if enabled and HTML was generated
-            if auto_fix and "html" in result:
-                result["html"], fixes = fix_js_fallbacks(result["html"])
-                if fixes:
-                    result["js_fixes_applied"] = fixes
-                    logger.info(f"Applied {len(fixes)} JS fallback fixes")
+            if extract_only:
+                # Only extract design tokens, don't generate HTML
+                result = await safe_design_call(
+                    api_call=lambda: client.analyze_reference_image(
+                        image_path=image_path,
+                        extract_only=True,
+                    ),
+                    component_type="vision_analysis",
+                    response_type="vision",
+                )
+            else:
+                # Extract tokens AND generate matching component
+                result = await safe_design_call(
+                    api_call=lambda: client.design_from_reference(
+                        image_path=image_path,
+                        component_type=component_type,
+                        instructions=instructions,
+                        context=context,
+                        project_context=project_context,
+                        content_language=content_language,
+                    ),
+                    component_type=component_type or "reference_design",
+                    response_type="reference",
+                )
+
+        # Apply JS fallback fixes if enabled and HTML was generated
+        if auto_fix and "html" in result:
+            result["html"], fixes = fix_js_fallbacks(result["html"])
+            if fixes:
+                result["js_fixes_applied"] = fixes
+                logger.info(f"Applied {len(fixes)} JS fallback fixes")
 
         logger.info(
             f"design_from_reference completed: "
@@ -1674,6 +1909,8 @@ async def replace_section_in_page(
     preserve_design_tokens: bool = True,
     theme: str = "modern-minimal",
     content_language: str = "tr",
+    # TRIFECTA ENGINE
+    use_trifecta: bool = False,
 ) -> dict:
     """Replace a single section in an existing page with an improved version.
 
@@ -1757,22 +1994,40 @@ async def replace_section_in_page(
                         design_tokens = tokens
                         break
 
-        # 5. Generate new section using design_section with GAP 3 error handling
-        client = get_gemini_client()
-        new_section_result = await safe_design_call(
-            api_call=lambda: client.design_section(
-                section_type=section_type,
-                context=f"Replacing existing {section_type} section. Modifications: {modifications}",
-                previous_html=current_section,
-                design_tokens=design_tokens if design_tokens else None,
-                content_structure={},
+        # 5. Generate new section
+        if use_trifecta:
+            # TRIFECTA ENGINE: Use REPLACE pipeline (Surgeon Mode)
+            logger.info(f"[Trifecta] Using REPLACE pipeline for {section_type} (Surgeon Mode)")
+            new_section_result = await run_trifecta_pipeline(
+                pipeline_type=PipelineType.REPLACE,
+                component_type=section_type,
                 theme=theme,
+                content_structure={},
+                context=f"Replacing existing {section_type} section. Modifications: {modifications}",
                 project_context="This is part of an existing page. Maintain visual consistency.",
                 content_language=content_language,
-            ),
-            component_type=section_type,
-            response_type="section",
-        )
+                previous_html=current_section,
+                modification_request=modifications,
+                # Pass design tokens for consistency
+                design_tokens=design_tokens if design_tokens else None,
+            )
+        else:
+            # Original behavior: use design_section with GAP 3 error handling
+            client = get_gemini_client()
+            new_section_result = await safe_design_call(
+                api_call=lambda: client.design_section(
+                    section_type=section_type,
+                    context=f"Replacing existing {section_type} section. Modifications: {modifications}",
+                    previous_html=current_section,
+                    design_tokens=design_tokens if design_tokens else None,
+                    content_structure={},
+                    theme=theme,
+                    project_context="This is part of an existing page. Maintain visual consistency.",
+                    content_language=content_language,
+                ),
+                component_type=section_type,
+                response_type="section",
+            )
 
         if "error" in new_section_result:
             return {

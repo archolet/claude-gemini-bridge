@@ -1,0 +1,112 @@
+---
+metadata:
+  name: dark_mode
+  version: "1.0.0"
+  description: "Dark mode support guidelines for TailwindCSS"
+  author: "Gemini MCP Team"
+  tags:
+    - segment
+    - dark-mode
+    - theming
+
+content: |
+  ## DARK MODE SUPPORT - MANDATORY
+
+  ### TAILWIND DARK: CLASSES
+  Always include `dark:` variants for all color-related classes:
+
+  ```html
+  <!-- Backgrounds -->
+  <div class="bg-white dark:bg-slate-900">
+  <div class="bg-gray-50 dark:bg-slate-800">
+  <div class="bg-gray-100 dark:bg-slate-700">
+
+  <!-- Text -->
+  <p class="text-gray-900 dark:text-white">
+  <p class="text-gray-600 dark:text-gray-300">
+  <p class="text-gray-500 dark:text-gray-400">
+
+  <!-- Borders -->
+  <div class="border-gray-200 dark:border-slate-700">
+  <div class="divide-gray-200 dark:divide-slate-700">
+
+  <!-- Shadows -->
+  <div class="shadow-lg dark:shadow-slate-900/50">
+  ```
+
+  ### COLOR PALETTE MAPPING
+  | Light Mode | Dark Mode |
+  |------------|-----------|
+  | white | slate-900 |
+  | gray-50 | slate-800 |
+  | gray-100 | slate-700 |
+  | gray-200 | slate-600 |
+  | gray-900 | white |
+  | gray-700 | gray-300 |
+  | gray-500 | gray-400 |
+
+  ### HOVER & FOCUS STATES
+  ```html
+  <button class="
+    bg-blue-600 hover:bg-blue-700
+    dark:bg-blue-500 dark:hover:bg-blue-600
+    focus:ring-blue-500 dark:focus:ring-blue-400
+  ">
+  ```
+
+  ### IMAGES & MEDIA
+  ```html
+  <!-- Invert for dark mode -->
+  <img class="dark:invert" src="logo-dark.svg">
+
+  <!-- Brightness adjustment -->
+  <img class="dark:brightness-90">
+
+  <!-- Different images -->
+  <img class="block dark:hidden" src="light-image.png">
+  <img class="hidden dark:block" src="dark-image.png">
+  ```
+
+  ### FORM ELEMENTS
+  ```html
+  <input class="
+    bg-white dark:bg-slate-800
+    border-gray-300 dark:border-slate-600
+    text-gray-900 dark:text-white
+    placeholder-gray-400 dark:placeholder-gray-500
+    focus:border-blue-500 dark:focus:border-blue-400
+  ">
+  ```
+
+  ### COMPONENT PATTERNS
+  ```html
+  <!-- Card -->
+  <div class="
+    bg-white dark:bg-slate-800
+    border border-gray-200 dark:border-slate-700
+    shadow-lg dark:shadow-slate-900/30
+  ">
+
+  <!-- Modal backdrop -->
+  <div class="bg-black/50 dark:bg-black/70">
+
+  <!-- Dropdown -->
+  <div class="
+    bg-white dark:bg-slate-800
+    ring-1 ring-black/5 dark:ring-white/10
+  ">
+  ```
+
+  ### PROSE/TYPOGRAPHY (for articles)
+  ```html
+  <article class="prose dark:prose-invert">
+  ```
+
+  ### TESTING CHECKLIST
+  - [ ] All text readable in both modes
+  - [ ] Sufficient contrast maintained
+  - [ ] No pure black (#000) on pure white
+  - [ ] Interactive states visible
+  - [ ] Images appropriate for both modes
+  - [ ] Form elements styled
+  - [ ] Shadows adjusted for dark backgrounds
