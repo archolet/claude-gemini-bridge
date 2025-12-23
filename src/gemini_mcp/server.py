@@ -15,7 +15,7 @@ import json
 import logging
 
 # GAP 7: State Management & Persistence
-from .state import draft_manager, DesignArtifact
+from .state import draft_manager
 
 
 from mcp.server.fastmcp import FastMCP

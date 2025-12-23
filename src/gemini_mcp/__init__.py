@@ -75,7 +75,6 @@ __all__ = [
     # Few Shot Examples
     "COMPONENT_EXAMPLES",
     "SECTION_CHAIN_EXAMPLES",
-    "get_few_shot_example",
     "get_few_shot_examples_for_prompt",
     # Section Utils
     "SECTION_PATTERN",
@@ -219,7 +218,6 @@ from .error_recovery import (
 from .few_shot_examples import (
     COMPONENT_EXAMPLES,
     SECTION_CHAIN_EXAMPLES,
-    get_few_shot_example,
     get_few_shot_examples_for_prompt,
 )
 

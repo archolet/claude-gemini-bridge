@@ -440,18 +440,6 @@ SECTION_CHAIN_EXAMPLES: Dict[str, List[Dict[str, Any]]] = {
 }
 
 
-def get_few_shot_example(component_type: str) -> Optional[Dict[str, Any]]:
-    """Get a few-shot example for a component type.
-
-    Args:
-        component_type: The type of component.
-
-    Returns:
-        Example dict with input and output, or None if not available.
-    """
-    return COMPONENT_EXAMPLES.get(component_type)
-
-
 def get_few_shot_examples_for_prompt(
     component_type: str,
     include_similar: bool = True,
@@ -504,15 +492,3 @@ def get_few_shot_examples_for_prompt(
         lines.append("")
 
     return "\n".join(lines)
-
-
-def get_section_chain_example(page_type: str) -> Optional[List[Dict[str, Any]]]:
-    """Get a section chain example for a page type.
-
-    Args:
-        page_type: The type of page (e.g., "landing_page").
-
-    Returns:
-        List of section examples, or None if not available.
-    """
-    return SECTION_CHAIN_EXAMPLES.get(page_type)

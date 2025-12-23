@@ -388,40 +388,6 @@ class GeminiClient:
             logger.info(f"Created design system: {design_system_id}")
         return self._design_systems[design_system_id]
 
-    def get_design_system(self, design_system_id: str) -> Optional[DesignSystemState]:
-        """Get an existing design system by ID.
-
-        Args:
-            design_system_id: The design system ID.
-
-        Returns:
-            DesignSystemState if found, None otherwise.
-        """
-        return self._design_systems.get(design_system_id)
-
-    def list_design_systems(self) -> List[str]:
-        """List all registered design system IDs.
-
-        Returns:
-            List of design system IDs.
-        """
-        return list(self._design_systems.keys())
-
-    def clear_design_system(self, design_system_id: str) -> bool:
-        """Clear a design system and its components.
-
-        Args:
-            design_system_id: The design system to clear.
-
-        Returns:
-            True if cleared, False if not found.
-        """
-        if design_system_id in self._design_systems:
-            del self._design_systems[design_system_id]
-            logger.info(f"Cleared design system: {design_system_id}")
-            return True
-        return False
-
     def _validate_and_log_response(
         self,
         response: Dict[str, Any],
