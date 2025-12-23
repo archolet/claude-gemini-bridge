@@ -72,7 +72,7 @@ class PipelineResult:
 
     def to_mcp_response(self) -> dict[str, Any]:
         """Convert to MCP tool response format."""
-        return {
+        response = {
             "html": self.combined_output,
             "component_id": self.pipeline_id,
             "pipeline_type": self.pipeline_type.value,
@@ -82,6 +82,12 @@ class PipelineResult:
             "warnings": self.warnings,
             "errors": self.errors,
         }
+        # Include separate CSS and JS outputs if present
+        if self.css:
+            response["css_output"] = self.css
+        if self.js:
+            response["js_output"] = self.js
+        return response
 
 
 @dataclass

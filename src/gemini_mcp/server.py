@@ -139,6 +139,85 @@ from .validators import (
 # IMPORTANT: Do NOT use logging.basicConfig() here - it breaks MCP stdio protocol
 logger = logging.getLogger(__name__)
 
+
+# =============================================================================
+# AUTO-SAVE HELPER - Automatically persist design outputs to temp_designs/
+# =============================================================================
+def _auto_save_design_output(
+    result: dict,
+    tool_name: str,
+    name_prefix: str,
+    extra_metadata: dict | None = None,
+) -> dict:
+    """Auto-save design output HTML, CSS, and JS to temp_designs/ folder.
+
+    This helper ensures all design tool outputs are automatically persisted,
+    preventing context loss when conversations are interrupted or compacted.
+
+    Args:
+        result: The tool's result dictionary (must contain 'html' key)
+        tool_name: Name of the calling tool (for metadata)
+        name_prefix: Prefix for the saved file name
+        extra_metadata: Additional metadata to include
+
+    Returns:
+        The result dict with 'saved_to', 'saved_css_to', 'saved_js_to' paths
+    """
+    if not draft_manager:
+        return result
+
+    saved_paths = {}
+    metadata = {"tool": tool_name, **(extra_metadata or {})}
+
+    try:
+        # Save HTML (primary output)
+        if "html" in result and result["html"]:
+            html_path = draft_manager.save_artifact(
+                content=result["html"],
+                extension="html",
+                project_name="auto_save",
+                component_type=name_prefix,
+                metadata=metadata,
+            )
+            saved_paths["html"] = str(html_path)
+            result["saved_to"] = str(html_path)
+            logger.info(f"[Auto-Save] {tool_name} HTML saved to {html_path}")
+
+        # Save CSS separately (if present from Trifecta pipeline)
+        if "css_output" in result and result["css_output"]:
+            css_path = draft_manager.save_artifact(
+                content=result["css_output"],
+                extension="css",
+                project_name="auto_save",
+                component_type=f"{name_prefix}_styles",
+                metadata=metadata,
+            )
+            saved_paths["css"] = str(css_path)
+            result["saved_css_to"] = str(css_path)
+            logger.info(f"[Auto-Save] {tool_name} CSS saved to {css_path}")
+
+        # Save JS separately (if present from Trifecta pipeline)
+        if "js_output" in result and result["js_output"]:
+            js_path = draft_manager.save_artifact(
+                content=result["js_output"],
+                extension="js",
+                project_name="auto_save",
+                component_type=f"{name_prefix}_scripts",
+                metadata=metadata,
+            )
+            saved_paths["js"] = str(js_path)
+            result["saved_js_to"] = str(js_path)
+            logger.info(f"[Auto-Save] {tool_name} JS saved to {js_path}")
+
+        if saved_paths:
+            result["_auto_saved_artifacts"] = saved_paths
+
+    except Exception as e:
+        logger.warning(f"[Auto-Save] Failed to save {tool_name} output: {e}")
+
+    return result
+
+
 # Create MCP server
 mcp = FastMCP(
     "Gemini MCP",
@@ -1446,6 +1525,12 @@ async def design_page(
 
             result["section_markers_validated"] = is_valid
 
+        # Auto-save design output
+        result = _auto_save_design_output(
+            result, "design_page", f"page_{template_type}",
+            {"template_type": template_type, "theme": theme}
+        )
+
         logger.info(f"design_page completed: {template_type} (markers_valid={result.get('section_markers_validated', False)})")
         return result
 
@@ -1532,6 +1617,12 @@ async def refine_frontend(
             if fixes:
                 result["js_fixes_applied"] = fixes
                 logger.info(f"Applied {len(fixes)} JS fallback fixes")
+
+        # Auto-save design output
+        result = _auto_save_design_output(
+            result, "refine_frontend", f"refined_{result.get('component_id', 'component')}",
+            {"modifications": modifications[:100]}  # Truncate for metadata
+        )
 
         logger.info(f"refine_frontend completed: {result.get('component_id', 'unknown')}")
         return result
@@ -1702,6 +1793,12 @@ async def design_section(
             result["html"] = ensure_section_markers(result["html"], section_type)
             result["section_markers"] = True
 
+        # Auto-save design output
+        result = _auto_save_design_output(
+            result, "design_section", f"section_{section_type}",
+            {"section_type": section_type, "theme": theme}
+        )
+
         logger.info(
             f"design_section completed: {section_type} "
             f"(chain_mode={'yes' if previous_html else 'no'}, markers=enforced)"
@@ -1865,6 +1962,13 @@ async def design_from_reference(
             if fixes:
                 result["js_fixes_applied"] = fixes
                 logger.info(f"Applied {len(fixes)} JS fallback fixes")
+
+        # Auto-save design output (only if not extract_only mode)
+        if not extract_only:
+            result = _auto_save_design_output(
+                result, "design_from_reference", f"from_ref_{component_type or 'component'}",
+                {"reference_image": image_path, "component_type": component_type}
+            )
 
         logger.info(
             f"design_from_reference completed: "
@@ -2068,12 +2172,7 @@ async def replace_section_in_page(
         # 9. Return the result
         preserved = [s for s in available_sections if s != section_type]
 
-        logger.info(
-            f"replace_section_in_page completed: {section_type} replaced, "
-            f"{len(preserved)} sections preserved"
-        )
-
-        return {
+        result = {
             "html": updated_page,
             "modified_section": section_type,
             "preserved_sections": preserved,
@@ -2081,6 +2180,19 @@ async def replace_section_in_page(
             "design_tokens_used": design_tokens if preserve_design_tokens else None,
             "model_used": new_section_result.get("model_used", "gemini-3-pro-preview"),
         }
+
+        # Auto-save design output
+        result = _auto_save_design_output(
+            result, "replace_section_in_page", f"page_updated_{section_type}",
+            {"modified_section": section_type, "preserved_sections": preserved}
+        )
+
+        logger.info(
+            f"replace_section_in_page completed: {section_type} replaced, "
+            f"{len(preserved)} sections preserved"
+        )
+
+        return result
 
     except Exception as e:
         logger.error(f"replace_section_in_page failed: {e}")
