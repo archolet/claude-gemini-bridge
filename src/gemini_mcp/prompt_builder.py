@@ -584,3 +584,56 @@ def estimate_prompt_tokens(prompt: str) -> int:
     Uses ~4 chars per token approximation.
     """
     return len(prompt) // 4
+
+
+def build_design_prompt(
+    component_type: str,
+    context: str = "",
+    theme: str = "modern-minimal",
+    style_guide: str = "",
+    content_structure: str = "{}",
+    project_context: str = "",
+    content_language: str = "tr",
+) -> str:
+    """Build a complete prompt for design_frontend tool.
+
+    This function constructs the full prompt by combining:
+    - Component type specification
+    - Theme and style guide
+    - Content structure (JSON)
+    - Project context
+    - Language configuration
+
+    Args:
+        component_type: Type of component (button, card, navbar, etc.)
+        context: Usage context for the component
+        theme: Theme preset name
+        style_guide: Additional style guide text
+        content_structure: JSON string with component content
+        project_context: Project-specific context
+        content_language: Content language code (tr, en, de)
+
+    Returns:
+        Complete prompt string for Gemini API
+    """
+    builder = (
+        PromptBuilder()
+        .with_full_design_system()
+        .with_component(component_type)
+        .with_theme(theme)
+        .with_language(content_language)
+    )
+
+    if context:
+        builder.with_project_context(f"Context: {context}")
+
+    if project_context:
+        builder.with_project_context(project_context)
+
+    if style_guide:
+        builder.with_project_context(f"Style Guide: {style_guide}")
+
+    if content_structure and content_structure != "{}":
+        builder.with_project_context(f"Content Structure: {content_structure}")
+
+    return builder.build()
