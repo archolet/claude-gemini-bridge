@@ -149,8 +149,22 @@ images/
 *.jpeg
 *.gif
 
+# Generated outputs
+temp_designs/
+examples/*.html
+*.html
+
+# Large generated docs
+tema-rehberi.md
+
+# Ruff cache
+.ruff_cache/
+
 # Secrets
 .env.local
 *.pem
 *.key
 credentials.json
+
+# Local MCP config (contains paths and project IDs)
+.mcp.json
