@@ -156,6 +156,275 @@ def get_vibe_specs(vibe_name: str) -> Dict[str, Any]:
 
 
 # =============================================================================
+# VIBE ANIMATION MAPPING (2025 UX Enhancement)
+# =============================================================================
+# Maps each vibe to optimal animation parameters following:
+# - Nielsen Norman: 100-400ms for UI feedback
+# - Material Design: 150-300ms for small components
+# - Apple HIG: 250-350ms for standard transitions
+
+VIBE_ANIMATION_MAPPING: Dict[str, Dict[str, Any]] = {
+    "elite_corporate": {
+        "hover_duration": "200ms",
+        "modal_duration": "300ms",
+        "page_duration": "400ms",
+        "easing": "cubic-bezier(0.25, 1, 0.5, 1)",
+        "easing_name": "ease-out-quart",
+        "intensity": "subtle",
+        "lerp_factor": 0.12,  # Smooth, professional feel
+        "micro_scale": 1.02,  # Minimal hover scale
+        "shadow_transition": "150ms",
+        "reduced_motion_fallback": "opacity",
+    },
+    "playful_funny": {
+        "hover_duration": "250ms",
+        "modal_duration": "350ms",
+        "page_duration": "450ms",
+        "easing": "cubic-bezier(0.34, 1.56, 0.64, 1)",  # Bouncy overshoot
+        "easing_name": "ease-out-back",
+        "intensity": "high",
+        "lerp_factor": 0.08,  # Bouncier, more playful
+        "micro_scale": 1.08,  # Noticeable hover scale
+        "shadow_transition": "200ms",
+        "reduced_motion_fallback": "color",
+    },
+    "cyberpunk_edge": {
+        "hover_duration": "150ms",
+        "modal_duration": "250ms",
+        "page_duration": "350ms",
+        "easing": "cubic-bezier(0.0, 0.0, 0.2, 1)",  # Snappy, no ease-in
+        "easing_name": "ease-out-expo",
+        "intensity": "intense",
+        "lerp_factor": 0.15,  # Fast, immediate response
+        "micro_scale": 1.05,
+        "shadow_transition": "100ms",
+        "reduced_motion_fallback": "border-color",
+    },
+    "luxury_editorial": {
+        "hover_duration": "350ms",
+        "modal_duration": "450ms",
+        "page_duration": "600ms",
+        "easing": "cubic-bezier(0.4, 0, 0.2, 1)",  # Smooth Material easing
+        "easing_name": "ease-in-out",
+        "intensity": "refined",
+        "lerp_factor": 0.06,  # Slow, elegant motion
+        "micro_scale": 1.01,  # Barely perceptible scale
+        "shadow_transition": "250ms",
+        "reduced_motion_fallback": "opacity",
+    },
+}
+
+
+def get_vibe_animation_config(vibe_name: str) -> Dict[str, Any]:
+    """
+    Get animation configuration for a specific vibe.
+
+    Returns optimized animation parameters following 2025 UX best practices:
+    - Timing within 150-500ms optimal range
+    - Appropriate easing for vibe personality
+    - Lerp factors for requestAnimationFrame animations
+    - Reduced-motion fallbacks
+
+    Args:
+        vibe_name: One of 'elite_corporate', 'playful_funny',
+                  'cyberpunk_edge', 'luxury_editorial'
+
+    Returns:
+        Dict with animation configuration, defaults to 'elite_corporate' if unknown.
+    """
+    default_config = VIBE_ANIMATION_MAPPING.get("elite_corporate", {})
+    return VIBE_ANIMATION_MAPPING.get(vibe_name, default_config)
+
+
+def get_vibe_css_variables(vibe_name: str) -> Dict[str, str]:
+    """
+    Generate CSS variables for a vibe's animation settings.
+
+    Returns a dict suitable for including in :root CSS.
+
+    Args:
+        vibe_name: The vibe to generate variables for.
+
+    Returns:
+        Dict mapping CSS variable names to values.
+    """
+    config = get_vibe_animation_config(vibe_name)
+    specs = get_vibe_specs(vibe_name)
+
+    return {
+        "--vibe-duration": config.get("hover_duration", "300ms"),
+        "--vibe-easing": config.get("easing", "ease-out"),
+        "--vibe-modal-duration": config.get("modal_duration", "300ms"),
+        "--vibe-page-duration": config.get("page_duration", "400ms"),
+        "--vibe-shadow-glow": specs.get("shadow_glow", "rgba(99, 102, 241, 0.2)"),
+        "--vibe-intensity": config.get("intensity", "medium"),
+        "--vibe-micro-scale": str(config.get("micro_scale", 1.02)),
+    }
+
+
+# =============================================================================
+# THEME-VIBE COMPATIBILITY MATRIX (Creativity Enhancement)
+# =============================================================================
+# Scores 1-5: 1=poor match, 3=neutral, 5=perfect synergy
+# This matrix guides users toward optimal theme-vibe combinations
+
+THEME_VIBE_COMPATIBILITY: Dict[str, Dict[str, int]] = {
+    "modern-minimal": {
+        "elite_corporate": 5,  # Perfect: both value precision and restraint
+        "luxury_editorial": 4,  # Great: both value whitespace
+        "playful_funny": 2,    # Tension: minimal vs energetic
+        "cyberpunk_edge": 1,   # Conflict: clean vs industrial
+    },
+    "brutalist": {
+        "elite_corporate": 3,  # Neutral: can work if intentional
+        "luxury_editorial": 2,  # Tension: raw vs refined
+        "playful_funny": 4,    # Good: both are bold and unapologetic
+        "cyberpunk_edge": 4,   # Good: industrial aesthetics align
+    },
+    "glassmorphism": {
+        "elite_corporate": 4,  # Good: sophisticated and modern
+        "luxury_editorial": 5,  # Perfect: ethereal, premium feel
+        "playful_funny": 3,    # Neutral: can work with right colors
+        "cyberpunk_edge": 3,   # Neutral: glass + neon is common
+    },
+    "neo-brutalism": {
+        "elite_corporate": 2,  # Tension: playful borders vs corporate
+        "luxury_editorial": 1,  # Conflict: loud vs understated
+        "playful_funny": 5,    # Perfect: both embrace boldness
+        "cyberpunk_edge": 3,   # Neutral: can work with right colors
+    },
+    "soft-ui": {
+        "elite_corporate": 4,  # Good: professional neumorphism
+        "luxury_editorial": 3,  # Neutral: subtle but different philosophy
+        "playful_funny": 3,    # Neutral: soft can be playful
+        "cyberpunk_edge": 1,   # Conflict: soft vs harsh
+    },
+    "corporate": {
+        "elite_corporate": 5,  # Perfect: designed for each other
+        "luxury_editorial": 3,  # Neutral: professional but different
+        "playful_funny": 2,    # Tension: serious vs fun
+        "cyberpunk_edge": 1,   # Conflict: traditional vs futuristic
+    },
+    "gradient": {
+        "elite_corporate": 3,  # Neutral: depends on gradient choice
+        "luxury_editorial": 3,  # Neutral: gradients can be elegant
+        "playful_funny": 4,    # Good: vibrant gradients match energy
+        "cyberpunk_edge": 4,   # Good: neon gradients work great
+    },
+    "cyberpunk": {
+        "elite_corporate": 1,  # Conflict: neon vs corporate
+        "luxury_editorial": 2,  # Tension: gritty vs refined
+        "playful_funny": 3,    # Neutral: both are energetic
+        "cyberpunk_edge": 5,   # Perfect: theme designed for this vibe
+    },
+    "retro": {
+        "elite_corporate": 2,  # Tension: vintage vs modern corporate
+        "luxury_editorial": 2,  # Tension: nostalgic vs contemporary elegance
+        "playful_funny": 4,    # Good: retro is inherently playful
+        "cyberpunk_edge": 3,   # Neutral: retro-futurism is a genre
+    },
+    "pastel": {
+        "elite_corporate": 2,  # Tension: soft colors vs authority
+        "luxury_editorial": 4,  # Good: pastels can be sophisticated
+        "playful_funny": 5,    # Perfect: light, friendly, approachable
+        "cyberpunk_edge": 1,   # Conflict: soft vs harsh
+    },
+    "dark_mode_first": {
+        "elite_corporate": 4,  # Good: professional dark UI
+        "luxury_editorial": 3,  # Neutral: dark can be luxurious
+        "playful_funny": 2,    # Tension: dark vs bright energy
+        "cyberpunk_edge": 5,   # Perfect: dark + neon = cyberpunk
+    },
+    "high_contrast": {
+        "elite_corporate": 4,  # Good: clear, authoritative
+        "luxury_editorial": 2,  # Tension: bold vs subtle
+        "playful_funny": 3,    # Neutral: can work if intentional
+        "cyberpunk_edge": 3,   # Neutral: contrast matches intensity
+    },
+    "nature": {
+        "elite_corporate": 2,  # Tension: organic vs corporate
+        "luxury_editorial": 4,  # Good: nature photography + editorial
+        "playful_funny": 3,    # Neutral: friendly nature brands
+        "cyberpunk_edge": 1,   # Conflict: organic vs synthetic
+    },
+    "startup": {
+        "elite_corporate": 3,  # Neutral: depends on startup stage
+        "luxury_editorial": 2,  # Tension: fast-paced vs slow luxury
+        "playful_funny": 4,    # Good: startup energy is playful
+        "cyberpunk_edge": 3,   # Neutral: tech startups can be edgy
+    },
+}
+
+
+def get_recommended_vibes(theme: str) -> List[str]:
+    """
+    Get vibes sorted by compatibility with the given theme (best first).
+
+    Use this to suggest optimal vibe choices for a selected theme.
+
+    Args:
+        theme: The theme name (e.g., "cyberpunk", "modern-minimal")
+
+    Returns:
+        List of vibe names sorted by compatibility score (highest first)
+
+    Example:
+        >>> get_recommended_vibes("cyberpunk")
+        ['cyberpunk_edge', 'playful_funny', 'luxury_editorial', 'elite_corporate']
+    """
+    theme_lower = theme.lower()
+    # Try both hyphenated and underscored versions for compatibility
+    compat = THEME_VIBE_COMPATIBILITY.get(theme_lower)
+    if compat is None:
+        # Try alternate format (swap hyphens/underscores)
+        theme_alt = theme_lower.replace("-", "_") if "-" in theme_lower else theme_lower.replace("_", "-")
+        compat = THEME_VIBE_COMPATIBILITY.get(theme_alt, {})
+    if not compat:
+        # Return all vibes in default order if theme not found
+        return ["elite_corporate", "playful_funny", "cyberpunk_edge", "luxury_editorial"]
+    return sorted(compat.keys(), key=lambda v: compat.get(v, 0), reverse=True)
+
+
+def get_vibe_compatibility(theme: str, vibe: str) -> Tuple[int, str]:
+    """
+    Get compatibility score and message for a theme-vibe combination.
+
+    Use this to validate user choices or provide guidance.
+
+    Args:
+        theme: The theme name
+        vibe: The vibe name
+
+    Returns:
+        Tuple of (score 1-5, descriptive message)
+
+    Example:
+        >>> get_vibe_compatibility("cyberpunk", "cyberpunk_edge")
+        (5, "Perfect match! Amplifies both theme and vibe.")
+    """
+    theme_lower = theme.lower()
+    vibe_lower = vibe.lower().replace("-", "_")
+
+    # Try both hyphenated and underscored versions for compatibility
+    compat = THEME_VIBE_COMPATIBILITY.get(theme_lower)
+    if compat is None:
+        theme_alt = theme_lower.replace("-", "_") if "-" in theme_lower else theme_lower.replace("_", "-")
+        compat = THEME_VIBE_COMPATIBILITY.get(theme_alt, {})
+
+    score = compat.get(vibe_lower, 3)
+
+    messages = {
+        5: "Perfect match! Amplifies both theme and vibe.",
+        4: "Great combination. Complementary aesthetics.",
+        3: "Neutral pairing. Will work but may feel generic.",
+        2: "Some tension. Use intentionally for creative contrast.",
+        1: "Conflicting aesthetics. Consider a different vibe.",
+    }
+
+    return (score, messages.get(score, "Unknown compatibility"))
+
+
+# =============================================================================
 # 1. MODERN-MINIMAL THEME FACTORY
 # =============================================================================
 
@@ -277,13 +546,25 @@ BRUTALIST_CONTRAST_PAIRS = {
 
 def create_brutalist_theme(
     contrast_mode: Literal["standard", "high", "maximum"] = "high",
-    accent_color: str = "yellow-400",
+    accent_color: Literal["yellow", "red", "cyan", "pink", "lime"] = "yellow",
     include_focus_indicators: bool = True,
+    # === CREATIVITY ENHANCEMENT: New parameters ===
+    enable_animations: bool = False,
+    border_width: Literal["2", "4", "8"] = "4",
+    shadow_offset: Literal["sm", "md", "lg"] = "md",
 ) -> Dict[str, Any]:
     """
     WCAG-compliant Brutalist theme with bold aesthetics.
 
     Maintains the bold brutalist aesthetic while ensuring accessibility.
+
+    Args:
+        contrast_mode: Contrast level - "standard" (AA), "high" (AAA), "maximum" (AAA+)
+        accent_color: Accent color preset - "yellow", "red", "cyan", "pink", "lime"
+        include_focus_indicators: Include focus ring styles
+        enable_animations: Enable hover/transition animations (default: False for pure brutalist)
+        border_width: Border thickness - "2" (subtle), "4" (standard), "8" (bold)
+        shadow_offset: Hard shadow offset - "sm" (4px), "md" (8px), "lg" (12px)
     """
     contrast_requirements = {
         "standard": {"normal_text": 4.5, "large_text": 3.0, "ui": 3.0},
@@ -291,7 +572,33 @@ def create_brutalist_theme(
         "maximum": {"normal_text": 10.0, "large_text": 7.0, "ui": 7.0},
     }
 
+    # Accent color mapping
+    accent_colors = {
+        "yellow": "yellow-400",
+        "red": "red-500",
+        "cyan": "cyan-400",
+        "pink": "pink-500",
+        "lime": "lime-400",
+    }
+
+    # Shadow offset mapping
+    shadow_offsets = {
+        "sm": ("4px", "6px"),   # (default, hover)
+        "md": ("8px", "10px"),
+        "lg": ("12px", "14px"),
+    }
+
+    # Border width mapping
+    border_widths = {
+        "2": "border-2",
+        "4": "border-4",
+        "8": "border-8",
+    }
+
     reqs = contrast_requirements[contrast_mode]
+    accent = accent_colors.get(accent_color, "yellow-400")
+    offset = shadow_offsets.get(shadow_offset, ("8px", "10px"))
+    border_class = border_widths.get(border_width, "border-4")
 
     theme = {
         "name": f"brutalist-{contrast_mode}",
@@ -301,7 +608,7 @@ def create_brutalist_theme(
         "primary": "black",
         "primary_hover": "slate-800",
         "secondary": "white",
-        "accent": accent_color,
+        "accent": accent,
 
         # High contrast backgrounds
         "background": "white",
@@ -319,14 +626,18 @@ def create_brutalist_theme(
         "border": "black",
         "border_dark": "white",
         "border_radius": "rounded-none",
-        "border_width": "border-2",
+        "border_width": border_class,
 
-        # Signature shadows
-        "shadow": "shadow-[4px_4px_0px_#000]",
-        "shadow_hover": "shadow-[6px_6px_0px_#000]",
-        "shadow_dark": "shadow-[4px_4px_0px_#fff]",
+        # Signature shadows with configurable offset
+        "shadow": f"shadow-[{offset[0]}_{offset[0]}_0px_#000]",
+        "shadow_hover": f"shadow-[{offset[1]}_{offset[1]}_0px_#000]",
+        "shadow_dark": f"shadow-[{offset[0]}_{offset[0]}_0px_#fff]",
 
         "font": "font-mono",
+
+        # Animations (optional)
+        "transition": "transition-all duration-150" if enable_animations else "",
+        "hover_transform": "hover:-translate-x-0.5 hover:-translate-y-0.5" if enable_animations else "",
 
         # Focus indicators
         "focus_ring": "ring-4 ring-black ring-offset-2" if include_focus_indicators else "",
@@ -335,10 +646,13 @@ def create_brutalist_theme(
         # Metadata
         "_contrast_mode": contrast_mode,
         "_min_contrast_ratios": reqs,
+        "_enable_animations": enable_animations,
+        "_border_width": border_width,
+        "_shadow_offset": shadow_offset,
     }
 
     # Accent color text pairing
-    accent_pair = BRUTALIST_CONTRAST_PAIRS.get(accent_color, {"text": "black"})
+    accent_pair = BRUTALIST_CONTRAST_PAIRS.get(accent, {"text": "black"})
     theme["accent_text"] = accent_pair["text"]
 
     return theme
@@ -653,16 +967,68 @@ def create_soft_ui_theme(
     base_color_dark: str = "slate-800",
     primary_color: str = "blue-500",
     intensity: Literal["subtle", "medium", "strong"] = "medium",
+    # === CREATIVITY ENHANCEMENT: New parameters for theme parity ===
+    color_temperature: Literal["cool", "neutral", "warm"] = "neutral",
+    surface_variant: Literal["flat", "raised", "inset"] = "raised",
+    glow_color: Optional[str] = None,
+    enable_inner_shadow: bool = True,
 ) -> Dict[str, Any]:
     """
     Proper dual-mode neumorphism with calculated shadows.
+
+    Args:
+        base_color_light: Light mode base color (e.g., "slate-100")
+        base_color_dark: Dark mode base color (e.g., "slate-800")
+        primary_color: Primary accent color (e.g., "blue-500")
+        intensity: Shadow depth - "subtle", "medium", or "strong"
+        color_temperature: Color warmth - "cool" (blue tints), "neutral", or "warm" (amber tints)
+        surface_variant: Default surface style - "flat", "raised", or "inset"
+        glow_color: Optional glow effect color (e.g., "blue-400"). None disables glow.
+        enable_inner_shadow: Whether to enable inner shadow effects on interactive elements
     """
     light_shadows = calculate_neumorphism_shadows(base_color_light, intensity, False)
     dark_shadows = calculate_neumorphism_shadows(base_color_dark, intensity, True)
 
+    # === Color temperature adjustments ===
+    TEMPERATURE_TINTS = {
+        "cool": {
+            "text_tint": "blue",
+            "bg_overlay": "bg-blue-50/30 dark:bg-blue-950/20",
+            "accent_shift": "-50",  # Cooler accent
+        },
+        "neutral": {
+            "text_tint": "slate",
+            "bg_overlay": "",
+            "accent_shift": "",
+        },
+        "warm": {
+            "text_tint": "amber",
+            "bg_overlay": "bg-amber-50/20 dark:bg-amber-950/10",
+            "accent_shift": "+50",  # Warmer accent
+        },
+    }
+    temp_config = TEMPERATURE_TINTS[color_temperature]
+
+    # === Surface variant shadow selection ===
+    SURFACE_SHADOWS = {
+        "flat": {"light": "shadow-none", "dark": "shadow-none"},
+        "raised": {"light": light_shadows["raised"], "dark": dark_shadows["raised"]},
+        "inset": {"light": light_shadows["pressed"], "dark": dark_shadows["pressed"]},
+    }
+    surface_shadow = SURFACE_SHADOWS[surface_variant]
+
+    # === Glow effect configuration ===
+    glow_effect = ""
+    if glow_color:
+        glow_effect = f"shadow-[0_0_30px_rgba(var(--{glow_color})/0.15)] hover:shadow-[0_0_40px_rgba(var(--{glow_color})/0.25)]"
+
+    # === Inner shadow for interactive elements ===
+    inner_shadow_class = light_shadows["pressed"] if enable_inner_shadow else "shadow-none"
+    inner_shadow_dark = dark_shadows["pressed"] if enable_inner_shadow else "shadow-none"
+
     return {
-        "name": f"soft-ui-{intensity}",
-        "description": f"Neumorphic design with {intensity} shadows in both light and dark modes",
+        "name": f"soft-ui-{intensity}-{color_temperature}",
+        "description": f"Neumorphic design with {intensity} shadows, {color_temperature} temperature in both light and dark modes",
 
         # Primary colors
         "primary": primary_color,
@@ -674,6 +1040,9 @@ def create_soft_ui_theme(
         "surface": base_color_light,
         "surface_dark": base_color_dark,
 
+        # === CREATIVITY ENHANCEMENT: Temperature overlay ===
+        "background_overlay": temp_config["bg_overlay"],
+
         # Neumorphic shadows
         "shadow_raised": light_shadows["raised"],
         "shadow_pressed": light_shadows["pressed"],
@@ -684,10 +1053,16 @@ def create_soft_ui_theme(
         "shadow_raised_auto": f"{light_shadows['raised']} dark:{dark_shadows['raised']}",
         "shadow_pressed_auto": f"{light_shadows['pressed']} dark:{dark_shadows['pressed']}",
 
-        # Text
-        "text": "slate-700",
-        "text_dark": "slate-200",
-        "text_muted": "slate-400",
+        # === CREATIVITY ENHANCEMENT: Surface variant shadows ===
+        "surface_shadow": f"{surface_shadow['light']} dark:{surface_shadow['dark']}",
+
+        # === CREATIVITY ENHANCEMENT: Glow effect ===
+        "glow_effect": glow_effect,
+
+        # Text with temperature tint
+        "text": f"{temp_config['text_tint']}-700",
+        "text_dark": f"{temp_config['text_tint']}-200",
+        "text_muted": f"{temp_config['text_tint']}-400",
 
         # Borders
         "border": "transparent",
@@ -696,28 +1071,52 @@ def create_soft_ui_theme(
         # Component classes
         "button_raised": f"""
             bg-{base_color_light} dark:bg-{base_color_dark}
-            {light_shadows['raised']} dark:{dark_shadows['raised']}
+            {surface_shadow['light']} dark:{surface_shadow['dark']}
             text-{primary_color} font-medium
             px-6 py-3 rounded-2xl
-            active:{light_shadows['pressed']}
-            dark:active:{dark_shadows['pressed']}
+            active:{inner_shadow_class}
+            dark:active:{inner_shadow_dark}
             transition-all duration-150
+            {glow_effect}
         """,
 
         "card_raised": f"""
             bg-{base_color_light} dark:bg-{base_color_dark}
-            {light_shadows['raised']} dark:{dark_shadows['raised']}
+            {surface_shadow['light']} dark:{surface_shadow['dark']}
             rounded-3xl p-6
+            {temp_config['bg_overlay']}
+            {glow_effect}
+        """,
+
+        # === CREATIVITY ENHANCEMENT: Flat card variant ===
+        "card_flat": f"""
+            bg-{base_color_light} dark:bg-{base_color_dark}
+            rounded-3xl p-6
+            {temp_config['bg_overlay']}
+        """,
+
+        # === CREATIVITY ENHANCEMENT: Inset card variant ===
+        "card_inset": f"""
+            bg-{base_color_light} dark:bg-{base_color_dark}
+            {light_shadows['pressed']} dark:{dark_shadows['pressed']}
+            rounded-3xl p-6
+            {temp_config['bg_overlay']}
         """,
 
         "input_inset": f"""
             bg-{base_color_light} dark:bg-{base_color_dark}
-            {light_shadows['pressed']} dark:{dark_shadows['pressed']}
+            {inner_shadow_class} dark:{inner_shadow_dark}
             rounded-xl px-4 py-3
-            text-slate-700 dark:text-slate-200
-            placeholder:text-slate-400
+            text-{temp_config['text_tint']}-700 dark:text-{temp_config['text_tint']}-200
+            placeholder:text-{temp_config['text_tint']}-400
             focus:outline-none focus:ring-2 focus:ring-{primary_color}/50
         """,
+
+        # === CREATIVITY ENHANCEMENT: Metadata for introspection ===
+        "_color_temperature": color_temperature,
+        "_surface_variant": surface_variant,
+        "_glow_color": glow_color,
+        "_enable_inner_shadow": enable_inner_shadow,
     }
 
 
@@ -868,6 +1267,397 @@ def create_corporate_theme(
         "_personality": ind["personality"],
         "_suggested_fonts": ind["suggested_fonts"],
     }
+
+
+# =============================================================================
+# CORPORATE PRESETS - One-Click Professional Configurations
+# =============================================================================
+
+CORPORATE_PRESETS: Dict[str, Dict[str, Any]] = {
+    # Finance Industry
+    "enterprise_bank": {
+        "industry": "finance",
+        "layout": "traditional",
+        "formality": "formal",
+        "vibe": "elite_corporate",
+        "quality_target": "premium",
+        "accessibility_level": "AAA",
+        "description": "Fortune 500 banka/finans kurumu için kurumsal tasarım",
+    },
+    "fintech_startup": {
+        "industry": "finance",
+        "layout": "modern",
+        "formality": "semi-formal",
+        "vibe": "elite_corporate",
+        "quality_target": "high",
+        "accessibility_level": "AA",
+        "description": "Modern fintech startup için yenilikçi tasarım",
+    },
+
+    # Healthcare Industry
+    "hospital_portal": {
+        "industry": "healthcare",
+        "layout": "traditional",
+        "formality": "formal",
+        "vibe": "elite_corporate",
+        "quality_target": "premium",
+        "accessibility_level": "AAA",
+        "description": "Hastane/sağlık kuruluşu portalı için erişilebilir tasarım",
+    },
+    "healthtech_app": {
+        "industry": "healthcare",
+        "layout": "modern",
+        "formality": "approachable",
+        "vibe": "elite_corporate",
+        "quality_target": "high",
+        "accessibility_level": "AA",
+        "description": "Sağlık teknolojisi uygulaması için modern tasarım",
+    },
+
+    # Legal Industry
+    "law_firm": {
+        "industry": "legal",
+        "layout": "editorial",
+        "formality": "formal",
+        "vibe": "luxury_editorial",
+        "quality_target": "premium",
+        "accessibility_level": "AA",
+        "description": "Prestijli hukuk bürosu için editorial tasarım",
+    },
+
+    # Tech Industry
+    "saas_enterprise": {
+        "industry": "tech",
+        "layout": "modern",
+        "formality": "semi-formal",
+        "vibe": "elite_corporate",
+        "quality_target": "premium",
+        "accessibility_level": "AA",
+        "description": "Enterprise SaaS platformu için profesyonel tasarım",
+    },
+    "developer_tools": {
+        "industry": "tech",
+        "layout": "modern",
+        "formality": "approachable",
+        "vibe": "cyberpunk_edge",
+        "quality_target": "high",
+        "accessibility_level": "AA",
+        "description": "Developer araçları için modern teknik tasarım",
+    },
+
+    # Manufacturing Industry
+    "industrial_b2b": {
+        "industry": "manufacturing",
+        "layout": "traditional",
+        "formality": "formal",
+        "vibe": "elite_corporate",
+        "quality_target": "high",
+        "accessibility_level": "AA",
+        "description": "B2B endüstriyel şirket için güvenilir tasarım",
+    },
+
+    # Consulting Industry
+    "management_consulting": {
+        "industry": "consulting",
+        "layout": "editorial",
+        "formality": "formal",
+        "vibe": "luxury_editorial",
+        "quality_target": "premium",
+        "accessibility_level": "AA",
+        "description": "Big 4 / yönetim danışmanlığı için lüks tasarım",
+    },
+    "boutique_agency": {
+        "industry": "consulting",
+        "layout": "modern",
+        "formality": "semi-formal",
+        "vibe": "elite_corporate",
+        "quality_target": "high",
+        "accessibility_level": "AA",
+        "description": "Butik ajans/danışmanlık için şık tasarım",
+    },
+}
+
+
+def get_corporate_preset(preset_name: str) -> Dict[str, Any]:
+    """
+    Get a predefined corporate preset configuration.
+
+    Args:
+        preset_name: Name of the preset (e.g., "enterprise_bank", "saas_enterprise")
+
+    Returns:
+        Preset configuration dictionary, defaults to "saas_enterprise" if not found
+
+    Example:
+        >>> preset = get_corporate_preset("enterprise_bank")
+        >>> print(preset["industry"])  # "finance"
+        >>> print(preset["quality_target"])  # "premium"
+    """
+    return CORPORATE_PRESETS.get(preset_name, CORPORATE_PRESETS["saas_enterprise"])
+
+
+def list_corporate_presets() -> List[str]:
+    """
+    List all available corporate preset names.
+
+    Returns:
+        List of preset names
+
+    Example:
+        >>> presets = list_corporate_presets()
+        >>> print(presets)  # ["enterprise_bank", "fintech_startup", ...]
+    """
+    return list(CORPORATE_PRESETS.keys())
+
+
+def apply_corporate_preset(preset_name: str) -> Dict[str, Any]:
+    """
+    Apply a preset and return the full theme configuration.
+
+    This is the main entry point for using corporate presets.
+    It combines the preset configuration with the actual theme
+    generation from create_corporate_theme().
+
+    Args:
+        preset_name: Name of the preset to apply
+
+    Returns:
+        Complete theme configuration dictionary with:
+        - All theme properties from create_corporate_theme()
+        - _preset_name: The applied preset name
+        - _vibe: Design personality/vibe
+        - _quality_target: Target quality level
+        - _accessibility_level: WCAG level (AA or AAA)
+
+    Example:
+        >>> theme = apply_corporate_preset("enterprise_bank")
+        >>> print(theme["_quality_target"])  # "premium"
+        >>> print(theme["primary"])  # "blue-800" (finance industry)
+    """
+    preset = get_corporate_preset(preset_name)
+
+    # Generate base theme using create_corporate_theme
+    theme = create_corporate_theme(
+        industry=preset["industry"],
+        layout=preset["layout"],
+        formality=preset["formality"],
+    )
+
+    # Add preset metadata
+    theme["_preset_name"] = preset_name
+    theme["_vibe"] = preset.get("vibe", "elite_corporate")
+    theme["_quality_target"] = preset.get("quality_target", "high")
+    theme["_accessibility_level"] = preset.get("accessibility_level", "AA")
+    theme["_preset_description"] = preset.get("description", "")
+
+    return theme
+
+
+def get_presets_by_industry(industry: str) -> List[str]:
+    """
+    Get all presets for a specific industry.
+
+    Args:
+        industry: Industry name (finance, healthcare, legal, tech, manufacturing, consulting)
+
+    Returns:
+        List of preset names for that industry
+
+    Example:
+        >>> finance_presets = get_presets_by_industry("finance")
+        >>> print(finance_presets)  # ["enterprise_bank", "fintech_startup"]
+    """
+    return [
+        name for name, config in CORPORATE_PRESETS.items()
+        if config["industry"] == industry
+    ]
+
+
+def get_presets_by_quality(quality_target: str) -> List[str]:
+    """
+    Get all presets with a specific quality target.
+
+    Args:
+        quality_target: Quality level (standard, high, premium, enterprise)
+
+    Returns:
+        List of preset names with that quality target
+
+    Example:
+        >>> premium_presets = get_presets_by_quality("premium")
+        >>> print(premium_presets)  # ["enterprise_bank", "hospital_portal", ...]
+    """
+    return [
+        name for name, config in CORPORATE_PRESETS.items()
+        if config.get("quality_target") == quality_target
+    ]
+
+
+# =============================================================================
+# FORMALITY-BASED TYPOGRAPHY SYSTEM
+# =============================================================================
+# Typography configurations that adapt based on formality level.
+# - formal: Conservative, serif headlines, precise tracking
+# - semi-formal: Modern sans-serif, balanced weights
+# - approachable: Bold, expressive, larger sizes
+
+FORMALITY_TYPOGRAPHY: Dict[str, Dict[str, Any]] = {
+    "formal": {
+        "description": "Conservative, traditional, authoritative typography",
+        "heading_font": "font-serif",
+        "heading_weight": "font-semibold",
+        "body_font": "font-sans",
+        "body_weight": "font-normal",
+        "button_case": "uppercase tracking-wider",
+        "h1": "text-3xl md:text-4xl lg:text-5xl",
+        "h2": "text-2xl md:text-3xl lg:text-4xl",
+        "h3": "text-xl md:text-2xl",
+        "body": "text-base md:text-lg",
+        "small": "text-sm",
+        "letter_spacing": {
+            "heading": "tracking-tight",
+            "body": "tracking-normal",
+            "label": "tracking-wider",
+        },
+        "line_height": {
+            "heading": "leading-tight",
+            "body": "leading-relaxed",
+        },
+        "styles": {
+            "headline": "font-serif font-semibold tracking-tight",
+            "subheadline": "font-sans font-light tracking-normal",
+            "cta_button": "font-sans font-medium uppercase tracking-wider",
+            "label": "font-sans text-xs uppercase tracking-[0.15em]",
+            "quote": "font-serif italic",
+        },
+    },
+    "semi-formal": {
+        "description": "Modern, professional, balanced typography",
+        "heading_font": "font-sans",
+        "heading_weight": "font-bold",
+        "body_font": "font-sans",
+        "body_weight": "font-normal",
+        "button_case": "normal-case",
+        "h1": "text-4xl md:text-5xl lg:text-6xl",
+        "h2": "text-3xl md:text-4xl",
+        "h3": "text-xl md:text-2xl",
+        "body": "text-base md:text-lg",
+        "small": "text-sm",
+        "letter_spacing": {
+            "heading": "tracking-tight",
+            "body": "tracking-normal",
+            "label": "tracking-wide",
+        },
+        "line_height": {
+            "heading": "leading-tight",
+            "body": "leading-relaxed",
+        },
+        "styles": {
+            "headline": "font-sans font-bold tracking-tight",
+            "subheadline": "font-sans font-normal",
+            "cta_button": "font-sans font-semibold",
+            "label": "font-sans text-sm font-medium",
+            "quote": "font-sans italic",
+        },
+    },
+    "approachable": {
+        "description": "Friendly, expressive, energetic typography",
+        "heading_font": "font-sans",
+        "heading_weight": "font-extrabold",
+        "body_font": "font-sans",
+        "body_weight": "font-normal",
+        "button_case": "normal-case",
+        "h1": "text-4xl md:text-6xl lg:text-7xl",
+        "h2": "text-3xl md:text-4xl lg:text-5xl",
+        "h3": "text-2xl md:text-3xl",
+        "body": "text-lg md:text-xl",
+        "small": "text-base",
+        "letter_spacing": {
+            "heading": "tracking-tighter",
+            "body": "tracking-normal",
+            "label": "tracking-normal",
+        },
+        "line_height": {
+            "heading": "leading-none",
+            "body": "leading-relaxed",
+        },
+        "styles": {
+            "headline": "font-sans font-extrabold tracking-tighter",
+            "subheadline": "font-sans font-medium",
+            "cta_button": "font-sans font-bold",
+            "label": "font-sans text-sm font-semibold",
+            "quote": "font-sans font-medium",
+        },
+    },
+}
+
+
+def get_formality_typography(formality: str) -> Dict[str, Any]:
+    """
+    Get typography settings for a formality level.
+
+    Args:
+        formality: Formality level (formal, semi-formal, approachable)
+
+    Returns:
+        Dict with typography configuration
+
+    Example:
+        >>> typography = get_formality_typography("formal")
+        >>> print(typography["heading_font"])  # "font-serif"
+    """
+    return FORMALITY_TYPOGRAPHY.get(formality, FORMALITY_TYPOGRAPHY["semi-formal"])
+
+
+def get_typography_style(formality: str, style_name: str) -> str:
+    """
+    Get a specific typography style class string.
+
+    Args:
+        formality: Formality level (formal, semi-formal, approachable)
+        style_name: Style name (headline, subheadline, cta_button, label, quote)
+
+    Returns:
+        Tailwind class string for the style
+
+    Example:
+        >>> classes = get_typography_style("formal", "headline")
+        >>> print(classes)  # "font-serif font-semibold tracking-tight"
+    """
+    typography = get_formality_typography(formality)
+    styles = typography.get("styles", {})
+    return styles.get(style_name, "")
+
+
+def build_typography_css_vars(formality: str) -> Dict[str, str]:
+    """
+    Build CSS custom properties for typography based on formality.
+
+    Args:
+        formality: Formality level
+
+    Returns:
+        Dict of CSS custom property names and values
+
+    Example:
+        >>> vars = build_typography_css_vars("formal")
+        >>> # Can be used in style attribute or CSS
+    """
+    typography = get_formality_typography(formality)
+
+    return {
+        "--heading-font": typography.get("heading_font", "font-sans").replace("font-", ""),
+        "--heading-weight": typography.get("heading_weight", "font-bold").replace("font-", ""),
+        "--body-font": typography.get("body_font", "font-sans").replace("font-", ""),
+        "--h1-size": typography.get("h1", "text-4xl"),
+        "--h2-size": typography.get("h2", "text-3xl"),
+        "--h3-size": typography.get("h3", "text-xl"),
+    }
+
+
+def list_formality_levels() -> List[str]:
+    """List all available formality levels."""
+    return list(FORMALITY_TYPOGRAPHY.keys())
 
 
 # =============================================================================
@@ -1824,4 +2614,12 @@ __all__ = [
     "STARTUP_ARCHETYPES",
     "CORPORATE_INDUSTRIES",
     "CORPORATE_LAYOUTS",
+
+    # Corporate Presets
+    "CORPORATE_PRESETS",
+    "get_corporate_preset",
+    "list_corporate_presets",
+    "apply_corporate_preset",
+    "get_presets_by_industry",
+    "get_presets_by_quality",
 ]

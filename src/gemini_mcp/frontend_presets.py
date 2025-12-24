@@ -1760,3 +1760,375 @@ Return JSON with:
 """
 
     return base_prompt + section_prompt
+
+
+# =============================================================================
+# CORPORATE QUALITY: Industry-Specific Section Templates
+# =============================================================================
+# These templates define industry-appropriate section structures with required
+# elements and styling guidelines for corporate/enterprise designs.
+
+CORPORATE_SECTION_TEMPLATES: Dict[str, Dict[str, Any]] = {
+    # =========================================================================
+    # FINANCE INDUSTRY
+    # =========================================================================
+    "finance_hero": {
+        "industry": "finance",
+        "section_type": "hero",
+        "description": "Enterprise finance hero with trust indicators and compliance badges",
+        "structure": ["compliance_badges", "headline", "stats_row", "cta_buttons"],
+        "required_elements": [
+            "compliance_badge",  # SOC 2, ISO 27001, PCI DSS
+            "security_indicator",  # Lock icon, shield
+            "stats_with_precision",  # Exact figures like $50B+, 99.99%
+        ],
+        "style_guidelines": {
+            "colors": "slate-blue palette with gold accents",
+            "typography": "serif headlines, conservative weights",
+            "animations": "fade only, no playful effects",
+            "border_radius": "rounded-lg or less (no rounded-3xl)",
+        },
+        "prohibited_elements": ["emoji", "rounded-full containers", "neon colors", "playful icons"],
+    },
+    "finance_pricing": {
+        "industry": "finance",
+        "section_type": "pricing",
+        "description": "Transparent pricing with enterprise tier focus",
+        "structure": ["header", "pricing_cards", "comparison_table", "contact_cta"],
+        "required_elements": [
+            "annual_discount_badge",
+            "enterprise_custom_tier",
+            "security_features_row",
+        ],
+        "style_guidelines": {
+            "emphasis": "highlighted tier with subtle shadow, not flashy",
+            "cta": "professional language (Contact Sales, Schedule Demo)",
+        },
+    },
+    "finance_testimonials": {
+        "industry": "finance",
+        "section_type": "testimonials",
+        "description": "Professional testimonials with credentials focus",
+        "required_elements": [
+            "full_name_with_title",  # Dr., CFO, etc.
+            "company_name",
+            "headshot_placeholder",
+        ],
+        "prohibited_elements": ["star_ratings", "emoji", "casual_quotes"],
+    },
+
+    # =========================================================================
+    # HEALTHCARE INDUSTRY
+    # =========================================================================
+    "healthcare_hero": {
+        "industry": "healthcare",
+        "section_type": "hero",
+        "description": "Healthcare hero with compliance and trust focus",
+        "structure": ["hipaa_badge", "headline", "patient_stats", "demo_cta"],
+        "required_elements": [
+            "hipaa_badge",
+            "accessibility_statement",  # WCAG AAA
+            "outcome_metrics",  # Patient outcomes, efficiency gains
+        ],
+        "style_guidelines": {
+            "colors": "emerald/teal palette (medical association)",
+            "typography": "clean sans-serif, high readability",
+            "contrast": "WCAG AAA minimum (7:1 ratio)",
+        },
+        "prohibited_elements": ["red warnings", "alarming language", "stock medical imagery"],
+    },
+    "healthcare_features": {
+        "industry": "healthcare",
+        "section_type": "features",
+        "description": "Healthcare feature grid with security emphasis",
+        "required_elements": [
+            "security_feature_card",
+            "compliance_feature_card",
+            "integration_feature_card",
+        ],
+        "style_guidelines": {
+            "icons": "professional line icons, not filled colorful",
+            "language": "clinical, precise, benefit-focused",
+        },
+    },
+    "healthcare_testimonials": {
+        "industry": "healthcare",
+        "section_type": "testimonials",
+        "description": "Healthcare professional testimonials",
+        "required_elements": [
+            "medical_credentials",  # MD, RN, etc.
+            "institution_name",
+            "outcome_quote",  # Focus on patient outcomes
+        ],
+        "prohibited_elements": ["patient_photos", "medical_conditions", "casual_language"],
+    },
+
+    # =========================================================================
+    # LEGAL INDUSTRY
+    # =========================================================================
+    "legal_hero": {
+        "industry": "legal",
+        "section_type": "hero",
+        "description": "Law firm hero with authority and trust",
+        "structure": ["awards_bar", "headline", "practice_areas", "consultation_cta"],
+        "required_elements": [
+            "bar_associations",
+            "awards_recognition",  # Super Lawyers, Best Law Firms
+            "years_experience",
+        ],
+        "style_guidelines": {
+            "colors": "navy/slate with gold accents",
+            "typography": "serif headlines, editorial feel",
+            "imagery": "office/cityscape, not people",
+        },
+        "prohibited_elements": ["gavel emoji", "scales of justice clipart", "casual language"],
+    },
+    "legal_team": {
+        "industry": "legal",
+        "section_type": "team",
+        "description": "Attorney profiles with credentials",
+        "required_elements": [
+            "professional_headshot",
+            "bar_admissions",
+            "education",
+            "practice_areas",
+        ],
+        "style_guidelines": {
+            "layout": "grid with ample whitespace",
+            "typography": "name in serif, credentials in sans",
+        },
+    },
+
+    # =========================================================================
+    # TECHNOLOGY / SAAS INDUSTRY
+    # =========================================================================
+    "tech_hero": {
+        "industry": "tech",
+        "section_type": "hero",
+        "description": "SaaS/Tech hero with modern product focus",
+        "structure": ["announcement_bar", "headline", "social_proof", "demo_cta"],
+        "required_elements": [
+            "product_screenshot",
+            "customer_logos",
+            "key_metrics",
+        ],
+        "style_guidelines": {
+            "colors": "blue/purple gradient acceptable",
+            "typography": "bold sans-serif, modern",
+            "animations": "subtle entrance animations allowed",
+        },
+    },
+    "tech_features": {
+        "industry": "tech",
+        "section_type": "features",
+        "description": "Tech feature grid with integration emphasis",
+        "required_elements": [
+            "integration_logos",
+            "api_reference",
+            "security_badge",
+        ],
+        "style_guidelines": {
+            "icons": "modern line or duotone icons",
+            "code_snippets": "if relevant, show clean examples",
+        },
+    },
+    "tech_pricing": {
+        "industry": "tech",
+        "section_type": "pricing",
+        "description": "SaaS pricing with clear tier differentiation",
+        "required_elements": [
+            "free_tier",
+            "popular_badge",
+            "annual_discount",
+            "feature_comparison",
+        ],
+        "style_guidelines": {
+            "emphasis": "ring/shadow on recommended tier",
+            "cta": "Start Free Trial, Get Started",
+        },
+    },
+
+    # =========================================================================
+    # MANUFACTURING / INDUSTRIAL B2B
+    # =========================================================================
+    "manufacturing_hero": {
+        "industry": "manufacturing",
+        "section_type": "hero",
+        "description": "Industrial B2B hero with capability focus",
+        "structure": ["certifications_bar", "headline", "capability_stats", "quote_cta"],
+        "required_elements": [
+            "iso_certifications",
+            "capacity_metrics",
+            "industry_badges",
+        ],
+        "style_guidelines": {
+            "colors": "industrial blue/gray palette",
+            "typography": "clean, no-nonsense",
+            "imagery": "facility/equipment photos",
+        },
+        "prohibited_elements": ["consumer_language", "playful_elements"],
+    },
+    "manufacturing_capabilities": {
+        "industry": "manufacturing",
+        "section_type": "features",
+        "description": "Manufacturing capabilities showcase",
+        "required_elements": [
+            "equipment_list",
+            "capacity_numbers",
+            "quality_certifications",
+        ],
+    },
+
+    # =========================================================================
+    # CONSULTING / PROFESSIONAL SERVICES
+    # =========================================================================
+    "consulting_hero": {
+        "industry": "consulting",
+        "section_type": "hero",
+        "description": "Management consulting hero with thought leadership",
+        "structure": ["insight_badge", "headline", "client_logos", "engagement_cta"],
+        "required_elements": [
+            "client_logos",  # Fortune 500 logos
+            "impact_metrics",  # $X saved, X% improvement
+            "thought_leadership_link",
+        ],
+        "style_guidelines": {
+            "colors": "sophisticated slate/indigo",
+            "typography": "editorial serif for headlines",
+            "whitespace": "generous, luxury feel",
+        },
+    },
+    "consulting_case_studies": {
+        "industry": "consulting",
+        "section_type": "testimonials",  # Adapted for case studies
+        "description": "Case study highlights section",
+        "required_elements": [
+            "client_industry",
+            "challenge_summary",
+            "outcome_metrics",
+            "client_quote",
+        ],
+        "style_guidelines": {
+            "format": "card-based with clear before/after",
+        },
+    },
+}
+
+
+def get_corporate_section_template(
+    section_type: str,
+    industry: str,
+) -> Dict[str, Any]:
+    """Get industry-appropriate section template.
+
+    Args:
+        section_type: Type of section (hero, features, pricing, etc.).
+        industry: Industry name (finance, healthcare, legal, tech, etc.).
+
+    Returns:
+        Dict with section template configuration, or empty dict if not found.
+    """
+    # Build the template key
+    template_key = f"{industry}_{section_type}"
+
+    # Direct match
+    if template_key in CORPORATE_SECTION_TEMPLATES:
+        return CORPORATE_SECTION_TEMPLATES[template_key]
+
+    # Try to find any template for this industry
+    for key, template in CORPORATE_SECTION_TEMPLATES.items():
+        if template.get("industry") == industry and template.get("section_type") == section_type:
+            return template
+
+    return {}
+
+
+def list_corporate_section_templates() -> List[str]:
+    """List all available corporate section template keys."""
+    return list(CORPORATE_SECTION_TEMPLATES.keys())
+
+
+def get_templates_by_industry(industry: str) -> List[str]:
+    """Get all section templates for a specific industry.
+
+    Args:
+        industry: Industry name (finance, healthcare, legal, tech, etc.).
+
+    Returns:
+        List of template keys for the given industry.
+    """
+    return [
+        key for key, template in CORPORATE_SECTION_TEMPLATES.items()
+        if template.get("industry") == industry
+    ]
+
+
+def get_templates_by_section_type(section_type: str) -> List[str]:
+    """Get all industry templates for a specific section type.
+
+    Args:
+        section_type: Section type (hero, features, pricing, etc.).
+
+    Returns:
+        List of template keys for the given section type.
+    """
+    return [
+        key for key, template in CORPORATE_SECTION_TEMPLATES.items()
+        if template.get("section_type") == section_type
+    ]
+
+
+def build_corporate_section_requirements(
+    section_type: str,
+    industry: str,
+) -> str:
+    """Build requirements string for corporate section design prompt.
+
+    Args:
+        section_type: Type of section (hero, features, etc.).
+        industry: Industry name (finance, healthcare, etc.).
+
+    Returns:
+        Formatted requirements string for inclusion in prompts.
+    """
+    template = get_corporate_section_template(section_type, industry)
+
+    if not template:
+        return ""
+
+    lines = [
+        f"## Corporate Section Requirements: {industry.title()} {section_type.title()}",
+        "",
+        f"**Description:** {template.get('description', 'N/A')}",
+        "",
+    ]
+
+    # Structure
+    if "structure" in template:
+        lines.append("**Required Structure:**")
+        for item in template["structure"]:
+            lines.append(f"  1. {item.replace('_', ' ').title()}")
+        lines.append("")
+
+    # Required elements
+    if "required_elements" in template:
+        lines.append("**Required Elements (MUST include):**")
+        for elem in template["required_elements"]:
+            lines.append(f"  - {elem.replace('_', ' ').title()}")
+        lines.append("")
+
+    # Style guidelines
+    if "style_guidelines" in template:
+        lines.append("**Style Guidelines:**")
+        for key, value in template["style_guidelines"].items():
+            lines.append(f"  - {key.replace('_', ' ').title()}: {value}")
+        lines.append("")
+
+    # Prohibited elements
+    if "prohibited_elements" in template:
+        lines.append("**Prohibited (DO NOT use):**")
+        for elem in template["prohibited_elements"]:
+            lines.append(f"  - {elem.replace('_', ' ').title()}")
+        lines.append("")
+
+    return "\n".join(lines)

@@ -38,10 +38,88 @@ _DATA_ATTR_PATTERN = re.compile(r'data-(\w+)=["\']([^"\']+)["\']')
 
 
 class QualityTarget(Enum):
-    """Quality target affects validation strictness and retry behavior."""
+    """
+    Quality target affects validation strictness, retry behavior, and quality thresholds.
+
+    For corporate/enterprise designs, use PREMIUM or ENTERPRISE targets.
+    """
 
     DRAFT = "draft"  # Lenient validation, fewer retries
     PRODUCTION = "production"  # Strict validation, more retries
+
+    # Corporate Quality Levels (NEW)
+    STANDARD = "standard"  # Basic quality, fast output
+    HIGH = "high"  # Critic-enabled quality loop
+    PREMIUM = "premium"  # Professional validator enabled
+    ENTERPRISE = "enterprise"  # Corporate evaluation required
+
+
+# Configuration for each quality target level
+QUALITY_TARGET_CONFIG: dict[QualityTarget, dict] = {
+    QualityTarget.DRAFT: {
+        "threshold": 6.0,
+        "max_iterations": 1,
+        "enable_critic": False,
+        "enable_professional_validator": False,
+        "require_corporate_evaluation": False,
+        "description": "Fast output for drafts and prototypes",
+    },
+    QualityTarget.PRODUCTION: {
+        "threshold": 7.0,
+        "max_iterations": 2,
+        "enable_critic": True,
+        "enable_professional_validator": False,
+        "require_corporate_evaluation": False,
+        "description": "Standard production quality",
+    },
+    QualityTarget.STANDARD: {
+        "threshold": 7.0,
+        "max_iterations": 2,
+        "enable_critic": False,
+        "enable_professional_validator": False,
+        "require_corporate_evaluation": False,
+        "description": "Basic quality for quick iterations",
+    },
+    QualityTarget.HIGH: {
+        "threshold": 8.0,
+        "max_iterations": 3,
+        "enable_critic": True,
+        "enable_professional_validator": False,
+        "require_corporate_evaluation": False,
+        "description": "High quality with Critic evaluation",
+    },
+    QualityTarget.PREMIUM: {
+        "threshold": 8.5,
+        "max_iterations": 4,
+        "enable_critic": True,
+        "enable_professional_validator": True,
+        "require_corporate_evaluation": False,
+        "description": "Premium quality with professional validation",
+    },
+    QualityTarget.ENTERPRISE: {
+        "threshold": 9.0,
+        "max_iterations": 5,
+        "enable_critic": True,
+        "enable_professional_validator": True,
+        "require_corporate_evaluation": True,
+        "description": "Enterprise-grade with full corporate evaluation",
+    },
+}
+
+
+def get_quality_config(target: QualityTarget) -> dict:
+    """Get configuration for a quality target level."""
+    return QUALITY_TARGET_CONFIG.get(target, QUALITY_TARGET_CONFIG[QualityTarget.PRODUCTION])
+
+
+def get_threshold_for_target(target: QualityTarget) -> float:
+    """Get quality threshold score for a target level."""
+    return get_quality_config(target).get("threshold", 7.0)
+
+
+def get_max_iterations_for_target(target: QualityTarget) -> int:
+    """Get maximum refinement iterations for a target level."""
+    return get_quality_config(target).get("max_iterations", 2)
 
 
 class InteractionType(Enum):
@@ -296,6 +374,29 @@ class AgentContext:
     # === Style Guide (from theme factories) ===
     style_guide: dict[str, Any] = field(default_factory=dict)
 
+    # === Few-Shot Examples (Phase 1 Integration) ===
+    # High-quality examples passed to agents for output guidance
+    few_shot_examples: list[dict[str, Any]] = field(default_factory=list)
+
+    # === Micro-Interactions (Phase 4 Activation) ===
+    # Controls whether agents should add data-interaction attributes
+    micro_interactions_enabled: bool = True
+    interaction_presets: list[str] = field(default_factory=list)
+    # Full preset definitions (not just names) for Alchemist/Physicist
+    micro_interaction_presets: dict[str, str] = field(default_factory=dict)
+
+    # === Vibe Animation Parameters (UX Enhancement Phase 1) ===
+    # CSS variables from vibe specifications for animation consistency
+    vibe_css_variables: dict[str, str] = field(default_factory=dict)
+    # Timing for hover/transition animations (e.g., "200ms", "300ms")
+    vibe_timing: str = "300ms"
+    # Easing function for animations (e.g., "ease-out", "cubic-bezier(...)")
+    vibe_easing: str = "ease-out"
+    # Animation intensity level (subtle, medium, high, intense)
+    vibe_intensity: str = "medium"
+    # Current vibe name for reference
+    vibe: str = ""
+
     # === Pipeline Configuration ===
     pipeline_type: str = ""  # COMPONENT, PAGE, SECTION, etc.
 
@@ -338,6 +439,10 @@ class AgentContext:
     token_budget: int = 32768
     skip_agents: list[str] = field(default_factory=list)
 
+    # === General Metadata ===
+    # Flexible key-value store for additional context (industry, formality, etc.)
+    metadata: dict[str, Any] = field(default_factory=dict)
+
     # === Timestamps ===
     created_at: datetime = field(default_factory=datetime.now)
     updated_at: datetime = field(default_factory=datetime.now)
@@ -356,6 +461,10 @@ class AgentContext:
     # === Reference-specific (for design_from_reference) ===
     reference_image_path: str = ""
     reference_analysis: str = ""
+    # Design tokens extracted from reference image (by Visionary)
+    design_tokens: dict[str, Any] = field(default_factory=dict)
+    # Improvement suggestions from reference adherence check
+    reference_adherence_improvements: list[str] = field(default_factory=list)
 
     # === Refinement-specific (for refine_frontend) ===
     modification_request: str = ""  # User's modification/refinement request
@@ -395,6 +504,9 @@ class AgentContext:
         forked.skip_agents = list(self.skip_agents)
         forked.thought_signatures = list(self.thought_signatures)
         forked.sections = [dict(s) for s in self.sections]
+        # Phase 1 & 4: Few-shot examples and interaction presets
+        forked.few_shot_examples = [dict(ex) for ex in self.few_shot_examples]
+        forked.interaction_presets = list(self.interaction_presets)
 
         # Deep copy complex dataclass fields if present
         if self.design_dna is not None:

@@ -33,6 +33,11 @@ from gemini_mcp.orchestration.pipelines import (
     get_pipeline,
 )
 from gemini_mcp.orchestration.telemetry import get_telemetry
+from gemini_mcp.few_shot_examples import (
+    get_few_shot_examples_for_prompt,
+    get_corporate_examples_for_prompt,
+)
+from gemini_mcp.frontend_presets import MICRO_INTERACTIONS
 
 if TYPE_CHECKING:
     from gemini_mcp.agents.base import AgentResult, BaseAgent
@@ -42,13 +47,69 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 # === Refiner Loop Constants (Gemini 3 Quality Loop) ===
-# Quality threshold for CSS refinement. Alchemist will be re-run
+# Default quality threshold for CSS refinement. Alchemist will be re-run
 # until Critic scores reach this level or max iterations is hit.
 QUALITY_THRESHOLD = 8.0
 
 # Maximum iterations for the refiner loop to prevent infinite loops.
 # Each iteration: Alchemist -> Critic -> (if score < threshold) repeat
 MAX_REFINER_ITERATIONS = 3
+
+# === Adaptive Threshold System (Creativity Enhancement) ===
+# Component-type specific quality thresholds.
+# High-impact components require higher quality; atomic components can be simpler.
+COMPONENT_THRESHOLDS: dict[str, float] = {
+    # High-impact components (user's first impression)
+    "hero": 8.5,
+    "navbar": 8.5,
+    "landing_page": 8.5,
+    "dashboard": 8.5,
+    # Standard components
+    "card": 8.0,
+    "form": 8.0,
+    "modal": 8.0,
+    "footer": 8.0,
+    "sidebar": 8.0,
+    "pricing": 8.0,
+    "features": 8.0,
+    "testimonials": 8.0,
+    # Simple/atomic components (lower complexity)
+    "button": 7.5,
+    "input": 7.5,
+    "badge": 7.5,
+    "avatar": 7.5,
+    "toggle": 7.5,
+    "tooltip": 7.5,
+    "spinner": 7.5,
+    "divider": 7.0,
+    # Default for unknown components
+    "default": 8.0,
+}
+
+# === Convergence Detection (Early Stopping) ===
+# Minimum score improvement to continue iterating
+CONVERGENCE_THRESHOLD = 0.2
+# Number of consecutive low-delta iterations before stopping
+CONVERGENCE_COUNT = 2
+
+
+def get_quality_threshold(component_type: str) -> float:
+    """
+    Get the quality threshold for a specific component type.
+
+    Higher-impact components (hero, navbar) require higher quality scores,
+    while simpler atomic components (button, badge) can have lower thresholds.
+
+    Args:
+        component_type: The type of component being designed
+
+    Returns:
+        The quality threshold (1.0-10.0 scale)
+    """
+    return COMPONENT_THRESHOLDS.get(
+        component_type.lower(),
+        COMPONENT_THRESHOLDS["default"]
+    )
 
 
 @dataclass
@@ -79,6 +140,9 @@ class PipelineResult:
     # Validation results
     validation_passed: bool = True
     validation_issues: list[str] = field(default_factory=list)
+
+    # Step results for Trifecta agent tracking
+    step_results: list = field(default_factory=list)  # list[AgentResult]
 
     def to_mcp_response(self) -> dict[str, Any]:
         """Convert to MCP tool response format."""
@@ -238,12 +302,30 @@ class AgentOrchestrator:
             f"id={context.pipeline_id}, steps={context.total_steps}"
         )
 
+        # === Phase 1: Select Few-Shot Examples ===
+        # Pass high-quality examples to guide agent outputs
+        self._prepare_few_shot_examples(context)
+
+        # === Phase 4: Prepare Micro-Interactions ===
+        # UX Enhancement: Distribute FULL preset contents to all agents
+        if context.micro_interactions_enabled:
+            context.interaction_presets = list(MICRO_INTERACTIONS.keys())
+            # Also store full preset data for Alchemist/Physicist
+            context.micro_interaction_presets = {
+                name: {
+                    "classes": preset.get("classes", ""),
+                    "description": preset.get("description", ""),
+                }
+                for name, preset in MICRO_INTERACTIONS.items()
+            }
+
         # Track metrics
         tokens_per_agent: dict[str, int] = {}
         total_tokens = 0
         completed_steps = 0
         errors: list[str] = []
         warnings: list[str] = []
+        step_results: list = []  # Collect AgentResult for each step
 
         try:
             for step in pipeline.steps:
@@ -251,6 +333,7 @@ class AgentOrchestrator:
                     # Execute parallel steps
                     results = await self._execute_parallel_group(step, context)
                     for agent_name, result in results.items():
+                        step_results.append(result)  # Collect for Trifecta tracking
                         if result.success:
                             completed_steps += 1
                             if result.token_usage:
@@ -271,6 +354,7 @@ class AgentOrchestrator:
                         continue
 
                     result = await self._execute_step(step, context, pipeline)
+                    step_results.append(result)  # Collect for Trifecta tracking
                     context.step_index += 1
 
                     # Record telemetry for this agent
@@ -302,6 +386,44 @@ class AgentOrchestrator:
                                     f"[Orchestrator] DNA propagated from Strategist: "
                                     f"mood={context.design_dna.mood}"
                                 )
+
+                        # === CREATIVITY ENHANCEMENT: Reference Adherence Check ===
+                        # After Alchemist in REFERENCE pipeline, evaluate adherence
+                        if (
+                            pipeline_type == PipelineType.REFERENCE
+                            and step.agent_name == "alchemist"
+                            and context.design_tokens  # Tokens from Visionary
+                            and context.html_output
+                        ):
+                            try:
+                                from gemini_mcp.agents.critic import CriticAgent
+
+                                critic = CriticAgent(client=self.client)
+                                adherence_score, improvements = await critic.evaluate_reference_adherence(
+                                    reference_tokens=context.design_tokens,
+                                    generated_html=context.html_output,
+                                    generated_css=context.css_output or "",
+                                    context=context,
+                                )
+
+                                # Log adherence score
+                                logger.info(
+                                    f"[Orchestrator] Reference adherence: {adherence_score:.2f}"
+                                )
+
+                                # Add warning if adherence is low
+                                REFERENCE_ADHERENCE_THRESHOLD = 7.0
+                                if adherence_score < REFERENCE_ADHERENCE_THRESHOLD:
+                                    warnings.append(
+                                        f"Reference adherence is {adherence_score:.1f}/10 "
+                                        f"(threshold: {REFERENCE_ADHERENCE_THRESHOLD}). "
+                                        f"Improvements: {'; '.join(improvements[:3])}"
+                                    )
+                                    # Store improvements for potential retry
+                                    context.reference_adherence_improvements = improvements
+
+                            except Exception as e:
+                                logger.warning(f"Reference adherence check failed: {e}")
 
                         # Track tokens
                         if result.token_usage:
@@ -351,6 +473,7 @@ class AgentOrchestrator:
                 warnings=warnings,
                 validation_passed=validation_passed,
                 validation_issues=validation_issues,
+                step_results=step_results,
             )
 
         except Exception as e:
@@ -376,12 +499,51 @@ class AgentOrchestrator:
                 errors=[str(e)] + errors,
                 warnings=warnings,
                 validation_passed=False,
+                step_results=step_results,
             )
 
         finally:
             # Cleanup checkpoints
             if self.enable_checkpoints:
                 self._checkpoint_manager.clear(context.pipeline_id)
+
+    def _prepare_few_shot_examples(self, context: AgentContext) -> None:
+        """
+        Select and attach few-shot examples to context (Phase 1 Integration).
+
+        Selects examples based on:
+        1. Component type (exact match from COMPONENT_EXAMPLES)
+        2. Industry/vibe (corporate examples for enterprise quality)
+
+        Args:
+            context: The agent context to populate with examples
+        """
+        examples = []
+
+        # 1. Get component-specific examples
+        component_examples = get_few_shot_examples_for_prompt(context.component_type)
+        examples.extend(component_examples)
+
+        # 2. Get corporate examples if industry specified (Phase 5)
+        industry = context.style_guide.get("industry", "")
+        if industry:
+            corporate_examples = get_corporate_examples_for_prompt(industry)
+            examples.extend(corporate_examples)
+
+        # 3. Vibe-based examples (Phase 5)
+        vibe = context.style_guide.get("vibe", "")
+        if vibe:
+            vibe_examples = get_few_shot_examples_for_prompt(vibe)
+            examples.extend(vibe_examples)
+
+        # Limit to 3 examples max to avoid token bloat
+        context.few_shot_examples = examples[:3]
+
+        if context.few_shot_examples:
+            logger.debug(
+                f"Attached {len(context.few_shot_examples)} few-shot examples "
+                f"for component_type={context.component_type}"
+            )
 
     async def _execute_step(
         self,
@@ -514,9 +676,19 @@ class AgentOrchestrator:
         best_css = initial_css
         best_scores = CriticScores()
 
+        # === Adaptive Threshold (Enhancement) ===
+        # Get component-specific threshold instead of fixed value
+        adaptive_threshold = get_quality_threshold(context.component_type or "default")
+
+        # === Score History for Convergence Detection ===
+        score_history: list[float] = []
+        low_delta_count = 0  # Track consecutive low-improvement iterations
+
         logger.info(
             f"[RefinerLoop] Starting refinement. "
-            f"Threshold: {QUALITY_THRESHOLD}, Max iterations: {MAX_REFINER_ITERATIONS}"
+            f"Component: {context.component_type or 'unknown'}, "
+            f"Adaptive threshold: {adaptive_threshold}, "
+            f"Max iterations: {MAX_REFINER_ITERATIONS}"
         )
 
         for iteration in range(MAX_REFINER_ITERATIONS):
@@ -564,13 +736,39 @@ class AgentOrchestrator:
                 best_css = current_css
                 best_scores = scores
 
-            # Step 3: Check threshold
-            if scores.overall >= QUALITY_THRESHOLD:
+            # === Score History Tracking (Enhancement) ===
+            score_history.append(scores.overall)
+
+            # Step 3: Check adaptive threshold
+            if scores.overall >= adaptive_threshold:
                 logger.info(
                     f"[RefinerLoop] Quality threshold reached at iteration {iteration + 1}! "
-                    f"Score: {scores.overall:.2f} >= {QUALITY_THRESHOLD}"
+                    f"Score: {scores.overall:.2f} >= {adaptive_threshold} "
+                    f"(component: {context.component_type or 'unknown'})"
                 )
                 return current_css, scores, iteration + 1
+
+            # === Convergence Detection (Enhancement) ===
+            # If improvement is too small, we're likely stuck - stop early to save resources
+            if len(score_history) >= 2:
+                delta = score_history[-1] - score_history[-2]
+                if delta < CONVERGENCE_THRESHOLD:
+                    low_delta_count += 1
+                    logger.debug(
+                        f"[RefinerLoop] Low improvement detected: delta={delta:.3f} "
+                        f"(count: {low_delta_count}/{CONVERGENCE_COUNT})"
+                    )
+                    if low_delta_count >= CONVERGENCE_COUNT:
+                        logger.info(
+                            f"[RefinerLoop] Converged at iteration {iteration + 1}. "
+                            f"Score delta ({delta:.3f}) < threshold ({CONVERGENCE_THRESHOLD}) "
+                            f"for {CONVERGENCE_COUNT} consecutive iterations. "
+                            f"Final score: {scores.overall:.2f}"
+                        )
+                        return best_css, best_scores, iteration + 1
+                else:
+                    # Reset counter if we see meaningful improvement
+                    low_delta_count = 0
 
             # Step 4: Feed improvements back for next iteration
             context.critic_feedback = improvements
@@ -612,6 +810,149 @@ class AgentOrchestrator:
         )
 
         return css, scores.overall
+
+    async def run_corporate_quality_loop(
+        self,
+        context: AgentContext,
+        industry: str = "consulting",
+        formality: str = "semi-formal",
+    ) -> tuple[str, str, str, dict]:
+        """
+        Enhanced quality loop for corporate/enterprise designs.
+
+        This method extends the standard refiner loop with:
+        1. Standard Critic evaluation
+        2. Professional Validator checks (if PREMIUM/ENTERPRISE)
+        3. Corporate-specific evaluation (if ENTERPRISE)
+        4. Iterative refinement until all quality gates pass
+
+        Args:
+            context: Pipeline context with HTML output
+            industry: Industry context (finance, healthcare, legal, tech, etc.)
+            formality: Formality level (formal, semi-formal, approachable)
+
+        Returns:
+            Tuple of (html, css, js, corporate_metrics)
+        """
+        from gemini_mcp.orchestration.context import (
+            QualityTarget,
+            get_quality_config,
+            get_threshold_for_target,
+            get_max_iterations_for_target,
+        )
+        from gemini_mcp.agents.critic import CriticAgent
+        from gemini_mcp.validation.professional_validator import validate_professional
+
+        logger.info(
+            f"[CorporateLoop] Starting. Industry: {industry}, "
+            f"Formality: {formality}, Quality: {context.quality_target.value}"
+        )
+
+        # Get quality configuration for target level
+        quality_config = get_quality_config(context.quality_target)
+        threshold = quality_config["threshold"]
+        max_iterations = quality_config["max_iterations"]
+        enable_pro_validator = quality_config["enable_professional_validator"]
+        require_corporate = quality_config["require_corporate_evaluation"]
+
+        # Get critic agent
+        critic_agent = self.get_agent("critic")
+        critic: CriticAgent | None = (
+            critic_agent if isinstance(critic_agent, CriticAgent) else None
+        )
+
+        # Initialize tracking
+        best_html = context.html_output
+        best_css = context.css_output
+        best_js = context.js_output
+        corporate_metrics: dict = {}
+
+        for iteration in range(max_iterations):
+            logger.info(f"[CorporateLoop] Iteration {iteration + 1}/{max_iterations}")
+
+            # Step 1: Run standard refiner loop for CSS
+            css, standard_score = await self.run_refiner_for_css(context)
+
+            # Step 2: Professional Validator (if enabled)
+            pro_result = None
+            if enable_pro_validator:
+                pro_result = validate_professional(
+                    html=context.html_output,
+                    css=css,
+                    formality=formality,
+                    industry=industry,
+                    accessibility_level="AAA" if formality == "formal" else "AA",
+                )
+
+                logger.info(
+                    f"[CorporateLoop] Professional Validator: "
+                    f"{pro_result.overall_score:.1f}/100, "
+                    f"Professional: {pro_result.is_professional}"
+                )
+
+            # Step 3: Corporate Evaluation (if required and critic available)
+            if require_corporate and critic:
+                scores, improvements, corp_metrics = await critic.evaluate_corporate_quality(
+                    html=context.html_output,
+                    css=css,
+                    industry=industry,
+                    formality=formality,
+                    context=context,
+                )
+
+                corporate_metrics = corp_metrics
+                corporate_score = corp_metrics.get("corporate_score", 5.0)
+                is_corporate_grade = corp_metrics.get("is_corporate_grade", False)
+
+                logger.info(
+                    f"[CorporateLoop] Corporate Evaluation: "
+                    f"Score: {corporate_score:.1f}/10, "
+                    f"Corporate Grade: {is_corporate_grade}"
+                )
+
+                # Check if we meet all quality gates
+                if (
+                    standard_score >= threshold and
+                    (not enable_pro_validator or pro_result.is_professional) and
+                    is_corporate_grade
+                ):
+                    logger.info(
+                        f"[CorporateLoop] All quality gates passed at iteration {iteration + 1}"
+                    )
+                    best_css = css
+                    break
+
+            else:
+                # Non-corporate path: just check standard score
+                if standard_score >= threshold:
+                    if not enable_pro_validator or (pro_result and pro_result.is_professional):
+                        logger.info(
+                            f"[CorporateLoop] Quality threshold met at iteration {iteration + 1}"
+                        )
+                        best_css = css
+                        break
+
+            # Update best if this iteration improved
+            best_css = css
+
+        # Build final corporate metrics
+        if pro_result and not corporate_metrics:
+            corporate_metrics = {
+                "professional_validator_result": pro_result.to_dict(),
+                "is_corporate_grade": pro_result.is_professional,
+            }
+
+        corporate_metrics["quality_target"] = context.quality_target.value
+        corporate_metrics["industry"] = industry
+        corporate_metrics["formality"] = formality
+        corporate_metrics["iterations_used"] = iteration + 1
+
+        logger.info(
+            f"[CorporateLoop] Complete. Iterations: {iteration + 1}, "
+            f"Corporate Grade: {corporate_metrics.get('is_corporate_grade', 'N/A')}"
+        )
+
+        return best_html, best_css, best_js, corporate_metrics
 
     async def _execute_parallel_group(
         self,
@@ -734,6 +1075,28 @@ class AgentOrchestrator:
                     f"Undefined CSS variables used: {', '.join(undefined_vars)}"
                 )
 
+        # === Phase 2: Anti-Laziness Density Validation ===
+        if context.html_output:
+            from gemini_mcp.validation.density_validator import DensityValidator
+
+            density_validator = DensityValidator(strict_mode=False)
+            density_result = density_validator.validate(context.html_output)
+
+            if not density_result.meets_minimum:
+                issues.append(
+                    f"Low class density: {density_result.overall_density:.1f}/element "
+                    f"(minimum: 6). {density_result.elements_below_minimum} elements need more classes."
+                )
+            elif not density_result.meets_target:
+                # Warning only, not a hard failure
+                logger.warning(
+                    f"Class density below target: {density_result.overall_density:.1f}/element "
+                    f"(target: 8). Consider adding more styling classes."
+                )
+
+            # Log density score for telemetry
+            logger.debug(f"Density score: {density_result.score}/100")
+
         # Run registered validators
         for name, validator in self._validators.items():
             try:
@@ -787,11 +1150,13 @@ def get_orchestrator(client: Optional["GeminiClient"] = None) -> AgentOrchestrat
     """
     Get or create the global orchestrator instance.
 
+    Automatically registers all Trifecta agents on first initialization.
+
     Args:
         client: GeminiClient instance (required on first call)
 
     Returns:
-        AgentOrchestrator instance
+        AgentOrchestrator instance with all agents registered
     """
     global _orchestrator
 
@@ -799,6 +1164,30 @@ def get_orchestrator(client: Optional["GeminiClient"] = None) -> AgentOrchestrat
         if client is None:
             raise ValueError("Client is required for first orchestrator initialization")
         _orchestrator = AgentOrchestrator(client)
+
+        # === Auto-register all Trifecta agents ===
+        from gemini_mcp.agents import (
+            ArchitectAgent,
+            AlchemistAgent,
+            PhysicistAgent,
+            StrategistAgent,
+            QualityGuardAgent,
+            CriticAgent,
+            VisionaryAgent,
+        )
+
+        # Core Trifecta pipeline agents
+        _orchestrator.register_agent("architect", ArchitectAgent(client=client))
+        _orchestrator.register_agent("alchemist", AlchemistAgent(client=client))
+        _orchestrator.register_agent("physicist", PhysicistAgent(client=client))
+
+        # Extended agents
+        _orchestrator.register_agent("strategist", StrategistAgent(client=client))
+        _orchestrator.register_agent("quality_guard", QualityGuardAgent(client=client))
+        _orchestrator.register_agent("critic", CriticAgent(client=client))
+        _orchestrator.register_agent("visionary", VisionaryAgent(client=client))
+
+        logger.info(f"[Orchestrator] Registered {len(_orchestrator._agents)} agents")
 
     return _orchestrator
 

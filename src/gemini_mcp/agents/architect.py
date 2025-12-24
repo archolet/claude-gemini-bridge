@@ -27,6 +27,7 @@ from typing import TYPE_CHECKING, Optional
 
 from gemini_mcp.agents.base import AgentConfig, AgentResult, AgentRole, BaseAgent
 from gemini_mcp.prompts import ARCHITECT_SYSTEM_PROMPT
+from gemini_mcp.validation import HTMLValidator
 
 if TYPE_CHECKING:
     from gemini_mcp.client import GeminiClient
@@ -59,6 +60,8 @@ class ArchitectAgent(BaseAgent):
         """
         super().__init__(config)
         self.client = client
+        # Phase 3: Centralized Validator Integration
+        self._html_validator = HTMLValidator(strict_mode=False)
 
     @classmethod
     def _default_config(cls) -> AgentConfig:
@@ -178,6 +181,28 @@ class ArchitectAgent(BaseAgent):
                 context.design_dna.to_dict(), indent=2, ensure_ascii=False
             )
             parts.append(f"## Design DNA (Follow These Tokens)\n{dna_json}")
+
+        # === Phase 1: Few-Shot Examples ===
+        # High-quality examples to guide output structure and density
+        if context.few_shot_examples:
+            examples_section = "## REFERENCE EXAMPLES (Follow This Quality Level)\n"
+            for i, example in enumerate(context.few_shot_examples, 1):
+                example_type = example.get("component_type", "example")
+                example_html = example.get("html", "")
+                if example_html:
+                    examples_section += f"\n### Example {i}: {example_type.upper()}\n"
+                    examples_section += f"```html\n{example_html[:2000]}\n```\n"
+            parts.append(examples_section)
+
+        # === Phase 4: Micro-Interactions ===
+        if context.micro_interactions_enabled and context.interaction_presets:
+            presets_str = ", ".join(context.interaction_presets[:10])
+            parts.append(
+                f"## MICRO-INTERACTIONS REQUIRED\n"
+                f"Add data-interaction attributes for physics effects.\n"
+                f"Available presets: {presets_str}\n"
+                f"Example: data-interaction=\"magnetic\" data-trigger=\"hover\" data-intensity=\"0.8\""
+            )
 
         # Section-specific (for design_page)
         if context.sections:
@@ -336,53 +361,27 @@ class ArchitectAgent(BaseAgent):
         """
         Validate HTML output against Architect constraints.
 
-        Checks:
+        Uses centralized HTMLValidator for comprehensive checks:
         1. No <style> tags
         2. No <script> tags
         3. No inline styles
         4. No event handler attributes
         5. Has proper HTML structure
+        6. ID uniqueness
+        7. Accessibility compliance
+        8. Semantic structure
         """
-        issues: list[str] = []
+        # Phase 3: Use centralized HTMLValidator
+        result = self._html_validator.validate(output)
 
-        if not output or not output.strip():
-            return False, ["Output is empty"]
-
-        # Check for forbidden elements
-        if "<style" in output.lower():
-            issues.append("Contains <style> tag - Architect cannot write CSS")
-
-        if "<script" in output.lower():
-            issues.append("Contains <script> tag - Architect cannot write JS")
-
-        # Check for inline styles
-        inline_style_pattern = r'style\s*=\s*["\'][^"\']+["\']'
-        if re.search(inline_style_pattern, output, re.IGNORECASE):
-            issues.append("Contains inline style attribute")
-
-        # Check for event handlers
-        event_handlers = [
-            "onclick", "onmouseover", "onmouseout", "onmouseenter",
-            "onmouseleave", "onkeydown", "onkeyup", "onkeypress",
-            "onchange", "onsubmit", "onfocus", "onblur", "onload",
+        # Convert ValidationResult to tuple[bool, list[str]] for backward compatibility
+        issues = [
+            issue.message
+            for issue in result.issues
+            if issue.severity.value == "error"  # Only report errors as issues
         ]
-        for handler in event_handlers:
-            if re.search(rf'{handler}\s*=', output, re.IGNORECASE):
-                issues.append(f"Contains {handler} event handler")
-                break  # Only report first one
 
-        # Check for basic HTML structure
-        if not re.search(r"<[a-z]", output, re.IGNORECASE):
-            issues.append("Does not appear to contain HTML elements")
-
-        # Check for ID uniqueness
-        ids = self.extract_ids(output)
-        unique_ids = set(ids)
-        if len(ids) != len(unique_ids):
-            duplicates = [id for id in ids if ids.count(id) > 1]
-            issues.append(f"Duplicate IDs found: {', '.join(set(duplicates))}")
-
-        return len(issues) == 0, issues
+        return result.valid, issues
 
     def auto_fix_output(self, output: str) -> str:
         """

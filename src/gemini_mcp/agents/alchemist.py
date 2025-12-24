@@ -28,6 +28,7 @@ from typing import TYPE_CHECKING, Optional
 
 from gemini_mcp.agents.base import AgentConfig, AgentResult, AgentRole, BaseAgent
 from gemini_mcp.prompts import ALCHEMIST_SYSTEM_PROMPT
+from gemini_mcp.validation import CSSValidator
 
 if TYPE_CHECKING:
     from gemini_mcp.client import GeminiClient
@@ -60,6 +61,8 @@ class AlchemistAgent(BaseAgent):
         """
         super().__init__(config)
         self.client = client
+        # Phase 3: Centralized Validator Integration
+        self._css_validator = CSSValidator(strict_mode=False)
 
     @classmethod
     def _default_config(cls) -> AgentConfig:
@@ -167,6 +170,31 @@ class AlchemistAgent(BaseAgent):
         if context.content_language:
             parts.append(f"## Content Language\n{context.content_language}")
 
+        # === UX Enhancement: Vibe Animation Parameters ===
+        # Ensures all CSS animations use consistent timing/easing across the design
+        if context.vibe or context.vibe_timing != "300ms":
+            vibe_section = "## Animation Timing (MUST FOLLOW)\n"
+            vibe_section += f"- **transition-duration**: {context.vibe_timing}\n"
+            vibe_section += f"- **animation-duration**: Use {context.vibe_timing} as base (2x for complex)\n"
+            vibe_section += f"- **easing**: {context.vibe_easing}\n"
+            vibe_section += f"- **intensity**: {context.vibe_intensity}\n"
+            if context.vibe:
+                vibe_section += f"- **vibe**: {context.vibe}\n"
+            vibe_section += "\n**CRITICAL CSS RULES**:\n"
+            vibe_section += f"1. ALL transitions MUST use: `transition: all {context.vibe_timing} {context.vibe_easing}`\n"
+            vibe_section += "2. Hover effects: Use the specified duration\n"
+            vibe_section += "3. @keyframes: Duration should be 2-3x the base for complex animations\n"
+            vibe_section += f"4. Define CSS variable: `--vibe-transition: all {context.vibe_timing} {context.vibe_easing};`"
+            parts.append(vibe_section)
+
+        # Pass vibe CSS variables for consistent theming
+        if context.vibe_css_variables:
+            css_vars_section = "## Vibe CSS Variables (INCLUDE IN :root)\n```css\n:root {\n"
+            for key, value in context.vibe_css_variables.items():
+                css_vars_section += f"  {key}: {value};\n"
+            css_vars_section += "}\n```"
+            parts.append(css_vars_section)
+
         # Design DNA - critical for color/animation consistency
         if context.design_dna:
             import json
@@ -175,6 +203,40 @@ class AlchemistAgent(BaseAgent):
                 context.design_dna.to_dict(), indent=2, ensure_ascii=False
             )
             parts.append(f"## Design DNA (Use These Tokens)\n{dna_json}")
+
+        # === Phase 1: Few-Shot Examples ===
+        # CSS examples to guide animation and effect quality
+        if context.few_shot_examples:
+            examples_section = "## REFERENCE CSS EXAMPLES (Follow This Quality Level)\n"
+            for i, example in enumerate(context.few_shot_examples, 1):
+                example_type = example.get("component_type", "example")
+                example_css = example.get("css", "")
+                if example_css:
+                    examples_section += f"\n### Example {i}: {example_type.upper()} CSS\n"
+                    examples_section += f"```css\n{example_css[:1500]}\n```\n"
+            if "Example 1:" in examples_section:  # Only add if we have actual CSS
+                parts.append(examples_section)
+
+        # === UX Enhancement: Micro-Interaction Presets ===
+        # Provides Tailwind-based preset classes for CSS conversion
+        if context.micro_interaction_presets:
+            presets_section = "## MICRO-INTERACTION PRESETS (Convert to CSS)\n"
+            presets_section += "These Tailwind-based presets should be converted to pure CSS:\n\n"
+            # Show top 8 most commonly used presets
+            priority_presets = [
+                "hover_lift", "hover_glow", "hover_scale", "focus_ring",
+                "button_press", "shimmer", "pulse", "fade_in"
+            ]
+            for name in priority_presets:
+                if name in context.micro_interaction_presets:
+                    preset = context.micro_interaction_presets[name]
+                    classes = preset.get("classes", "")
+                    desc = preset.get("description", "")
+                    presets_section += f"**{name}**: {desc}\n"
+                    presets_section += f"Tailwind: `{classes}`\n\n"
+            presets_section += "**RULE**: Convert these to CSS with consistent timing using vibe variables.\n"
+            presets_section += "Example: `hover:-translate-y-1` → `transform: translateY(-4px);`"
+            parts.append(presets_section)
 
         # HTML context - the Alchemist needs to know what to style
         if context.html_output:
@@ -283,61 +345,27 @@ class AlchemistAgent(BaseAgent):
         """
         Validate CSS output against Alchemist constraints.
 
-        Checks:
+        Uses centralized CSSValidator for comprehensive checks:
         1. No HTML elements
-        2. No JavaScript
-        3. Valid CSS syntax (basic check)
+        2. No JavaScript code
+        3. Valid CSS syntax (balanced braces, quotes)
         4. No !important abuse
         5. Uses class/ID selectors appropriately
+        6. Vendor prefix validation
+        7. Animation/keyframe validation
+        8. CSS variable consistency
         """
-        issues: list[str] = []
+        # Phase 3: Use centralized CSSValidator
+        result = self._css_validator.validate(output)
 
-        if not output or not output.strip():
-            # Empty CSS is valid - not all themes need custom CSS
-            return True, []
-
-        # Check for HTML
-        if re.search(r"<[a-z]+", output, re.IGNORECASE):
-            issues.append("Contains HTML elements - Alchemist only outputs CSS")
-
-        # Check for JavaScript patterns
-        js_patterns = [
-            r"\bfunction\s*\(",
-            r"\bconst\s+\w+",
-            r"\blet\s+\w+",
-            r"\bvar\s+\w+",
-            r"=>\s*{",
-            r"addEventListener",
+        # Convert ValidationResult to tuple[bool, list[str]] for backward compatibility
+        issues = [
+            issue.message
+            for issue in result.issues
+            if issue.severity.value == "error"  # Only report errors as issues
         ]
-        for pattern in js_patterns:
-            if re.search(pattern, output):
-                issues.append("Contains JavaScript code - Alchemist only outputs CSS")
-                break
 
-        # Check for excessive !important
-        important_count = len(re.findall(r"!important", output, re.IGNORECASE))
-        if important_count > 3:
-            issues.append(f"Excessive !important usage ({important_count} occurrences)")
-
-        # Check for element selectors (basic check)
-        element_selector_pattern = r"^[a-z]+\s*{"
-        element_matches = re.findall(element_selector_pattern, output, re.MULTILINE | re.IGNORECASE)
-        # Filter out valid at-rules and pseudo-elements
-        valid_starts = ["@keyframes", "@media", "@supports", "@font-face", ":root", "from", "to"]
-        problematic = [
-            m for m in element_matches
-            if not any(m.lower().startswith(v.lower()) for v in valid_starts)
-        ]
-        if problematic:
-            issues.append(f"Uses element selectors - prefer class/ID: {problematic[:3]}")
-
-        # Basic CSS syntax check
-        open_braces = output.count("{")
-        close_braces = output.count("}")
-        if open_braces != close_braces:
-            issues.append(f"Unbalanced braces: {open_braces} open, {close_braces} close")
-
-        return len(issues) == 0, issues
+        return result.valid, issues
 
     def auto_fix_output(self, output: str) -> str:
         """
@@ -367,7 +395,37 @@ class AlchemistAgent(BaseAgent):
         Get pre-built effect library for common patterns.
 
         This provides a starting point for the Alchemist.
+        Always includes reduced-motion accessibility wrapper.
         """
+        # === UX Enhancement: Reduced-Motion Accessibility ===
+        # This MUST be included in ALL CSS outputs for accessibility
+        reduced_motion_base = """
+/* ============================================
+   ACCESSIBILITY: Reduced Motion Support
+   WCAG 2.1 SC 2.3.3 - Animation from Interactions
+   ============================================ */
+@media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+        scroll-behavior: auto !important;
+    }
+}
+
+/* Safe animation class - respects user preference */
+.animate-safe {
+    animation-play-state: running;
+}
+@media (prefers-reduced-motion: reduce) {
+    .animate-safe {
+        animation-play-state: paused;
+    }
+}
+"""
+
         effects = {
             "glassmorphism": """
 /* Glassmorphism Effect */
@@ -393,7 +451,9 @@ class AlchemistAgent(BaseAgent):
 }
 """,
             "gradient-animation": """
-/* Gradient Animation */
+/* Gradient Animation
+   EXCEPTION: 3s duration is intentional for ambient background effects.
+   Nielsen Norman: Decorative loops can exceed 500ms optimal range. */
 @keyframes gradient-shift {
     0%, 100% { background-position: 0% 50%; }
     50% { background-position: 100% 50%; }
@@ -404,7 +464,9 @@ class AlchemistAgent(BaseAgent):
 }
 """,
             "morphing-blob": """
-/* Morphing Blob */
+/* Morphing Blob
+   EXCEPTION: 8s duration is intentional for organic ambient effects.
+   Slow, continuous loops don't require user attention. */
 @keyframes blob-morph {
     0%, 100% { border-radius: 60% 40% 30% 70% / 60% 30% 70% 40%; }
     50% { border-radius: 30% 60% 70% 40% / 50% 60% 30% 60%; }
@@ -413,14 +475,46 @@ class AlchemistAgent(BaseAgent):
     animation: blob-morph 8s ease-in-out infinite;
 }
 """,
+            "hover-transitions": """
+/* Standard Hover Transitions (2025 Best Practices) */
+.hover-lift {
+    transition: transform var(--vibe-duration, 300ms) var(--vibe-easing, ease-out);
+}
+.hover-lift:hover {
+    transform: translateY(-4px);
+}
+
+.hover-glow {
+    transition: box-shadow var(--vibe-duration, 300ms) var(--vibe-easing, ease-out);
+}
+.hover-glow:hover {
+    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.12);
+}
+
+.hover-scale {
+    transition: transform var(--vibe-duration, 300ms) var(--vibe-easing, ease-out);
+}
+.hover-scale:hover {
+    transform: scale(1.02);
+}
+""",
         }
 
         theme_effects = {
-            "cyberpunk": ["neon-glow", "gradient-animation"],
-            "glassmorphism": ["glassmorphism", "gradient-animation"],
-            "neo-brutalism": ["morphing-blob"],
-            "dark_mode_first": ["neon-glow", "glassmorphism"],
+            "cyberpunk": ["neon-glow", "gradient-animation", "hover-transitions"],
+            "glassmorphism": ["glassmorphism", "gradient-animation", "hover-transitions"],
+            "neo-brutalism": ["morphing-blob", "hover-transitions"],
+            "dark_mode_first": ["neon-glow", "glassmorphism", "hover-transitions"],
+            "modern-minimal": ["hover-transitions"],
+            "brutalist": ["hover-transitions"],
+            "soft-ui": ["hover-transitions"],
+            "corporate": ["hover-transitions"],
+            "gradient": ["gradient-animation", "hover-transitions"],
+            "startup": ["hover-transitions"],
         }
 
-        effect_names = theme_effects.get(theme, [])
-        return "\n".join(effects.get(name, "") for name in effect_names)
+        effect_names = theme_effects.get(theme, ["hover-transitions"])
+        theme_css = "\n".join(effects.get(name, "") for name in effect_names)
+
+        # Always include reduced-motion accessibility wrapper
+        return reduced_motion_base + theme_css

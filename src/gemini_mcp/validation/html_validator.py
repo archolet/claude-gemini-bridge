@@ -8,6 +8,7 @@ Validates HTML output from The Architect agent for:
 - Semantic structure
 - Responsive class usage
 - No forbidden elements (style, script)
+- WCAG color contrast compliance (optional)
 """
 
 from __future__ import annotations
@@ -16,6 +17,8 @@ import re
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Optional
+
+from gemini_mcp.validation.contrast_checker import check_wcag_compliance
 
 
 class ValidationSeverity(Enum):
@@ -98,14 +101,23 @@ class HTMLValidator:
         "button", "input", "select", "textarea", "a", "form",
     }
 
-    def __init__(self, strict_mode: bool = True):
+    def __init__(
+        self,
+        strict_mode: bool = True,
+        check_contrast: bool = False,
+        wcag_level: str = "AA",
+    ):
         """
         Initialize the validator.
 
         Args:
             strict_mode: If True, warnings become errors
+            check_contrast: If True, validate WCAG color contrast
+            wcag_level: WCAG level for contrast checking - "AA" or "AAA"
         """
         self.strict_mode = strict_mode
+        self.check_contrast = check_contrast
+        self.wcag_level = wcag_level
 
     def validate(self, html: str) -> ValidationResult:
         """
@@ -134,6 +146,10 @@ class HTMLValidator:
         issues.extend(self._check_semantic_structure(html))
         issues.extend(self._check_responsive_classes(html))
         issues.extend(self._check_inline_styles(html))
+
+        # WCAG Contrast check (Phase 6)
+        if self.check_contrast:
+            issues.extend(self._check_color_contrast(html))
 
         # Determine overall validity
         has_errors = any(i.severity == ValidationSeverity.ERROR for i in issues)
@@ -354,6 +370,25 @@ class HTMLValidator:
                 severity=ValidationSeverity.ERROR,
                 message=f"Found {len(inline_styles)} inline style attribute(s)",
                 suggestion="Use Tailwind classes instead of inline styles",
+            ))
+
+        return issues
+
+    def _check_color_contrast(self, html: str) -> list[ValidationIssue]:
+        """Check WCAG color contrast compliance."""
+        issues = []
+
+        # Use contrast_checker to validate
+        contrast_report = check_wcag_compliance(html, level=self.wcag_level)
+
+        for contrast_issue in contrast_report.issues:
+            issues.append(ValidationIssue(
+                severity=ValidationSeverity.WARNING,
+                message=(
+                    f"Contrast ratio {contrast_issue.ratio}:1 fails WCAG {contrast_issue.wcag_level} "
+                    f"({contrast_issue.required_ratio}:1 required) - {contrast_issue.element}"
+                ),
+                suggestion=contrast_issue.suggestion,
             ))
 
         return issues

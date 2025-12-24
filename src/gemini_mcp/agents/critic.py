@@ -88,6 +88,43 @@ class CriticScores:
         )
 
 
+# === CREATIVITY ENHANCEMENT: Reference Adherence Scores ===
+@dataclass
+class ReferenceAdherenceScores:
+    """Scores for reference-based design adherence (1-10 scale)."""
+
+    color_match: float = 5.0       # Colors match the reference palette
+    typography_match: float = 5.0  # Typography matches reference style
+    spacing_match: float = 5.0     # Spacing feels similar to reference
+    aesthetic_match: float = 5.0   # Overall aesthetic similarity
+
+    @property
+    def overall(self) -> float:
+        """Calculate average adherence score."""
+        return (
+            self.color_match + self.typography_match +
+            self.spacing_match + self.aesthetic_match
+        ) / 4.0
+
+    def to_dict(self) -> dict:
+        return {
+            "color_match": self.color_match,
+            "typography_match": self.typography_match,
+            "spacing_match": self.spacing_match,
+            "aesthetic_match": self.aesthetic_match,
+            "overall": round(self.overall, 2),
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "ReferenceAdherenceScores":
+        return cls(
+            color_match=data.get("color_match", 5.0),
+            typography_match=data.get("typography_match", 5.0),
+            spacing_match=data.get("spacing_match", 5.0),
+            aesthetic_match=data.get("aesthetic_match", 5.0),
+        )
+
+
 @dataclass
 class ChangeRecommendations:
     """Recommendations for design changes."""
@@ -632,6 +669,215 @@ IMPORTANT: Output ONLY valid JSON. No markdown, no explanation, just the JSON ob
 
         return scores, improvements
 
+    # === CREATIVITY ENHANCEMENT: Reference Adherence Evaluation ===
+
+    async def evaluate_reference_adherence(
+        self,
+        reference_tokens: dict,
+        generated_html: str,
+        generated_css: str,
+        context: Optional["AgentContext"] = None,
+    ) -> tuple[float, list[str]]:
+        """
+        Evaluate how well generated design matches reference tokens.
+
+        Used in REFERENCE pipeline to ensure design fidelity to image reference.
+
+        Args:
+            reference_tokens: Design tokens from Visionary (colors, typography, etc.)
+            generated_html: HTML output from Architect
+            generated_css: CSS output from Alchemist
+            context: Optional context for thought signature handling
+
+        Returns:
+            Tuple of (overall score 1-10, list of improvement suggestions)
+        """
+        import time
+
+        start_time = time.time()
+
+        try:
+            # Build reference adherence prompt
+            prompt = self._build_reference_adherence_prompt(
+                reference_tokens, generated_html, generated_css
+            )
+
+            # Call Gemini API
+            response = await self.client.generate_text(
+                prompt=prompt,
+                system_instruction=self._get_reference_adherence_system_prompt(),
+                temperature=self.config.temperature,
+                max_output_tokens=self.config.max_output_tokens,
+                thinking_level=self.config.thinking_level,
+            )
+
+            # Extract text and thought signature
+            response_text = response.get("text", "")
+
+            # Add thought signature to context if provided
+            if context and response.get("thought_signature"):
+                context.add_thought_signature(response["thought_signature"])
+
+            # Parse scores and improvements
+            scores, improvements = self._parse_reference_adherence_response(response_text)
+
+            logger.info(
+                f"[Critic] Reference adherence evaluation complete. "
+                f"Overall: {scores:.2f}, Improvements: {len(improvements)}, "
+                f"Time: {(time.time() - start_time) * 1000:.0f}ms"
+            )
+
+            return scores, improvements
+
+        except Exception as e:
+            logger.error(f"[Critic] Reference adherence evaluation failed: {e}")
+            return 5.0, [f"Reference adherence evaluation error: {str(e)}"]
+
+    def _build_reference_adherence_prompt(
+        self,
+        reference_tokens: dict,
+        generated_html: str,
+        generated_css: str,
+    ) -> str:
+        """Build prompt for reference adherence evaluation."""
+        parts = [
+            "## REFERENCE ADHERENCE EVALUATION",
+            "",
+            "Evaluate how well the generated design matches the reference design tokens.",
+            "",
+        ]
+
+        # Reference tokens from Visionary
+        parts.append(f"### Reference Design Tokens\n```json\n{json.dumps(reference_tokens, indent=2)}\n```")
+
+        # Generated HTML (truncate if needed)
+        html_preview = generated_html[:4000] if len(generated_html) > 4000 else generated_html
+        parts.append(f"### Generated HTML\n```html\n{html_preview}\n```")
+
+        # Generated CSS
+        if generated_css:
+            css_preview = generated_css[:3000] if len(generated_css) > 3000 else generated_css
+            parts.append(f"### Generated CSS\n```css\n{css_preview}\n```")
+
+        # Scoring criteria
+        parts.append("""
+### Evaluation Criteria (1-10 scale)
+
+1. **Color Match**: Do the generated colors match the reference palette?
+   - Check background colors, text colors, accent colors
+   - Consider if similar shades/tones are used
+
+2. **Typography Match**: Does typography match reference style?
+   - Font sizes, weights, line heights
+   - Text hierarchy consistency
+
+3. **Spacing Match**: Does spacing feel similar to reference?
+   - Padding, margins, gap values
+   - Overall density and breathing room
+
+4. **Aesthetic Match**: Overall visual similarity?
+   - General mood and feel
+   - Design language consistency
+
+### Output Format
+
+Return JSON with scores and specific improvements:
+```json
+{
+    "scores": {
+        "color_match": 8.0,
+        "typography_match": 7.5,
+        "spacing_match": 8.0,
+        "aesthetic_match": 7.0
+    },
+    "overall": 7.6,
+    "improvements": [
+        "Use bg-indigo-600 instead of bg-blue-600 to match reference palette",
+        "Increase letter-spacing (tracking-wide) to match reference typography",
+        "Add more vertical padding (py-6 → py-8) to match reference spacing"
+    ]
+}
+```
+
+Be specific - reference the exact Tailwind classes or CSS values to change.
+""")
+
+        return "\n".join(parts)
+
+    def _get_reference_adherence_system_prompt(self) -> str:
+        """System prompt for reference adherence evaluation."""
+        return """You are an expert visual design analyst specializing in:
+- Color theory and palette matching
+- Typography systems and hierarchies
+- Spacing and layout consistency
+- Visual design fidelity assessment
+
+Your role is to:
+1. Compare generated design against reference design tokens
+2. Score adherence on a 1-10 scale for each category
+3. Identify specific deviations from reference
+4. Suggest Tailwind CSS classes to improve adherence
+
+Scoring guidance:
+- 9-10: Nearly identical to reference
+- 7-8: Strong adherence with minor deviations
+- 5-6: Moderate adherence, noticeable differences
+- 3-4: Weak adherence, significant differences
+- 1-2: Poor adherence, looks like different design
+
+IMPORTANT: Output ONLY valid JSON. No markdown, no explanation."""
+
+    def _parse_reference_adherence_response(
+        self, response: str
+    ) -> tuple[float, list[str]]:
+        """Parse reference adherence response into score and improvements."""
+        # Try to extract JSON from code blocks
+        json_pattern = r"```(?:json)?\s*(\{[\s\S]*?\})\s*```"
+        matches = re.findall(json_pattern, response)
+
+        parsed_data = None
+        if matches:
+            for match in matches:
+                try:
+                    parsed_data = json.loads(match)
+                    break
+                except json.JSONDecodeError:
+                    continue
+
+        # Try raw JSON if no code blocks
+        if not parsed_data:
+            try:
+                start = response.find("{")
+                end = response.rfind("}") + 1
+                if start != -1 and end > start:
+                    parsed_data = json.loads(response[start:end])
+            except json.JSONDecodeError:
+                pass
+
+        # Parse or use defaults
+        if parsed_data:
+            # Get overall score (or calculate from individual scores)
+            if "overall" in parsed_data:
+                overall = float(parsed_data["overall"])
+            elif "scores" in parsed_data:
+                scores = parsed_data["scores"]
+                overall = (
+                    float(scores.get("color_match", 5.0)) +
+                    float(scores.get("typography_match", 5.0)) +
+                    float(scores.get("spacing_match", 5.0)) +
+                    float(scores.get("aesthetic_match", 5.0))
+                ) / 4.0
+            else:
+                overall = 5.0
+
+            improvements = parsed_data.get("improvements", [])
+        else:
+            logger.warning("[Critic] Could not parse reference adherence response")
+            overall = 5.0
+            improvements = ["Unable to parse evaluation - manual review recommended"]
+
+        return overall, improvements
+
     def quick_evaluate(self, html: str, css: str = "") -> CriticScores:
         """
         Quick heuristic-based evaluation without API call.
@@ -680,3 +926,276 @@ IMPORTANT: Output ONLY valid JSON. No markdown, no explanation, just the JSON ob
             scores.accessibility += 1.5
 
         return scores
+
+    # === CORPORATE QUALITY ENHANCEMENT ===
+
+    async def evaluate_corporate_quality(
+        self,
+        html: str,
+        css: str,
+        industry: str = "consulting",
+        formality: str = "semi-formal",
+        context: Optional["AgentContext"] = None,
+    ) -> tuple[CriticScores, list[str], dict]:
+        """
+        Evaluate design against corporate/professional standards.
+
+        This method extends the standard evaluation with corporate-specific
+        dimensions for enterprise-grade design quality.
+
+        Args:
+            html: HTML content to evaluate
+            css: CSS content to evaluate
+            industry: Industry context (finance, healthcare, legal, tech, manufacturing, consulting)
+            formality: Formality level (formal, semi-formal, approachable)
+            context: Optional context for thought signature handling
+
+        Returns:
+            Tuple of:
+            - CriticScores: Standard 5-dimension scores
+            - list[str]: Improvement suggestions
+            - dict: Corporate-specific metrics including:
+                - brand_consistency: 0-10 score
+                - industry_appropriateness: 0-10 score
+                - formality_adherence: 0-10 score
+                - professional_validator_result: Full validation result
+        """
+        import time
+
+        start_time = time.time()
+
+        # Step 1: Run standard evaluation
+        scores, improvements = await self.evaluate(html, css, "", context)
+
+        # Step 2: Run ProfessionalValidator
+        from gemini_mcp.validation.professional_validator import (
+            ProfessionalValidator,
+            validate_professional,
+        )
+
+        pro_result = validate_professional(
+            html=html,
+            css=css,
+            formality=formality,
+            industry=industry,
+            accessibility_level="AAA" if formality == "formal" else "AA",
+        )
+
+        # Step 3: Build corporate evaluation prompt
+        corporate_prompt = self._build_corporate_evaluation_prompt(
+            html, css, industry, formality, pro_result
+        )
+
+        try:
+            # Call Gemini API for corporate-specific evaluation
+            response = await self.client.generate_text(
+                prompt=corporate_prompt,
+                system_instruction=self._get_corporate_system_prompt(industry, formality),
+                temperature=self.config.temperature,
+                max_output_tokens=self.config.max_output_tokens,
+                thinking_level=self.config.thinking_level,
+            )
+
+            response_text = response.get("text", "")
+
+            # Add thought signature to context
+            if context and response.get("thought_signature"):
+                context.add_thought_signature(response["thought_signature"])
+
+            # Parse corporate metrics
+            corporate_metrics = self._parse_corporate_response(
+                response_text, pro_result
+            )
+
+            # Add professional validator issues to improvements
+            for issue in pro_result.issues:
+                if issue.message not in improvements:
+                    improvements.append(f"[{formality.upper()}] {issue.message}")
+
+            # Add recommendations
+            for rec in pro_result.recommendations[:3]:  # Limit to top 3
+                improvements.append(f"[REC] {rec}")
+
+            logger.info(
+                f"[Critic] Corporate evaluation complete. "
+                f"Industry: {industry}, Formality: {formality}, "
+                f"Pro Score: {pro_result.overall_score:.1f}/100, "
+                f"Time: {(time.time() - start_time) * 1000:.0f}ms"
+            )
+
+            return scores, improvements, corporate_metrics
+
+        except Exception as e:
+            logger.error(f"[Critic] Corporate evaluation failed: {e}")
+            # Return basic metrics from ProfessionalValidator
+            return scores, improvements, {
+                "brand_consistency": 5.0,
+                "industry_appropriateness": 5.0,
+                "formality_adherence": 5.0,
+                "professional_validator_result": pro_result.to_dict(),
+                "error": str(e),
+            }
+
+    def _build_corporate_evaluation_prompt(
+        self,
+        html: str,
+        css: str,
+        industry: str,
+        formality: str,
+        pro_result,
+    ) -> str:
+        """Build prompt for corporate quality evaluation."""
+        # Truncate if too long
+        html_preview = html[:4000] if len(html) > 4000 else html
+        css_preview = css[:2000] if len(css) > 2000 else css
+
+        return f"""## CORPORATE DESIGN QUALITY EVALUATION
+
+### Context
+- **Industry**: {industry}
+- **Formality Level**: {formality}
+- **Professional Validator Score**: {pro_result.overall_score:.1f}/100
+- **Issues Found**: {pro_result.error_count} errors, {pro_result.warning_count} warnings
+
+### Design to Evaluate
+
+**HTML:**
+```html
+{html_preview}
+```
+
+**CSS:**
+```css
+{css_preview}
+```
+
+### Professional Validator Dimension Scores
+{chr(10).join(f'- {name}: {dim.score:.0f}/100' for name, dim in pro_result.dimension_scores.items())}
+
+### Evaluation Criteria
+
+Rate each dimension 1-10:
+
+1. **Brand Consistency** (Does design feel unified and professional?)
+   - Color palette cohesion
+   - Typography consistency
+   - Visual language uniformity
+
+2. **Industry Appropriateness** (Does design fit {industry} expectations?)
+   - Industry-standard patterns
+   - Trust indicators (if needed)
+   - Appropriate imagery/iconography choices
+
+3. **Formality Adherence** (Does design match {formality} level?)
+   - Animation appropriateness
+   - Color vibrancy level
+   - Typography weight/style
+   - Overall professional tone
+
+### Output Format
+
+Return ONLY valid JSON:
+```json
+{{
+    "brand_consistency": 8.0,
+    "industry_appropriateness": 7.5,
+    "formality_adherence": 8.0,
+    "corporate_improvements": [
+        "Specific improvement 1",
+        "Specific improvement 2"
+    ]
+}}
+```
+"""
+
+    def _get_corporate_system_prompt(self, industry: str, formality: str) -> str:
+        """System prompt for corporate evaluation."""
+        industry_context = {
+            "finance": "banks, insurance, investment firms - trust, security, precision",
+            "healthcare": "hospitals, medical practices - calm, caring, accessible",
+            "legal": "law firms, legal services - authoritative, prestigious, traditional",
+            "tech": "software companies, SaaS - innovative, clean, modern",
+            "manufacturing": "industrial, B2B - reliable, practical, efficient",
+            "consulting": "advisory firms, agencies - professional, knowledgeable, refined",
+        }
+
+        formality_context = {
+            "formal": "Fortune 500, conservative, serif typography, minimal animation, muted colors",
+            "semi-formal": "Professional but approachable, balanced design, moderate animation",
+            "approachable": "Startup-friendly, energetic, allows more creative expression",
+        }
+
+        return f"""You are an expert corporate design evaluator specializing in:
+- Enterprise UI/UX standards
+- Industry-specific design patterns
+- Professional brand consistency
+- Corporate visual identity
+
+Context for this evaluation:
+- Industry: {industry} ({industry_context.get(industry, 'professional sector')})
+- Formality: {formality} ({formality_context.get(formality, 'professional standards')})
+
+Evaluate the design against these corporate standards.
+Be specific in your feedback - reference exact CSS classes or HTML elements.
+IMPORTANT: Output ONLY valid JSON. No markdown formatting, no explanation."""
+
+    def _parse_corporate_response(
+        self, response: str, pro_result
+    ) -> dict:
+        """Parse corporate evaluation response."""
+        # Try to extract JSON
+        json_pattern = r"```(?:json)?\s*(\{[\s\S]*?\})\s*```"
+        matches = re.findall(json_pattern, response)
+
+        parsed_data = None
+        if matches:
+            for match in matches:
+                try:
+                    parsed_data = json.loads(match)
+                    break
+                except json.JSONDecodeError:
+                    continue
+
+        # Try raw JSON if no code blocks
+        if not parsed_data:
+            try:
+                start = response.find("{")
+                end = response.rfind("}") + 1
+                if start != -1 and end > start:
+                    parsed_data = json.loads(response[start:end])
+            except json.JSONDecodeError:
+                pass
+
+        # Build result
+        if parsed_data:
+            result = {
+                "brand_consistency": float(parsed_data.get("brand_consistency", 5.0)),
+                "industry_appropriateness": float(parsed_data.get("industry_appropriateness", 5.0)),
+                "formality_adherence": float(parsed_data.get("formality_adherence", 5.0)),
+                "corporate_improvements": parsed_data.get("corporate_improvements", []),
+                "professional_validator_result": pro_result.to_dict(),
+            }
+        else:
+            logger.warning("[Critic] Could not parse corporate response")
+            result = {
+                "brand_consistency": 5.0,
+                "industry_appropriateness": 5.0,
+                "formality_adherence": 5.0,
+                "corporate_improvements": [],
+                "professional_validator_result": pro_result.to_dict(),
+            }
+
+        # Calculate aggregate corporate score
+        result["corporate_score"] = (
+            result["brand_consistency"] +
+            result["industry_appropriateness"] +
+            result["formality_adherence"]
+        ) / 3.0
+
+        # Is it corporate-grade?
+        result["is_corporate_grade"] = (
+            result["corporate_score"] >= 7.0 and
+            pro_result.is_professional
+        )
+
+        return result

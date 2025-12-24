@@ -28,6 +28,7 @@ from typing import TYPE_CHECKING, Optional
 
 from gemini_mcp.agents.base import AgentConfig, AgentResult, AgentRole, BaseAgent
 from gemini_mcp.prompts import PHYSICIST_SYSTEM_PROMPT
+from gemini_mcp.validation import JSValidator
 
 if TYPE_CHECKING:
     from gemini_mcp.client import GeminiClient
@@ -60,6 +61,8 @@ class PhysicistAgent(BaseAgent):
         """
         super().__init__(config)
         self.client = client
+        # Phase 3: Centralized Validator Integration
+        self._js_validator = JSValidator(strict_mode=False)
 
     @classmethod
     def _default_config(cls) -> AgentConfig:
@@ -158,6 +161,25 @@ class PhysicistAgent(BaseAgent):
         if context.theme:
             parts.append(f"## Theme\n{context.theme}")
 
+        # === UX Enhancement: Vibe Animation Parameters ===
+        # Ensures all JS animations use consistent timing/easing across the design
+        if context.vibe or context.vibe_timing != "300ms":
+            vibe_section = "## Animation Timing (MUST FOLLOW)\n"
+            vibe_section += f"- **Duration**: {context.vibe_timing} (use for all transitions)\n"
+            vibe_section += f"- **Easing**: {context.vibe_easing}\n"
+            vibe_section += f"- **Intensity**: {context.vibe_intensity}\n"
+            if context.vibe:
+                vibe_section += f"- **Vibe**: {context.vibe}\n"
+            vibe_section += "\n**CRITICAL**: All requestAnimationFrame lerp factors and "
+            vibe_section += "setTimeout delays MUST align with these timing values.\n"
+            vibe_section += "Example: For 300ms duration, use lerp factor ~0.1 (reaches 95% in ~300ms)"
+            parts.append(vibe_section)
+
+        # Pass vibe CSS variables for dynamic styling
+        if context.vibe_css_variables:
+            css_vars = [f"{k}: {v}" for k, v in context.vibe_css_variables.items()]
+            parts.append(f"## Vibe CSS Variables (Reference Only)\n{chr(10).join(css_vars)}")
+
         # Available element IDs - critical for targeting
         ids_to_target = []
 
@@ -189,6 +211,45 @@ class PhysicistAgent(BaseAgent):
             }
             dna_json = json.dumps(animation_dna, indent=2, ensure_ascii=False)
             parts.append(f"## Animation Style (From DNA)\n{dna_json}")
+
+        # === Phase 1: Few-Shot Examples ===
+        # JS examples to guide interaction implementation
+        if context.few_shot_examples:
+            examples_section = "## REFERENCE JS EXAMPLES (Follow This Quality Level)\n"
+            for i, example in enumerate(context.few_shot_examples, 1):
+                example_type = example.get("component_type", "example")
+                example_js = example.get("js", "")
+                if example_js:
+                    examples_section += f"\n### Example {i}: {example_type.upper()} Interactions\n"
+                    examples_section += f"```javascript\n{example_js[:1500]}\n```\n"
+            if "Example 1:" in examples_section:  # Only add if we have actual JS
+                parts.append(examples_section)
+
+        # === UX Enhancement: Micro-Interaction Presets ===
+        # Provides preset definitions for JS implementation
+        if context.micro_interaction_presets:
+            presets_section = "## MICRO-INTERACTION PRESETS (Implement as JS)\n"
+            presets_section += "Handle these data-interaction attributes with JS:\n\n"
+            # Show presets that need JS implementation
+            js_presets = [
+                ("hover_lift", "translateY(-4px) on hover"),
+                ("hover_scale", "scale(1.05) on hover, scale(0.95) on click"),
+                ("magnetic", "element follows cursor with easing"),
+                ("shimmer", "gradient animation sweep"),
+                ("parallax", "scroll-based Y translation"),
+                ("scroll_reveal", "fade/slide in on viewport enter"),
+            ]
+            for name, behavior in js_presets:
+                if name in context.micro_interaction_presets:
+                    preset = context.micro_interaction_presets[name]
+                    desc = preset.get("description", behavior)
+                    presets_section += f"**data-interaction=\"{name}\"**: {desc}\n"
+            presets_section += "\n**RULES**:\n"
+            presets_section += f"1. Use {context.vibe_timing} duration for all animations\n"
+            presets_section += f"2. Use {context.vibe_easing} easing curve\n"
+            presets_section += "3. Check `shouldAnimate()` before running animations\n"
+            presets_section += "4. Use lerp factor matching the duration (300ms → 0.1)"
+            parts.append(presets_section)
 
         # CSS variables available (for dynamic styling)
         if context.compressed and context.compressed.css_variables:
@@ -309,71 +370,26 @@ class PhysicistAgent(BaseAgent):
         """
         Validate JavaScript output against Physicist constraints.
 
-        Checks:
-        1. No framework imports
-        2. No library usage
-        3. No unsafe patterns
-        4. No global namespace pollution
-        5. Basic syntax validity
+        Uses centralized JSValidator for comprehensive checks:
+        1. No framework/library imports
+        2. No global namespace pollution
+        3. No unsafe code patterns (eval, dynamic Function)
+        4. Basic syntax validity
+        5. Performance patterns (rAF, throttle)
+        6. Error handling (try-catch)
+        7. Event listener cleanup
         """
-        issues: list[str] = []
+        # Phase 3: Use centralized JSValidator
+        result = self._js_validator.validate(output)
 
-        if not output or not output.strip():
-            # Empty JS is valid - not all components need JS
-            return True, []
-
-        # Check for frameworks/libraries
-        forbidden_imports = [
-            (r"\bimport\s+.*from\s+['\"]react", "React import detected"),
-            (r"\bimport\s+.*from\s+['\"]vue", "Vue import detected"),
-            (r"\bimport\s+.*from\s+['\"]angular", "Angular import detected"),
-            (r"\bimport\s+.*from\s+['\"]jquery", "jQuery import detected"),
-            (r"\bimport\s+.*from\s+['\"]gsap", "GSAP import detected"),
-            (r"\brequire\s*\(\s*['\"]react", "React require detected"),
-            (r"\$\s*\(", "jQuery usage detected"),
-            (r"\bjQuery\s*\(", "jQuery usage detected"),
-            (r"\bgsap\.", "GSAP usage detected"),
-            (r"\bTweenMax\.", "GSAP TweenMax detected"),
-            (r"\bReact\.", "React usage detected"),
-            (r"\bVue\.", "Vue usage detected"),
-            (r"\bAngular\.", "Angular usage detected"),
+        # Convert ValidationResult to tuple[bool, list[str]] for backward compatibility
+        issues = [
+            issue.message
+            for issue in result.issues
+            if issue.severity.value == "error"  # Only report errors as issues
         ]
 
-        for pattern, message in forbidden_imports:
-            if re.search(pattern, output, re.IGNORECASE):
-                issues.append(f"Framework/library detected: {message}")
-
-        # Check for global pollution
-        global_patterns = [
-            (r"^\s*window\.\w+\s*=", "Global window property assignment"),
-            (r"^\s*var\s+\w+\s*=", "Global var declaration (use const/let in IIFE)"),
-        ]
-        for pattern, message in global_patterns:
-            if re.search(pattern, output, re.MULTILINE):
-                issues.append(f"Global pollution: {message}")
-
-        # Check for HTML/CSS in output
-        if re.search(r"<[a-z]+[^>]*>", output, re.IGNORECASE):
-            if not re.search(r"['\"`].*<.*>.*['\"`]", output):  # Not in a string
-                issues.append("Contains HTML elements - Physicist only outputs JS")
-
-        # Basic syntax check - balanced braces/brackets
-        open_braces = output.count("{")
-        close_braces = output.count("}")
-        if open_braces != close_braces:
-            issues.append(f"Unbalanced braces: {open_braces} open, {close_braces} close")
-
-        open_brackets = output.count("[")
-        close_brackets = output.count("]")
-        if open_brackets != close_brackets:
-            issues.append(f"Unbalanced brackets: {open_brackets} open, {close_brackets} close")
-
-        open_parens = output.count("(")
-        close_parens = output.count(")")
-        if open_parens != close_parens:
-            issues.append(f"Unbalanced parentheses: {open_parens} open, {close_parens} close")
-
-        return len(issues) == 0, issues
+        return result.valid, issues
 
     def auto_fix_output(self, output: str) -> str:
         """
@@ -406,96 +422,129 @@ class PhysicistAgent(BaseAgent):
         Get pre-built interaction patterns for common use cases.
 
         Returns a dictionary of pattern name to code snippet.
+        All patterns include reduced-motion accessibility checks.
         """
         return {
-            "scroll-reveal": """
-// Scroll Reveal with IntersectionObserver
-const revealObserver = new IntersectionObserver((entries) => {
-  entries.forEach(entry => {
-    if (entry.isIntersecting) {
-      entry.target.classList.add('revealed');
-      entry.target.style.opacity = '1';
-      entry.target.style.transform = 'translateY(0)';
-    }
-  });
-}, { threshold: 0.1, rootMargin: '0px 0px -50px 0px' });
+            "reduced-motion-utils": """
+// ============================================
+// ACCESSIBILITY: Reduced Motion Utilities
+// WCAG 2.1 SC 2.3.3 - Animation from Interactions
+// ============================================
+const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-document.querySelectorAll('[data-reveal]').forEach(el => {
-  el.style.opacity = '0';
-  el.style.transform = 'translateY(20px)';
-  el.style.transition = 'opacity 0.6s ease, transform 0.6s ease';
-  revealObserver.observe(el);
+// Helper to check reduced motion preference
+function shouldAnimate() {
+  return !window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+}
+
+// Listen for preference changes (user might toggle during session)
+window.matchMedia('(prefers-reduced-motion: reduce)').addEventListener('change', (e) => {
+  document.body.classList.toggle('reduce-motion', e.matches);
 });
+""",
+            "scroll-reveal": """
+// Scroll Reveal with IntersectionObserver (Reduced-Motion Safe)
+if (shouldAnimate()) {
+  const revealObserver = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting) {
+        entry.target.classList.add('revealed');
+        entry.target.style.opacity = '1';
+        entry.target.style.transform = 'translateY(0)';
+      }
+    });
+  }, { threshold: 0.1, rootMargin: '0px 0px -50px 0px' });
+
+  document.querySelectorAll('[data-reveal]').forEach(el => {
+    el.style.opacity = '0';
+    el.style.transform = 'translateY(20px)';
+    el.style.transition = 'opacity 400ms ease-out, transform 400ms ease-out';
+    revealObserver.observe(el);
+  });
+} else {
+  // Reduced motion: Show immediately without animation
+  document.querySelectorAll('[data-reveal]').forEach(el => {
+    el.style.opacity = '1';
+    el.classList.add('revealed');
+  });
+}
 """,
             "parallax": """
-// Mouse Parallax Effect
-const parallaxElements = document.querySelectorAll('[data-parallax]');
-let mouseX = 0, mouseY = 0;
-let currentX = 0, currentY = 0;
+// Mouse Parallax Effect (Reduced-Motion Safe)
+if (shouldAnimate()) {
+  const parallaxElements = document.querySelectorAll('[data-parallax]');
+  let mouseX = 0, mouseY = 0;
+  let currentX = 0, currentY = 0;
 
-document.addEventListener('mousemove', (e) => {
-  mouseX = (e.clientX / window.innerWidth - 0.5) * 2;
-  mouseY = (e.clientY / window.innerHeight - 0.5) * 2;
-});
-
-function animateParallax() {
-  currentX += (mouseX - currentX) * 0.1;
-  currentY += (mouseY - currentY) * 0.1;
-
-  parallaxElements.forEach(el => {
-    const depth = parseFloat(el.dataset.parallax) || 20;
-    const x = currentX * depth;
-    const y = currentY * depth;
-    el.style.transform = `translate3d(${x}px, ${y}px, 0)`;
+  document.addEventListener('mousemove', (e) => {
+    mouseX = (e.clientX / window.innerWidth - 0.5) * 2;
+    mouseY = (e.clientY / window.innerHeight - 0.5) * 2;
   });
 
-  requestAnimationFrame(animateParallax);
+  function animateParallax() {
+    // Lerp factor 0.1 = ~300ms to reach 95%
+    currentX += (mouseX - currentX) * 0.1;
+    currentY += (mouseY - currentY) * 0.1;
+
+    parallaxElements.forEach(el => {
+      const depth = parseFloat(el.dataset.parallax) || 20;
+      const x = currentX * depth;
+      const y = currentY * depth;
+      el.style.transform = `translate3d(${x}px, ${y}px, 0)`;
+    });
+
+    requestAnimationFrame(animateParallax);
+  }
+  animateParallax();
 }
-animateParallax();
 """,
             "magnetic-button": """
-// Magnetic Button Effect
-document.querySelectorAll('[data-magnetic]').forEach(button => {
-  button.addEventListener('mousemove', (e) => {
-    const rect = button.getBoundingClientRect();
-    const x = e.clientX - rect.left - rect.width / 2;
-    const y = e.clientY - rect.top - rect.height / 2;
+// Magnetic Button Effect (Reduced-Motion Safe)
+if (shouldAnimate()) {
+  document.querySelectorAll('[data-magnetic]').forEach(button => {
+    button.addEventListener('mousemove', (e) => {
+      const rect = button.getBoundingClientRect();
+      const x = e.clientX - rect.left - rect.width / 2;
+      const y = e.clientY - rect.top - rect.height / 2;
 
-    button.style.transform = `translate(${x * 0.3}px, ${y * 0.3}px)`;
-  });
+      button.style.transform = `translate(${x * 0.3}px, ${y * 0.3}px)`;
+    });
 
-  button.addEventListener('mouseleave', () => {
-    button.style.transform = 'translate(0, 0)';
-    button.style.transition = 'transform 0.3s ease';
-  });
+    button.addEventListener('mouseleave', () => {
+      button.style.transform = 'translate(0, 0)';
+      button.style.transition = 'transform 200ms ease-out';
+    });
 
-  button.addEventListener('mouseenter', () => {
-    button.style.transition = 'none';
+    button.addEventListener('mouseenter', () => {
+      button.style.transition = 'none';
+    });
   });
-});
+}
 """,
             "tilt-effect": """
-// 3D Tilt Effect
-document.querySelectorAll('[data-tilt]').forEach(card => {
-  card.addEventListener('mousemove', (e) => {
-    const rect = card.getBoundingClientRect();
-    const x = (e.clientX - rect.left) / rect.width;
-    const y = (e.clientY - rect.top) / rect.height;
+// 3D Tilt Effect (Reduced-Motion Safe)
+if (shouldAnimate()) {
+  document.querySelectorAll('[data-tilt]').forEach(card => {
+    card.addEventListener('mousemove', (e) => {
+      const rect = card.getBoundingClientRect();
+      const x = (e.clientX - rect.left) / rect.width;
+      const y = (e.clientY - rect.top) / rect.height;
 
-    const tiltX = (y - 0.5) * 20;
-    const tiltY = (x - 0.5) * -20;
+      const tiltX = (y - 0.5) * 20;
+      const tiltY = (x - 0.5) * -20;
 
-    card.style.transform = `perspective(1000px) rotateX(${tiltX}deg) rotateY(${tiltY}deg)`;
+      card.style.transform = `perspective(1000px) rotateX(${tiltX}deg) rotateY(${tiltY}deg)`;
+    });
+
+    card.addEventListener('mouseleave', () => {
+      card.style.transform = 'perspective(1000px) rotateX(0) rotateY(0)';
+      card.style.transition = 'transform 300ms ease-out';
+    });
   });
-
-  card.addEventListener('mouseleave', () => {
-    card.style.transform = 'perspective(1000px) rotateX(0) rotateY(0)';
-    card.style.transition = 'transform 0.5s ease';
-  });
-});
+}
 """,
             "throttle": """
-// Throttle Utility
+// Throttle Utility (Performance Optimization)
 function throttle(fn, delay) {
   let lastCall = 0;
   return function(...args) {

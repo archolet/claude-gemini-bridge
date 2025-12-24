@@ -63,6 +63,17 @@ from .theme_factories import (
     # Utility Functions
     validate_contrast,
     list_gradients_by_category,
+    # === Vibe Compatibility Functions (Enhancement) ===
+    get_recommended_vibes,
+    get_vibe_compatibility,
+    # === Corporate Presets (One-Click Setup) ===
+    CORPORATE_PRESETS,
+    get_corporate_preset,
+    list_corporate_presets,
+    apply_corporate_preset,
+    # === Formality Typography ===
+    FORMALITY_TYPOGRAPHY,
+    get_formality_typography,
     # Constants - Presets
     BRUTALIST_CONTRAST_PAIRS,
     NEOBRUTALISM_GRADIENTS,
@@ -115,6 +126,8 @@ from .orchestration import (
     PipelineType,
     PipelineResult,
     get_orchestrator,
+    # === Quality Target (Corporate Quality Enhancement) ===
+    QualityTarget,
 )
 
 # GAP 4, 5, 6: Validation Layer
@@ -368,6 +381,9 @@ async def run_trifecta_pipeline(
     content_language: str = "tr",
     previous_html: str = "",
     modification_request: str = "",
+    quality_target: str = "production",  # NEW: Quality target for validation
+    industry: str = "",  # NEW: Industry context for corporate designs
+    formality: str = "",  # NEW: Formality level for corporate designs
     **kwargs,
 ) -> dict:
     """Run a Trifecta multi-agent pipeline for design generation.
@@ -385,6 +401,9 @@ async def run_trifecta_pipeline(
         content_language: Output language (tr, en, de)
         previous_html: Previous HTML for chain/refine pipelines
         modification_request: User's modification request (for REFINE pipeline)
+        quality_target: Quality level - "draft", "production", "standard", "high", "premium", "enterprise"
+        industry: Industry context (finance, healthcare, legal, tech, manufacturing, consulting)
+        formality: Formality level (formal, semi-formal, approachable)
         **kwargs: Additional pipeline-specific parameters
 
     Returns:
@@ -395,9 +414,16 @@ async def run_trifecta_pipeline(
         client = get_gemini_client()
         orchestrator = get_orchestrator(client)
 
-        # Build AgentContext
+        # Parse quality_target string to QualityTarget enum
+        try:
+            quality_target_enum = QualityTarget(quality_target.lower())
+        except ValueError:
+            quality_target_enum = QualityTarget.PRODUCTION
+            logger.warning(f"Invalid quality_target '{quality_target}', using PRODUCTION")
+
+        # Build AgentContext with quality target
         agent_context = AgentContext(
-            pipeline_type=pipeline_type,
+            pipeline_type=pipeline_type.value,  # Convert enum to string for JSON serialization
             component_type=component_type,
             theme=theme,
             style_guide=style_guide or {},
@@ -407,7 +433,37 @@ async def run_trifecta_pipeline(
             content_language=content_language,
             previous_output=previous_html,
             modification_request=modification_request,
+            quality_target=quality_target_enum,  # NEW: Quality target
         )
+
+        # Add industry/formality context if provided
+        if industry:
+            agent_context.metadata["industry"] = industry
+        if formality:
+            agent_context.metadata["formality"] = formality
+
+        # === UX Enhancement: Propagate Vibe Animation Parameters ===
+        # Extract vibe data from style_guide and pass to context for agent consistency
+        if style_guide:
+            # Pass vibe name
+            if "vibe" in style_guide:
+                agent_context.vibe = style_guide["vibe"]
+
+            # Pass vibe CSS variables
+            if "css_variables" in style_guide:
+                agent_context.vibe_css_variables = style_guide["css_variables"]
+                # Extract timing and easing from CSS variables
+                css_vars = style_guide["css_variables"]
+                if "--vibe-duration" in css_vars:
+                    agent_context.vibe_timing = css_vars["--vibe-duration"]
+                if "--vibe-easing" in css_vars:
+                    agent_context.vibe_easing = css_vars["--vibe-easing"]
+
+            # Pass vibe intensity from vibe_specs if available
+            if "vibe_specs" in style_guide:
+                vibe_specs = style_guide["vibe_specs"]
+                if "intensity" in vibe_specs:
+                    agent_context.vibe_intensity = vibe_specs["intensity"]
 
         # Log pipeline start
         logger.info(
@@ -639,20 +695,23 @@ def build_advanced_style_guide(
     
     # 2. Add Vibe Specifications if requested
     if vibe:
-        from .theme_factories import get_vibe_specs
+        from .theme_factories import (
+            get_vibe_specs,
+            get_vibe_animation_config,
+            get_vibe_css_variables,
+        )
         vibe_specs = get_vibe_specs(vibe)
+        vibe_animation = get_vibe_animation_config(vibe)
         style_guide["vibe_specs"] = vibe_specs
+        style_guide["vibe_animation"] = vibe_animation
         style_guide["vibe"] = vibe
-        
-        # Inject vibe-specific CSS variables
+
+        # Inject comprehensive vibe CSS variables (2025 UX Enhancement)
         if "css_variables" not in style_guide:
             style_guide["css_variables"] = {}
-        
-        style_guide["css_variables"].update({
-            "--vibe-easing": vibe_specs.get("easing", "ease-in-out"),
-            "--vibe-duration": vibe_specs.get("duration", "300ms"),
-            "--vibe-shadow-glow": vibe_specs.get("shadow_glow", "transparent"),
-        })
+
+        # Use new centralized CSS variables generator
+        style_guide["css_variables"].update(get_vibe_css_variables(vibe))
         
     return style_guide
 
@@ -778,6 +837,11 @@ async def design_frontend(
     # AUTO PREVIEW - Open in browser automatically
     # =================================================================
     auto_preview: bool = True,
+    # =================================================================
+    # CORPORATE QUALITY ENHANCEMENT - One-Click Enterprise Setup
+    # =================================================================
+    corporate_preset: str = "",  # One-click: "enterprise_bank", "saas_enterprise", etc.
+    quality_target: str = "production",  # "draft", "production", "high", "premium", "enterprise"
 ) -> dict:
     """Design a frontend UI component using Gemini 3 Pro.
 
@@ -908,9 +972,30 @@ async def design_frontend(
             eco_friendly_mode: True for simpler visuals (less energy)
         
         STARTUP:
-            archetype: "disruptor", "enterprise", "consumer", "fintech", 
+            archetype: "disruptor", "enterprise", "consumer", "fintech",
                       "healthtech", "ai_ml", "sustainability"
             startup_stage: "seed" (bold), "growth" (balanced), "scale" (refined)
+
+        --- CORPORATE QUALITY ENHANCEMENT ---
+
+        corporate_preset: One-click enterprise configuration. Options:
+            - "enterprise_bank": Finance, formal, WCAG AAA, premium quality
+            - "fintech_startup": Finance, semi-formal, modern layout
+            - "hospital_portal": Healthcare, formal, WCAG AAA
+            - "law_firm": Legal, editorial layout, luxury_editorial vibe
+            - "saas_enterprise": Tech, semi-formal, premium quality
+            - "developer_tools": Tech, approachable, cyberpunk_edge vibe
+            - "industrial_b2b": Manufacturing, traditional layout
+            - "management_consulting": Consulting, editorial, luxury_editorial
+            - "boutique_agency": Consulting, modern, semi-formal
+
+        quality_target: Quality level for validation strictness. Options:
+            - "draft": Fast output (threshold: 6.0, 1 iteration)
+            - "production": Standard (threshold: 7.0, 2 iterations) [default]
+            - "standard": Same as production
+            - "high": With Critic (threshold: 8.0, 3 iterations)
+            - "premium": With Professional Validator (threshold: 8.5, 4 iterations)
+            - "enterprise": Full corporate evaluation (threshold: 9.0, 5 iterations)
 
     Returns:
         Dict containing:
@@ -947,19 +1032,70 @@ async def design_frontend(
             theme="brutalist",
             contrast_mode="maximum"  # WCAG AAA+
         )
+
+        # Corporate Preset - One-Click Enterprise Setup
+        design_frontend(
+            component_type="hero",
+            corporate_preset="enterprise_bank",  # Auto-sets: finance, formal, premium
+            use_trifecta=True  # Recommended for enterprise quality
+        )
+
+        # Enterprise Quality with Custom Settings
+        design_frontend(
+            component_type="pricing_table",
+            theme="corporate",
+            industry="healthcare",
+            formality="formal",
+            quality_target="enterprise",  # WCAG AAA, 5 iterations, full validation
+            use_trifecta=True
+        )
     """
     
     # Capture inputs for metadata
     input_params = locals()
     input_params.pop("context", None) # Keep it cleaner
     
+    # =========================================================================
+    # CORPORATE PRESET APPLICATION
+    # If corporate_preset is provided, apply one-click configuration
+    # =========================================================================
+    _applied_preset = None
+    if corporate_preset:
+        preset_config = get_corporate_preset(corporate_preset)
+        _applied_preset = corporate_preset
+        logger.info(f"[Corporate] Applying preset '{corporate_preset}': {preset_config}")
+
+        # Override parameters from preset (if not explicitly set by user)
+        theme = "corporate"  # Corporate presets always use corporate theme
+        industry = preset_config.get("industry", industry)
+        layout_style = preset_config.get("layout", layout_style)
+        formality = preset_config.get("formality", formality)
+
+        # Vibe override (only if not explicitly set)
+        if not vibe:
+            vibe = preset_config.get("vibe", "elite_corporate")
+
+        # Quality target override (only if using default)
+        if quality_target == "production":
+            quality_target = preset_config.get("quality_target", "high")
+
+        # Accessibility level override
+        preset_accessibility = preset_config.get("accessibility_level", "")
+        if preset_accessibility:
+            accessibility_level = preset_accessibility
+
+        logger.info(
+            f"[Corporate] Applied: industry={industry}, formality={formality}, "
+            f"quality_target={quality_target}, vibe={vibe}"
+        )
+
     logger.info(f"Designing {component_type} with theme {theme} (Vibe: {vibe})")
-    
+
     # Project Context Management
     project_name = "default"
     # Extract project name from context if possible, or use default
     # Future improvement: Add explicit project_name param
-    
+
     # 1. Build Style Guide using Advanced Factory
     style_guide = build_advanced_style_guide(
         theme=theme,
@@ -993,7 +1129,11 @@ async def design_frontend(
             content_structure=content_structure,
             context=context,
             project_context=project_context,
-            content_language=content_language
+            content_language=content_language,
+            # Corporate Quality Enhancement
+            quality_target=quality_target,
+            industry=industry,
+            formality=formality,
         )
         
         # SAVE DRAFT AUTOMATICALLY
@@ -1023,6 +1163,20 @@ async def design_frontend(
                      content=result["js_output"], extension="js", 
                      project_name=project_name, component_type=component_type
                  )
+
+        # === Vibe Recommendations (Enhancement) ===
+        result["recommended_vibes"] = get_recommended_vibes(theme)
+        result["vibe_compatibility"] = get_vibe_compatibility(theme, vibe) if vibe else None
+
+        # === Corporate Quality Enhancement Metadata ===
+        if _applied_preset:
+            result["corporate_preset"] = _applied_preset
+            result["corporate_config"] = {
+                "industry": industry,
+                "formality": formality,
+                "quality_target": quality_target,
+            }
+        result["quality_target"] = quality_target
 
         return result
 
@@ -1149,6 +1303,10 @@ async def design_frontend(
             logger.warning(f"Auto-preview failed: {e}")
             result["_preview_opened"] = False
             result["_preview_error"] = str(e)
+
+    # === Vibe Recommendations (Enhancement) ===
+    result["recommended_vibes"] = get_recommended_vibes(theme)
+    result["vibe_compatibility"] = get_vibe_compatibility(theme, vibe) if vibe else None
 
     return result
 
