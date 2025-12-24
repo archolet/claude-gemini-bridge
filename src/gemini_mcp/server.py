@@ -13,6 +13,7 @@ Provides frontend design tools powered by Gemini models on Vertex AI:
 
 import json
 import logging
+import re
 
 # GAP 7: State Management & Persistence
 from .state import draft_manager
@@ -82,6 +83,7 @@ from .section_utils import (
     replace_section,
     list_sections,
     extract_design_tokens_from_section,
+    extract_design_tokens_batch,  # Performance: single-pass token extraction
     wrap_content_with_markers,
     has_section_markers,
     # GAP 2: Section Marker Enforcement
@@ -138,6 +140,12 @@ from .validators import (
 # Logger instance - configured in main() to use stderr (not stdout)
 # IMPORTANT: Do NOT use logging.basicConfig() here - it breaks MCP stdio protocol
 logger = logging.getLogger(__name__)
+
+# =============================================================================
+# PRECOMPILED PATTERNS - Performance optimization (Issue 8)
+# =============================================================================
+# Pattern for extracting body content from HTML documents
+_BODY_CONTENT_PATTERN = re.compile(r'<body[^>]*>(.*?)</body>', re.DOTALL)
 
 
 # =============================================================================
@@ -1197,12 +1205,10 @@ def compile_project_drafts(project_name: str, output_filename: str = "index.html
         try:
             with open(path, 'r', encoding='utf-8') as f:
                 content = f.read()
-                # Strip <html> tags if full page
-                if "<body" in content:
-                    import re
-                    match = re.search(r'<body[^>]*>(.*?)</body>', content, re.DOTALL)
-                    if match:
-                        content = match.group(1)
+                # Strip <html> tags if full page (using precompiled pattern)
+                body_match = _BODY_CONTENT_PATTERN.search(content)
+                if body_match:
+                    content = body_match.group(1)
                 combined_html += f"\n<!-- SECTION: {c_type} -->\n{content}\n"
         except Exception as e:
             combined_html += f"\n<!-- FAILED TO LOAD {c_type}: {e} -->\n"
@@ -2151,16 +2157,16 @@ async def replace_section_in_page(
         # 3. Extract current section content
         current_section = extract_section(page_html, section_type)
 
-        # 4. Extract design tokens for consistency
+        # 4. Extract design tokens for consistency (single-pass batch extraction)
         design_tokens = {}
         if preserve_design_tokens:
-            # Try to extract tokens from adjacent sections for consistency
+            # Extract all tokens in single pass, excluding the section we're replacing
+            all_tokens = extract_design_tokens_batch(page_html, exclude_section=section_type)
+            # Use tokens from first available section (priority order from available_sections)
             for section_name in available_sections:
-                if section_name != section_type:
-                    tokens = extract_design_tokens_from_section(page_html, section_name)
-                    if tokens:
-                        design_tokens = tokens
-                        break
+                if section_name in all_tokens and all_tokens[section_name]:
+                    design_tokens = all_tokens[section_name]
+                    break
 
         # 5. Generate new section
         if use_trifecta:
