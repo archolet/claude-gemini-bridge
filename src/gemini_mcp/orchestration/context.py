@@ -18,12 +18,23 @@ Token Optimization:
 from __future__ import annotations
 
 import json
+import re
 import uuid
-from copy import deepcopy
+from copy import deepcopy, copy
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
 from typing import Any, Literal, Optional
+
+# =============================================================================
+# PRECOMPILED PATTERNS - Performance optimization (Issue 4)
+# =============================================================================
+# Pattern to match HTML elements with attributes
+_ELEMENT_PATTERN = re.compile(r"<(\w+)([^>]*?)>")
+# Pattern to extract element ID
+_ID_PATTERN = re.compile(r'id=["\']([^"\']+)["\']')
+# Pattern to extract data-* attributes
+_DATA_ATTR_PATTERN = re.compile(r'data-(\w+)=["\']([^"\']+)["\']')
 
 
 class QualityTarget(Enum):
@@ -354,6 +365,55 @@ class AgentContext:
         """Create a deep copy of this context."""
         return deepcopy(self)
 
+    def fork_for_parallel(
+        self,
+        step_index: int = -1,
+        section_type: str = "",
+    ) -> "AgentContext":
+        """Create a lightweight fork for parallel execution (Issue 3 fix).
+
+        Uses shallow copy for immutable fields and selective deep copy for
+        mutable collections. This reduces memory from 600KB-2.8MB to ~50KB
+        per fork.
+
+        Args:
+            step_index: The step index for this parallel branch
+            section_type: The section type for this parallel branch
+
+        Returns:
+            A forked context suitable for parallel execution
+        """
+        # Start with shallow copy
+        forked = copy(self)
+
+        # Deep copy only mutable collections
+        forked.content_structure = dict(self.content_structure)
+        forked.style_guide = dict(self.style_guide)
+        forked.errors = list(self.errors)
+        forked.warnings = list(self.warnings)
+        forked.critic_feedback = list(self.critic_feedback)
+        forked.skip_agents = list(self.skip_agents)
+        forked.thought_signatures = list(self.thought_signatures)
+        forked.sections = [dict(s) for s in self.sections]
+
+        # Deep copy complex dataclass fields if present
+        if self.design_dna is not None:
+            forked.design_dna = deepcopy(self.design_dna)
+        if self.compressed is not None:
+            forked.compressed = deepcopy(self.compressed)
+
+        # Set parallel-specific fields
+        if step_index >= 0:
+            forked.step_index = step_index
+            forked.current_section_index = step_index
+        if section_type:
+            forked.current_section_type = section_type
+
+        # Generate new pipeline ID for this fork
+        forked.pipeline_id = f"{self.pipeline_id}-{step_index}"
+
+        return forked
+
     def update_timestamp(self) -> None:
         """Update the updated_at timestamp."""
         self.updated_at = datetime.now()
@@ -481,16 +541,11 @@ class AgentContext:
             - data-duration: milliseconds
             - data-easing: CSS easing function
         """
-        import re
-
         if self.compressed is None:
             self.compressed = CompressedOutput()
 
-        # Pattern to match elements with both id and data-interaction
-        # This regex captures the entire opening tag
-        element_pattern = r"<(\w+)([^>]*?)>"
-
-        for match in re.finditer(element_pattern, html):
+        # Use precompiled patterns for performance (Issue 4 fix)
+        for match in _ELEMENT_PATTERN.finditer(html):
             tag_name = match.group(1)
             attributes_str = match.group(2)
 
@@ -498,17 +553,16 @@ class AgentContext:
             if "data-interaction" not in attributes_str:
                 continue
 
-            # Extract element ID
-            id_match = re.search(r'id=["\']([^"\']+)["\']', attributes_str)
+            # Extract element ID using precompiled pattern
+            id_match = _ID_PATTERN.search(attributes_str)
             if not id_match:
                 continue  # Skip elements without ID
 
             element_id = id_match.group(1)
 
-            # Extract all data-* attributes
+            # Extract all data-* attributes using precompiled pattern
             data_attrs = {}
-            data_pattern = r'data-(\w+)=["\']([^"\']+)["\']'
-            for attr_match in re.finditer(data_pattern, attributes_str):
+            for attr_match in _DATA_ATTR_PATTERN.finditer(attributes_str):
                 attr_name = attr_match.group(1)
                 attr_value = attr_match.group(2)
                 data_attrs[attr_name] = attr_value

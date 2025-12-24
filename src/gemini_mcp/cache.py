@@ -8,8 +8,9 @@ import hashlib
 import json
 import logging
 import time
+from collections import OrderedDict
 from dataclasses import dataclass, field
-from typing import Any, Dict, Optional, List
+from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -79,7 +80,8 @@ class DesignCache:
                         When exceeded, oldest entries are evicted.
             enabled: Whether caching is enabled. Default: True.
         """
-        self._cache: Dict[str, CacheEntry] = {}
+        # Use OrderedDict for O(1) LRU eviction (Issue 5 fix)
+        self._cache: OrderedDict[str, CacheEntry] = OrderedDict()
         self._ttl_seconds = ttl_hours * 3600
         self._max_entries = max_entries
         self._enabled = enabled
@@ -131,14 +133,10 @@ class DesignCache:
             evicted += 1
             self._stats["expirations"] += 1
 
-        # If still over limit, evict oldest accessed entries
+        # If still over limit, evict oldest accessed entries (O(1) with OrderedDict)
         while len(self._cache) >= self._max_entries:
-            # Find least recently accessed entry
-            oldest_key = min(
-                self._cache.keys(),
-                key=lambda k: self._cache[k].last_accessed
-            )
-            del self._cache[oldest_key]
+            # Pop the first (oldest) item - O(1) with OrderedDict (Issue 5 fix)
+            self._cache.popitem(last=False)
             evicted += 1
             self._stats["evictions"] += 1
 
@@ -173,8 +171,9 @@ class DesignCache:
             logger.debug(f"Cache miss (expired): {key[:8]}...")
             return None
 
-        # Cache hit
+        # Cache hit - move to end for LRU ordering (Issue 5 fix)
         entry.touch()
+        self._cache.move_to_end(key)  # O(1) LRU update
         self._stats["hits"] += 1
         logger.debug(f"Cache hit: {key[:8]}... (hits={entry.hits})")
 

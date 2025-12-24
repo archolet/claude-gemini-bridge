@@ -642,14 +642,15 @@ class AgentOrchestrator:
             if agent is None:
                 continue
 
-            # Create a copy of context for each parallel execution
-            step_context = context.copy()
-
             # For section architects, set section-specific context
             if is_section_group and idx < len(sections):
                 section = sections[idx]
-                step_context.current_section_index = idx
-                step_context.current_section_type = section.get("type", f"section_{idx}")
+                section_type = section.get("type", f"section_{idx}")
+                # Use lightweight fork for parallel execution (Issue 3 fix)
+                step_context = context.fork_for_parallel(
+                    step_index=idx,
+                    section_type=section_type,
+                )
                 step_context.component_type = section.get("type", "section")
                 # Set section-specific content structure if available
                 if section.get("content"):
@@ -658,6 +659,8 @@ class AgentOrchestrator:
                 step_names.append(f"{step.agent_name}_{idx}")
                 section_indices.append(idx)
             else:
+                # Non-section parallel execution - use lightweight fork
+                step_context = context.fork_for_parallel(step_index=idx)
                 step_names.append(step.agent_name)
                 section_indices.append(-1)
 

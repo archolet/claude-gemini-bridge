@@ -9,11 +9,63 @@ Section Marker Format:
     <!-- /SECTION: {section_type} -->
 """
 
+import functools
 import re
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Pattern, Tuple
 
-# Pattern to match section markers
-SECTION_PATTERN = r'<!-- SECTION: (\w+) -->(.*?)<!-- /SECTION: \1 -->'
+# Pattern to match section markers (precompiled for extract_all_sections)
+SECTION_PATTERN = re.compile(r'<!-- SECTION: (\w+) -->(.*?)<!-- /SECTION: \1 -->', re.DOTALL)
+
+# Precompiled class extraction pattern
+_CLASS_PATTERN = re.compile(r'class="([^"]*)"')
+
+# =============================================================================
+# Performance Fix: Cached Regex Patterns (Issue 6)
+# =============================================================================
+
+@functools.lru_cache(maxsize=64)
+def _get_section_pattern(section_name: str) -> Pattern[str]:
+    """Get compiled regex pattern for extracting a specific section's content."""
+    return re.compile(
+        rf'<!-- SECTION: {re.escape(section_name)} -->(.*?)<!-- /SECTION: {re.escape(section_name)} -->',
+        re.DOTALL
+    )
+
+@functools.lru_cache(maxsize=64)
+def _get_section_with_groups_pattern(section_name: str) -> Pattern[str]:
+    """Get compiled pattern with groups for replace operations."""
+    return re.compile(
+        rf'(<!-- SECTION: {re.escape(section_name)} -->)(.*?)(<!-- /SECTION: {re.escape(section_name)} -->)',
+        re.DOTALL
+    )
+
+@functools.lru_cache(maxsize=64)
+def _get_section_boundaries_pattern(section_name: str) -> Pattern[str]:
+    """Get compiled pattern for section boundary detection."""
+    return re.compile(
+        rf'<!-- SECTION: {re.escape(section_name)} -->.*?<!-- /SECTION: {re.escape(section_name)} -->',
+        re.DOTALL
+    )
+
+# =============================================================================
+# Performance Fix: Prefix Tuples for O(1) Matching (Issue 2)
+# =============================================================================
+
+# Tailwind class prefix tuples for efficient startswith() matching
+_COLOR_PREFIXES = ('bg-', 'border-', 'ring-', 'outline-', 'divide-', 'from-', 'via-', 'to-')
+_TEXT_COLOR_PREFIXES = ('text-gray-', 'text-slate-', 'text-zinc-', 'text-neutral-', 'text-stone-',
+                        'text-red-', 'text-orange-', 'text-amber-', 'text-yellow-', 'text-lime-',
+                        'text-green-', 'text-emerald-', 'text-teal-', 'text-cyan-', 'text-sky-',
+                        'text-blue-', 'text-indigo-', 'text-violet-', 'text-purple-', 'text-fuchsia-',
+                        'text-pink-', 'text-rose-', 'text-white', 'text-black', 'text-transparent')
+_TYPOGRAPHY_PREFIXES = ('font-', 'tracking-', 'leading-', 'text-xs', 'text-sm', 'text-base',
+                        'text-lg', 'text-xl', 'text-2xl', 'text-3xl', 'text-4xl', 'text-5xl',
+                        'text-6xl', 'text-7xl', 'text-8xl', 'text-9xl')
+_SPACING_PREFIXES = ('p-', 'px-', 'py-', 'pt-', 'pb-', 'pl-', 'pr-', 'ps-', 'pe-',
+                     'm-', 'mx-', 'my-', 'mt-', 'mb-', 'ml-', 'mr-', 'ms-', 'me-',
+                     'gap-', 'gap-x-', 'gap-y-', 'space-x-', 'space-y-')
+_EFFECTS_PREFIXES = ('shadow-', 'rounded-', 'blur-', 'opacity-', 'transition-',
+                     'backdrop-', 'drop-shadow-', 'ring-offset-')
 
 # Valid section types (for validation)
 VALID_SECTION_TYPES = {
@@ -50,8 +102,9 @@ def extract_section(html: str, section_name: str) -> Optional[str]:
         >>> extract_section(html, 'navbar')
         '<nav>Navigation</nav>'
     """
-    pattern = rf'<!-- SECTION: {section_name} -->(.*?)<!-- /SECTION: {section_name} -->'
-    match = re.search(pattern, html, re.DOTALL)
+    # Use cached compiled pattern (Issue 6 fix)
+    pattern = _get_section_pattern(section_name)
+    match = pattern.search(html)
     return match.group(1).strip() if match else None
 
 
@@ -76,16 +129,17 @@ def replace_section(html: str, section_name: str, new_content: str) -> str:
         >>> replace_section(html, 'navbar', '<nav>New Nav</nav>')
         '<!-- SECTION: navbar -->\\n<nav>New Nav</nav>\\n<!-- /SECTION: navbar -->'
     """
-    pattern = rf'(<!-- SECTION: {section_name} -->)(.*?)(<!-- /SECTION: {section_name} -->)'
+    # Use cached compiled pattern (Issue 6 fix)
+    pattern = _get_section_with_groups_pattern(section_name)
 
-    if not re.search(pattern, html, re.DOTALL):
+    if not pattern.search(html):
         raise ValueError(f"Section '{section_name}' not found in HTML")
 
     # Clean up the new content
     new_content = new_content.strip()
     replacement = rf'\1\n{new_content}\n\3'
 
-    return re.sub(pattern, replacement, html, flags=re.DOTALL)
+    return pattern.sub(replacement, html)
 
 
 def list_sections(html: str) -> List[str]:
@@ -121,8 +175,9 @@ def get_section_boundaries(html: str, section_name: str) -> Optional[Tuple[int, 
         >>> get_section_boundaries(html, 'navbar')
         (0, 64)
     """
-    pattern = rf'<!-- SECTION: {section_name} -->.*?<!-- /SECTION: {section_name} -->'
-    match = re.search(pattern, html, re.DOTALL)
+    # Use cached compiled pattern (Issue 6 fix)
+    pattern = _get_section_boundaries_pattern(section_name)
+    match = pattern.search(html)
     return (match.start(), match.end()) if match else None
 
 
@@ -148,8 +203,9 @@ def get_section_with_markers(html: str, section_name: str) -> Optional[str]:
     Returns:
         The complete section including markers if found, None otherwise.
     """
-    pattern = rf'<!-- SECTION: {section_name} -->.*?<!-- /SECTION: {section_name} -->'
-    match = re.search(pattern, html, re.DOTALL)
+    # Use cached compiled pattern (Issue 6 fix)
+    pattern = _get_section_boundaries_pattern(section_name)
+    match = pattern.search(html)
     return match.group(0) if match else None
 
 
@@ -199,13 +255,19 @@ def remove_section(html: str, section_name: str) -> str:
     Raises:
         ValueError: If the section is not found.
     """
-    pattern = rf'<!-- SECTION: {section_name} -->.*?<!-- /SECTION: {section_name} -->'
+    # Use cached compiled pattern (Issue 6 fix)
+    pattern = _get_section_boundaries_pattern(section_name)
 
-    if not re.search(pattern, html, re.DOTALL):
+    if not pattern.search(html):
         raise ValueError(f"Section '{section_name}' not found in HTML")
 
     # Remove the section and any trailing newlines
-    result = re.sub(pattern + r'\n*', '', html, flags=re.DOTALL)
+    # Note: We need a separate pattern for the trailing newlines
+    full_pattern = re.compile(
+        rf'<!-- SECTION: {re.escape(section_name)} -->.*?<!-- /SECTION: {re.escape(section_name)} -->\n*',
+        re.DOTALL
+    )
+    result = full_pattern.sub('', html)
     return result.strip()
 
 
@@ -225,37 +287,37 @@ def extract_design_tokens_from_section(html: str, section_name: str) -> Dict[str
     if not section_content:
         return {}
 
-    # Extract all class attributes
-    class_pattern = r'class="([^"]*)"'
-    all_classes = ' '.join(re.findall(class_pattern, section_content))
+    # Extract all class attributes using precompiled pattern
+    all_classes = ' '.join(_CLASS_PATTERN.findall(section_content))
 
-    # Categorize classes
-    tokens: Dict[str, List[str]] = {
-        "colors": [],
-        "typography": [],
-        "spacing": [],
-        "effects": [],
-    }
+    # Use sets for O(1) deduplication (Issue 2 fix)
+    colors: set[str] = set()
+    typography: set[str] = set()
+    spacing: set[str] = set()
+    effects: set[str] = set()
 
     for cls in all_classes.split():
-        # Colors (bg-, text-, border-)
-        if any(prefix in cls for prefix in ['bg-', 'text-', 'border-', 'ring-']):
-            if cls not in tokens["colors"]:
-                tokens["colors"].append(cls)
+        # Colors - check common prefixes first, then text-color variants
+        if cls.startswith(_COLOR_PREFIXES):
+            colors.add(cls)
+        elif cls.startswith(_TEXT_COLOR_PREFIXES):
+            colors.add(cls)
         # Typography
-        elif any(prefix in cls for prefix in ['font-', 'text-', 'tracking-', 'leading-']):
-            if cls not in tokens["typography"]:
-                tokens["typography"].append(cls)
+        elif cls.startswith(_TYPOGRAPHY_PREFIXES):
+            typography.add(cls)
         # Spacing
-        elif any(prefix in cls for prefix in ['p-', 'px-', 'py-', 'm-', 'mx-', 'my-', 'gap-', 'space-']):
-            if cls not in tokens["spacing"]:
-                tokens["spacing"].append(cls)
+        elif cls.startswith(_SPACING_PREFIXES):
+            spacing.add(cls)
         # Effects
-        elif any(prefix in cls for prefix in ['shadow-', 'rounded-', 'blur-', 'opacity-', 'transition-']):
-            if cls not in tokens["effects"]:
-                tokens["effects"].append(cls)
+        elif cls.startswith(_EFFECTS_PREFIXES):
+            effects.add(cls)
 
-    return tokens
+    return {
+        "colors": list(colors),
+        "typography": list(typography),
+        "spacing": list(spacing),
+        "effects": list(effects),
+    }
 
 
 def wrap_content_with_markers(content: str, section_type: str) -> str:
@@ -303,7 +365,9 @@ def migrate_to_markers(html: str, section_mapping: Dict[str, str]) -> str:
         This is a simple implementation. For complex cases,
         manual adjustment may be needed.
     """
-    result = html
+    # Issue 7 fix: Collect all replacements first, then apply in reverse order
+    # This avoids O(n^2) string concatenation in loop
+    replacements: List[Tuple[int, int, str]] = []  # (start, end, wrapped_content)
 
     for pattern, section_type in section_mapping.items():
         # Find the element and wrap it
@@ -311,11 +375,25 @@ def migrate_to_markers(html: str, section_mapping: Dict[str, str]) -> str:
         if pattern.startswith("<"):
             tag = pattern[1:]
             # Match opening to closing tag
-            element_pattern = rf'(<{tag}[^>]*>.*?</{tag}>)'
-            match = re.search(element_pattern, result, re.DOTALL | re.IGNORECASE)
+            element_pattern = re.compile(
+                rf'(<{tag}[^>]*>.*?</{tag}>)',
+                re.DOTALL | re.IGNORECASE
+            )
+            match = element_pattern.search(html)
             if match:
                 wrapped = wrap_content_with_markers(match.group(1), section_type)
-                result = result[:match.start()] + wrapped + result[match.end():]
+                replacements.append((match.start(), match.end(), wrapped))
+
+    if not replacements:
+        return html
+
+    # Sort by position (descending) to apply from end to start
+    # This way earlier positions remain valid after each replacement
+    replacements.sort(key=lambda x: x[0], reverse=True)
+
+    result = html
+    for start, end, wrapped in replacements:
+        result = result[:start] + wrapped + result[end:]
 
     return result
 
@@ -421,11 +499,78 @@ def extract_all_sections(html: str) -> Dict[str, str]:
         {'navbar': '<nav>Nav</nav>', 'hero': '<section>Hero</section>'}
     """
     sections = {}
-    for match in re.finditer(SECTION_PATTERN, html, re.DOTALL):
+    # SECTION_PATTERN is precompiled at module level
+    for match in SECTION_PATTERN.finditer(html):
         section_type = match.group(1)
         content = match.group(2).strip()
         sections[section_type] = content
     return sections
+
+
+def extract_design_tokens_batch(
+    html: str,
+    exclude_section: str = ""
+) -> Dict[str, Dict[str, List[str]]]:
+    """Extract design tokens from all sections in a single pass.
+
+    This is more efficient than calling extract_design_tokens_from_section()
+    multiple times, as it scans the HTML only once.
+
+    Args:
+        html: Full HTML content with section markers.
+        exclude_section: Optional section name to skip (e.g., the one being replaced).
+
+    Returns:
+        Dict mapping section_name -> design_tokens dict.
+        Each design_tokens dict has keys: 'colors', 'typography', 'spacing', 'effects'.
+
+    Example:
+        >>> html = '''<!-- SECTION: navbar --><nav class="bg-blue-600">...<!-- /SECTION: navbar -->
+        ... <!-- SECTION: hero --><section class="py-16">...<!-- /SECTION: hero -->'''
+        >>> tokens = extract_design_tokens_batch(html, exclude_section="hero")
+        >>> tokens.keys()
+        dict_keys(['navbar'])
+    """
+    # Single pass: extract all sections at once
+    all_sections = extract_all_sections(html)
+
+    result: Dict[str, Dict[str, List[str]]] = {}
+
+    for section_name, content in all_sections.items():
+        if section_name == exclude_section:
+            continue
+
+        # Extract all classes from this section
+        all_classes = ' '.join(_CLASS_PATTERN.findall(content))
+
+        # Use sets for O(1) deduplication
+        colors: set[str] = set()
+        typography: set[str] = set()
+        spacing: set[str] = set()
+        effects: set[str] = set()
+
+        for cls in all_classes.split():
+            if cls.startswith(_COLOR_PREFIXES):
+                colors.add(cls)
+            elif cls.startswith(_TEXT_COLOR_PREFIXES):
+                colors.add(cls)
+            elif cls.startswith(_TYPOGRAPHY_PREFIXES):
+                typography.add(cls)
+            elif cls.startswith(_SPACING_PREFIXES):
+                spacing.add(cls)
+            elif cls.startswith(_EFFECTS_PREFIXES):
+                effects.add(cls)
+
+        # Only include sections that have at least some tokens
+        if colors or typography or spacing or effects:
+            result[section_name] = {
+                "colors": list(colors),
+                "typography": list(typography),
+                "spacing": list(spacing),
+                "effects": list(effects),
+            }
+
+    return result
 
 
 def validate_page_structure(html: str, required_sections: Optional[List[str]] = None) -> Tuple[bool, List[str]]:
