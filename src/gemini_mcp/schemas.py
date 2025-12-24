@@ -1134,3 +1134,416 @@ def validate_design_tokens(tokens: Dict[str, Any]) -> tuple[bool, Optional[Desig
         return True, validated, None
     except Exception as e:
         return False, None, str(e)
+
+
+# =============================================================================
+# Design-CoT (Structured Chain of Thought) Schema
+# =============================================================================
+
+DESIGN_THINKING_SCHEMA: Dict[str, Any] = {
+    "type": "object",
+    "required": [
+        "constraint_check",
+        "aesthetic_physics",
+        "visual_dna",
+        "micro_interactions",
+        "responsive_strategy",
+        "a11y_checklist",
+    ],
+    "properties": {
+        "constraint_check": {
+            "type": "string",
+            "minLength": 20,
+            "description": "Verify density targets and vibe consistency. Example: '4-Layer Rule? ✓ Density 8+? ✓ Vibe consistent? ✓'"
+        },
+        "aesthetic_physics": {
+            "type": "string",
+            "minLength": 30,
+            "description": "Define materiality, lighting, and depth. Example: 'Materiality: frosted glass | Lighting: top-left glow | Depth: 4 layers'"
+        },
+        "visual_dna": {
+            "type": "string",
+            "minLength": 50,
+            "description": "Core Tailwind class combinations. Example: 'bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900'"
+        },
+        "micro_interactions": {
+            "type": "string",
+            "minLength": 30,
+            "description": "Hover, focus, and transition patterns. Example: 'hover:translateY(-4px) with 150ms ease-out, focus:ring-2'"
+        },
+        "responsive_strategy": {
+            "type": "string",
+            "minLength": 20,
+            "description": "Mobile-first breakpoint approach. Example: 'Mobile-first, sm:grid-cols-1 → lg:grid-cols-3'"
+        },
+        "a11y_checklist": {
+            "type": "string",
+            "minLength": 20,
+            "description": "Accessibility verification. Example: 'focus-visible ring ✓, aria-label ✓, contrast ≥4.5:1 ✓'"
+        },
+        "density_iteration": {
+            "type": "string",
+            "description": "Optional: Final density check. Example: 'Can I add 15% more without visual noise? Adding inner-ring. Final: 16 classes'"
+        },
+    },
+    "additionalProperties": False,
+}
+
+
+class DesignThinking(BaseModel):
+    """Structured Chain of Thought (SCoT) for design generation.
+
+    This model enforces the 7-step design thinking process:
+    1. CONSTRAINT_CHECK - Verify density and vibe targets
+    2. AESTHETIC_PHYSICS - Define materiality and depth
+    3. VISUAL_DNA - Core Tailwind combinations
+    4. MICRO_INTERACTIONS - Hover/focus/transition patterns
+    5. RESPONSIVE_STRATEGY - Breakpoint approach
+    6. A11Y_CHECKLIST - Accessibility verification
+    7. DENSITY_ITERATION - Final density optimization (optional)
+    """
+
+    constraint_check: str = Field(
+        ...,
+        min_length=20,
+        description="Verify density targets and vibe consistency",
+        examples=["4-Layer Rule? ✓ Density 8+? ✓ Vibe consistent? ✓"]
+    )
+    aesthetic_physics: str = Field(
+        ...,
+        min_length=30,
+        description="Define materiality, lighting, and depth",
+        examples=["Materiality: frosted glass | Lighting: top-left glow | Depth: 4 layers"]
+    )
+    visual_dna: str = Field(
+        ...,
+        min_length=50,
+        description="Core Tailwind class combinations",
+        examples=["bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900"]
+    )
+    micro_interactions: str = Field(
+        ...,
+        min_length=30,
+        description="Hover, focus, and transition patterns",
+        examples=["hover:translateY(-4px) with 150ms ease-out, focus:ring-2"]
+    )
+    responsive_strategy: str = Field(
+        ...,
+        min_length=20,
+        description="Mobile-first breakpoint approach",
+        examples=["Mobile-first, sm:grid-cols-1 → lg:grid-cols-3"]
+    )
+    a11y_checklist: str = Field(
+        ...,
+        min_length=20,
+        description="Accessibility verification",
+        examples=["focus-visible ring ✓, aria-label ✓, contrast ≥4.5:1 ✓"]
+    )
+    density_iteration: Optional[str] = Field(
+        default=None,
+        description="Optional: Final density check",
+        examples=["Can I add 15% more without visual noise? Adding inner-ring. Final: 16 classes"]
+    )
+
+    def to_formatted_string(self) -> str:
+        """Format as numbered design thinking steps for prompts."""
+        lines = [
+            f"1. CONSTRAINT_CHECK: {self.constraint_check}",
+            f"2. AESTHETIC_PHYSICS: {self.aesthetic_physics}",
+            f"3. VISUAL_DNA: {self.visual_dna}",
+            f"4. MICRO_INTERACTIONS: {self.micro_interactions}",
+            f"5. RESPONSIVE_STRATEGY: {self.responsive_strategy}",
+            f"6. A11Y_CHECKLIST: {self.a11y_checklist}",
+        ]
+        if self.density_iteration:
+            lines.append(f"7. DENSITY_ITERATION: {self.density_iteration}")
+        return " | ".join(lines)
+
+    @classmethod
+    def from_formatted_string(cls, text: str) -> "DesignThinking":
+        """Parse from formatted design thinking string.
+
+        Expected format:
+        '1. CONSTRAINT_CHECK: ... | 2. AESTHETIC_PHYSICS: ... | ...'
+        """
+        parts = {}
+        current_key = None
+        current_value = []
+
+        # Pattern: "N. KEY_NAME: value"
+        import re
+        pattern = r'(\d+)\.\s*([A-Z_]+):\s*'
+
+        tokens = re.split(pattern, text)
+        # tokens will be: ['', '1', 'CONSTRAINT_CHECK', 'value...', '2', ...]
+
+        i = 1  # Skip empty first element
+        while i < len(tokens) - 1:
+            if i + 2 < len(tokens):
+                key = tokens[i + 1].lower()  # CONSTRAINT_CHECK -> constraint_check
+                value = tokens[i + 2].strip().rstrip('|').strip()
+                parts[key] = value
+            i += 3
+
+        return cls(
+            constraint_check=parts.get("constraint_check", "Not specified"),
+            aesthetic_physics=parts.get("aesthetic_physics", "Not specified"),
+            visual_dna=parts.get("visual_dna", "Not specified - using defaults"),
+            micro_interactions=parts.get("micro_interactions", "Default hover effects"),
+            responsive_strategy=parts.get("responsive_strategy", "Mobile-first approach"),
+            a11y_checklist=parts.get("a11y_checklist", "Standard accessibility"),
+            density_iteration=parts.get("density_iteration"),
+        )
+
+
+def validate_design_thinking(text: str) -> tuple[bool, List[str]]:
+    """Validate a design_thinking string for completeness.
+
+    Args:
+        text: The design_thinking output from Gemini
+
+    Returns:
+        Tuple of (is_valid, list_of_issues)
+    """
+    issues = []
+    required_steps = [
+        ("CONSTRAINT_CHECK", 20),
+        ("AESTHETIC_PHYSICS", 30),
+        ("VISUAL_DNA", 50),
+        ("MICRO_INTERACTIONS", 30),
+        ("RESPONSIVE_STRATEGY", 20),
+        ("A11Y_CHECKLIST", 20),
+    ]
+
+    for step_name, min_length in required_steps:
+        # Check if step exists
+        if step_name not in text.upper():
+            issues.append(f"Missing required step: {step_name}")
+        else:
+            # Extract step content and check length
+            import re
+            pattern = rf'{step_name}:\s*([^|]+)'
+            match = re.search(pattern, text, re.IGNORECASE)
+            if match:
+                content = match.group(1).strip()
+                if len(content) < min_length:
+                    issues.append(
+                        f"{step_name} content too short ({len(content)} chars, min {min_length})"
+                    )
+            else:
+                issues.append(f"Could not extract content for {step_name}")
+
+    return len(issues) == 0, issues
+
+
+# =============================================================================
+# Complexity Levels System
+# =============================================================================
+
+ComplexityLevel = Literal["low", "standard", "high", "ultra"]
+
+
+class ComplexityConfig(BaseModel):
+    """Configuration for a complexity level.
+
+    Higher complexity = more Tailwind classes, more design thinking steps,
+    more few-shot examples injected into prompts.
+    """
+
+    min_classes: int = Field(
+        ...,
+        ge=4,
+        le=30,
+        description="Minimum Tailwind classes per element"
+    )
+    target_classes: int = Field(
+        ...,
+        ge=6,
+        le=40,
+        description="Target Tailwind classes per element"
+    )
+    design_cot_steps: int = Field(
+        ...,
+        ge=3,
+        le=7,
+        description="Number of Design-CoT steps to enforce"
+    )
+    few_shot_count: int = Field(
+        ...,
+        ge=1,
+        le=5,
+        description="Number of few-shot examples to include"
+    )
+    use_case: str = Field(
+        ...,
+        description="Typical use case for this complexity level"
+    )
+    quality_threshold: float = Field(
+        default=7.0,
+        ge=5.0,
+        le=10.0,
+        description="Minimum quality score from Critic"
+    )
+    max_iterations: int = Field(
+        default=2,
+        ge=1,
+        le=5,
+        description="Maximum refinement iterations"
+    )
+
+
+COMPLEXITY_LEVELS: Dict[ComplexityLevel, ComplexityConfig] = {
+    "low": ComplexityConfig(
+        min_classes=6,
+        target_classes=8,
+        design_cot_steps=3,
+        few_shot_count=1,
+        use_case="Simple components, prototypes, quick mockups",
+        quality_threshold=6.0,
+        max_iterations=1,
+    ),
+    "standard": ComplexityConfig(
+        min_classes=10,
+        target_classes=14,
+        design_cot_steps=5,
+        few_shot_count=2,
+        use_case="Production components, typical UI elements",
+        quality_threshold=7.0,
+        max_iterations=2,
+    ),
+    "high": ComplexityConfig(
+        min_classes=14,
+        target_classes=18,
+        design_cot_steps=7,
+        few_shot_count=3,
+        use_case="Premium components, hero sections, key features",
+        quality_threshold=8.0,
+        max_iterations=3,
+    ),
+    "ultra": ComplexityConfig(
+        min_classes=18,
+        target_classes=24,
+        design_cot_steps=7,
+        few_shot_count=4,
+        use_case="Showcase landing pages, marketing sites, portfolio pieces",
+        quality_threshold=8.5,
+        max_iterations=4,
+    ),
+}
+
+
+def get_complexity_config(level: ComplexityLevel) -> ComplexityConfig:
+    """Get complexity configuration by level.
+
+    Args:
+        level: One of 'low', 'standard', 'high', 'ultra'
+
+    Returns:
+        ComplexityConfig for the specified level
+    """
+    return COMPLEXITY_LEVELS.get(level, COMPLEXITY_LEVELS["standard"])
+
+
+def infer_complexity_from_component(component_type: str) -> ComplexityLevel:
+    """Infer appropriate complexity level from component type.
+
+    Args:
+        component_type: The type of component (button, hero, navbar, etc.)
+
+    Returns:
+        Recommended complexity level
+    """
+    # Ultra complexity components - maximum richness required
+    ultra_components = {"hero", "landing_page", "pricing_table", "feature_section"}
+
+    # High complexity components - premium treatment
+    high_components = {
+        "navbar", "footer", "testimonial_section", "dashboard_header",
+        "pricing_card", "modal", "data_table", "kanban_board"
+    }
+
+    # Standard complexity components - typical production elements
+    standard_components = {
+        "card", "form", "tabs", "accordion", "carousel", "stepper",
+        "timeline", "file_upload", "user_profile", "settings_panel"
+    }
+
+    # Everything else is low complexity (atoms, simple molecules)
+    component_lower = component_type.lower()
+
+    if component_lower in ultra_components:
+        return "ultra"
+    elif component_lower in high_components:
+        return "high"
+    elif component_lower in standard_components:
+        return "standard"
+    else:
+        return "low"
+
+
+def validate_output_density(
+    html: str,
+    complexity: ComplexityLevel,
+    strict: bool = False
+) -> tuple[bool, Dict[str, Any]]:
+    """Validate HTML output meets density requirements for complexity level.
+
+    Args:
+        html: Generated HTML string
+        complexity: The complexity level used
+        strict: If True, fails on any violation. If False, warns.
+
+    Returns:
+        Tuple of (passes_validation, metrics_dict)
+    """
+    import re
+
+    config = get_complexity_config(complexity)
+
+    # Extract all class attributes
+    class_pattern = r'class="([^"]*)"'
+    matches = re.findall(class_pattern, html)
+
+    if not matches:
+        return False, {"error": "No class attributes found"}
+
+    # Calculate metrics
+    total_classes = 0
+    element_count = 0
+    min_element_classes = float('inf')
+    max_element_classes = 0
+
+    for class_str in matches:
+        classes = [c.strip() for c in class_str.split() if c.strip()]
+        class_count = len(classes)
+
+        if class_count > 0:
+            total_classes += class_count
+            element_count += 1
+            min_element_classes = min(min_element_classes, class_count)
+            max_element_classes = max(max_element_classes, class_count)
+
+    avg_classes = total_classes / element_count if element_count > 0 else 0
+
+    metrics = {
+        "element_count": element_count,
+        "total_classes": total_classes,
+        "avg_classes_per_element": round(avg_classes, 2),
+        "min_classes_on_element": min_element_classes if min_element_classes != float('inf') else 0,
+        "max_classes_on_element": max_element_classes,
+        "required_min": config.min_classes,
+        "target": config.target_classes,
+        "complexity_level": complexity,
+    }
+
+    # Validation
+    passes = avg_classes >= config.min_classes
+
+    if strict:
+        # In strict mode, every element must meet minimum
+        passes = passes and (min_element_classes >= config.min_classes // 2)
+
+    metrics["passes_validation"] = passes
+    metrics["density_score"] = round((avg_classes / config.target_classes) * 10, 1)
+
+    return passes, metrics

@@ -36,8 +36,17 @@ from gemini_mcp.orchestration.telemetry import get_telemetry
 from gemini_mcp.few_shot_examples import (
     get_few_shot_examples_for_prompt,
     get_corporate_examples_for_prompt,
+    get_bad_examples_for_prompt,
 )
 from gemini_mcp.frontend_presets import MICRO_INTERACTIONS
+from gemini_mcp.schemas import (
+    COMPLEXITY_LEVELS,
+    ComplexityLevel,
+    get_complexity_config,
+    infer_complexity_from_component,
+    validate_output_density,
+    validate_design_thinking,
+)
 
 if TYPE_CHECKING:
     from gemini_mcp.agents.base import AgentResult, BaseAgent
@@ -306,6 +315,10 @@ class AgentOrchestrator:
         # Pass high-quality examples to guide agent outputs
         self._prepare_few_shot_examples(context)
 
+        # === Phase 5: Prepare Complexity Configuration ===
+        # Auto-infer complexity level and set density requirements
+        self._prepare_complexity_config(context)
+
         # === Phase 4: Prepare Micro-Interactions ===
         # UX Enhancement: Distribute FULL preset contents to all agents
         if context.micro_interactions_enabled:
@@ -449,6 +462,15 @@ class AgentOrchestrator:
                 if not validation_passed:
                     warnings.extend(validation_issues)
 
+            # === Phase 5: Post-Pipeline Density Validation ===
+            # Validate output density against complexity requirements
+            density_passed, density_issues = self._validate_output_density_post_pipeline(context)
+            if not density_passed:
+                warnings.extend(density_issues)
+                logger.warning(
+                    f"[Orchestrator] Density validation failed: {density_issues}"
+                )
+
             # Build result
             execution_time = (time.time() - start_time) * 1000
             pipeline_success = len(errors) == 0
@@ -514,6 +536,7 @@ class AgentOrchestrator:
         Selects examples based on:
         1. Component type (exact match from COMPONENT_EXAMPLES)
         2. Industry/vibe (corporate examples for enterprise quality)
+        3. Negative examples (BAD_EXAMPLES) to prevent anti-patterns
 
         Args:
             context: The agent context to populate with examples
@@ -536,14 +559,115 @@ class AgentOrchestrator:
             vibe_examples = get_few_shot_examples_for_prompt(vibe)
             examples.extend(vibe_examples)
 
-        # Limit to 3 examples max to avoid token bloat
+        # Limit to 3 positive examples max to avoid token bloat
         context.few_shot_examples = examples[:3]
+
+        # 4. PHASE 5 - Negative example injection (Anti-Laziness)
+        # Inject BAD_EXAMPLES to teach model what NOT to do
+        negative_examples = get_bad_examples_for_prompt(context.component_type)
+        if negative_examples:
+            # Store negative examples separately for prompt injection
+            context.metadata["negative_examples"] = negative_examples
+            logger.debug(
+                f"Attached {len(negative_examples)} negative examples "
+                f"for component_type={context.component_type}"
+            )
 
         if context.few_shot_examples:
             logger.debug(
                 f"Attached {len(context.few_shot_examples)} few-shot examples "
                 f"for component_type={context.component_type}"
             )
+
+    def _prepare_complexity_config(self, context: AgentContext) -> None:
+        """
+        Prepare complexity level configuration based on component type (Phase 5).
+
+        Auto-infers complexity level from component type and attaches
+        configuration to context for agents to use.
+
+        The complexity level affects:
+        - Minimum/target Tailwind class counts
+        - Design-CoT step depth
+        - Few-shot example count
+        - Quality thresholds
+
+        Args:
+            context: The agent context to configure
+        """
+        # Infer complexity from component type
+        complexity_level = infer_complexity_from_component(
+            context.component_type or "card"
+        )
+
+        # Get configuration for this level
+        complexity_config = get_complexity_config(complexity_level)
+
+        # Store in context metadata for agents
+        context.metadata["complexity_level"] = complexity_level
+        context.metadata["complexity_config"] = {
+            "min_classes": complexity_config.min_classes,
+            "target_classes": complexity_config.target_classes,
+            "design_cot_steps": complexity_config.design_cot_steps,
+            "few_shot_count": complexity_config.few_shot_count,
+            "quality_threshold": complexity_config.quality_threshold,
+        }
+
+        # Adjust few-shot examples count based on complexity
+        if context.few_shot_examples:
+            target_count = complexity_config.few_shot_count
+            if len(context.few_shot_examples) > target_count:
+                context.few_shot_examples = context.few_shot_examples[:target_count]
+
+        logger.info(
+            f"[Orchestrator] Complexity configured: level={complexity_level}, "
+            f"min_classes={complexity_config.min_classes}, "
+            f"target_classes={complexity_config.target_classes}"
+        )
+
+    def _validate_output_density_post_pipeline(
+        self,
+        context: AgentContext,
+    ) -> tuple[bool, list[str]]:
+        """
+        Validate output density after pipeline completion (Phase 5).
+
+        Uses the complexity level to determine expected class density.
+
+        Args:
+            context: Pipeline context with HTML output
+
+        Returns:
+            Tuple of (passed, issues)
+        """
+        if not context.html_output:
+            return True, []
+
+        complexity_level = context.metadata.get("complexity_level", "standard")
+
+        # Validate density against complexity requirements
+        passed, density_report = validate_output_density(
+            html=context.html_output,
+            complexity=complexity_level,
+            strict=False,  # Warnings only in standard mode
+        )
+
+        issues = []
+        if not passed:
+            issues.append(
+                f"Output density below {complexity_level} minimum: "
+                f"{density_report.get('overall_density', 0):.1f} classes/element "
+                f"(required: {density_report.get('min_required', 6)})"
+            )
+
+            # Add details about low-density elements
+            if density_report.get("elements_below_minimum"):
+                issues.append(
+                    f"Elements below minimum: "
+                    f"{density_report['elements_below_minimum']}"
+                )
+
+        return passed, issues
 
     async def _execute_step(
         self,
