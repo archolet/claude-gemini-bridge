@@ -39,6 +39,23 @@ from gemini_mcp.orchestration.dna_store import (
     get_dna_store,
     reset_dna_store,
 )
+from gemini_mcp.orchestration.fallback import (
+    FallbackChain,
+    FallbackLevel,
+    FallbackResult,
+    FallbackStrategy,
+    execute_with_fallback,
+    get_strategy_for_component,
+)
+from gemini_mcp.orchestration.complexity import (
+    ComplexityLevel,
+    ComplexityConfig,
+    get_complexity_level,
+    get_complexity_config,
+    get_thinking_level_for_component,
+    should_enable_parallel_styling,
+    should_enable_critic_loop,
+)
 
 __all__ = [
     # Context classes
@@ -67,4 +84,19 @@ __all__ = [
     "DNAEntry",
     "get_dna_store",
     "reset_dna_store",
+    # Fallback Chain (Phase 4)
+    "FallbackChain",
+    "FallbackLevel",
+    "FallbackResult",
+    "FallbackStrategy",
+    "execute_with_fallback",
+    "get_strategy_for_component",
+    # Complexity Configuration (Phase 1)
+    "ComplexityLevel",
+    "ComplexityConfig",
+    "get_complexity_level",
+    "get_complexity_config",
+    "get_thinking_level_for_component",
+    "should_enable_parallel_styling",
+    "should_enable_critic_loop",
 ]

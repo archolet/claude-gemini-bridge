@@ -45,7 +45,18 @@ class AgentRole(Enum):
 
 @dataclass
 class AgentConfig:
-    """Configuration for an agent's execution behavior."""
+    """
+    Configuration for an agent's execution behavior.
+
+    Gemini 3 API Notes:
+        - thinking_level: Use "high" for complex tasks, "low" for latency-sensitive
+        - temperature: MUST be 1.0 for Gemini 3 reasoning engine
+        - thinking_budget is DEPRECATED and removed
+
+    References:
+        - https://ai.google.dev/gemini-api/docs/gemini-3
+        - https://ai.google.dev/gemini-api/docs/thinking
+    """
 
     model: str = "gemini-3-pro-preview"
 
@@ -53,11 +64,13 @@ class AgentConfig:
     # thinking_level: Controls reasoning depth (Gemini 3+)
     # - "high": Complex tasks requiring optimal thinking (default)
     # - "low": Latency-sensitive tasks (extraction, summarization)
-    # - "minimal": Flash only - zero-budget thinking
+    # - "minimal": Flash only - zero-budget thinking (not used in Pro)
     thinking_level: str = "high"
-    thinking_budget: int = 8192  # Deprecated: Use thinking_level instead
 
-    temperature: float = 1.0  # Gemini 3 optimized - DO NOT lower
+    # Temperature MUST be 1.0 for Gemini 3 reasoning engine
+    # Lowering temperature may cause looping behavior
+    temperature: float = 1.0
+
     max_output_tokens: int = 16384
     timeout_seconds: float = 120.0
 
@@ -87,6 +100,9 @@ class AgentResult:
     # For debugging
     prompt_used: Optional[str] = None
     raw_response: Optional[str] = None
+
+    # Agent-specific metadata (e.g., design_dna from Strategist)
+    metadata: dict[str, Any] = field(default_factory=dict)
 
     # Extracted data (populated by post-processing)
     extracted_ids: list[str] = field(default_factory=list)

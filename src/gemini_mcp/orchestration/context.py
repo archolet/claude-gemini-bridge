@@ -443,6 +443,11 @@ class AgentContext:
     # Flexible key-value store for additional context (industry, formality, etc.)
     metadata: dict[str, Any] = field(default_factory=dict)
 
+    # === Agent Hints (Phase 5: Inter-Agent Communication) ===
+    # Key format: "{from_agent}_to_{to_agent}" → hint dict
+    # Example: "architect_to_physicist" → {"primary_btn_id": "cta-main", "needs_animation": True}
+    agent_hints: dict[str, dict[str, Any]] = field(default_factory=dict)
+
     # === Timestamps ===
     created_at: datetime = field(default_factory=datetime.now)
     updated_at: datetime = field(default_factory=datetime.now)
@@ -495,9 +500,18 @@ class AgentContext:
         # Start with shallow copy
         forked = copy(self)
 
-        # Deep copy only mutable collections
-        forked.content_structure = dict(self.content_structure)
-        forked.style_guide = dict(self.style_guide)
+        # Deep copy only mutable collections (with defensive type checks)
+        # BUG-002 FIX: Handle edge case where content_structure might be string
+        forked.content_structure = (
+            dict(self.content_structure)
+            if isinstance(self.content_structure, dict)
+            else {}
+        )
+        forked.style_guide = (
+            dict(self.style_guide)
+            if isinstance(self.style_guide, dict)
+            else {}
+        )
         forked.errors = list(self.errors)
         forked.warnings = list(self.warnings)
         forked.critic_feedback = list(self.critic_feedback)
@@ -507,6 +521,8 @@ class AgentContext:
         # Phase 1 & 4: Few-shot examples and interaction presets
         forked.few_shot_examples = [dict(ex) for ex in self.few_shot_examples]
         forked.interaction_presets = list(self.interaction_presets)
+        # Phase 5: Agent hints (nested dict requires deep copy)
+        forked.agent_hints = {k: dict(v) for k, v in self.agent_hints.items()}
 
         # Deep copy complex dataclass fields if present
         if self.design_dna is not None:
@@ -581,6 +597,84 @@ class AgentContext:
 
         formatted = "\n".join(f"[{i+1}] {sig}" for i, sig in enumerate(signatures))
         return f"## Previous Thought Signatures\n{formatted}"
+
+    # === Agent Hints Methods (Phase 5) ===
+
+    def set_agent_hint(
+        self,
+        from_agent: str,
+        to_agent: str,
+        hint: dict[str, Any],
+    ) -> None:
+        """
+        Set a hint from one agent to another.
+
+        Agent hints enable structured communication between pipeline agents.
+        For example, Architect can pass element IDs to Physicist for JS targeting.
+
+        Args:
+            from_agent: Source agent name (e.g., "architect")
+            to_agent: Target agent name (e.g., "physicist")
+            hint: Dictionary with hint data
+
+        Example:
+            context.set_agent_hint(
+                from_agent="architect",
+                to_agent="physicist",
+                hint={
+                    "interactive_elements": ["btn-submit", "menu-toggle"],
+                    "needs_animations": ["hero-content"],
+                    "scroll_targets": ["section-2", "section-3"],
+                }
+            )
+        """
+        key = f"{from_agent}_to_{to_agent}"
+        self.agent_hints[key] = hint
+        self.update_timestamp()
+
+    def get_agent_hint(
+        self,
+        from_agent: str,
+        to_agent: str,
+    ) -> Optional[dict[str, Any]]:
+        """
+        Get a hint from one agent to another.
+
+        Args:
+            from_agent: Source agent name
+            to_agent: Target agent name
+
+        Returns:
+            Hint dictionary or None if not found
+
+        Example:
+            hints = context.get_agent_hint("architect", "physicist")
+            if hints and "interactive_elements" in hints:
+                for elem_id in hints["interactive_elements"]:
+                    # Generate JS for this element
+                    ...
+        """
+        key = f"{from_agent}_to_{to_agent}"
+        return self.agent_hints.get(key)
+
+    def get_all_hints_for_agent(self, to_agent: str) -> dict[str, dict[str, Any]]:
+        """
+        Get all hints directed at a specific agent.
+
+        Args:
+            to_agent: Target agent name
+
+        Returns:
+            Dictionary mapping source agents to their hints
+            e.g., {"architect": {...}, "strategist": {...}}
+        """
+        result = {}
+        suffix = f"_to_{to_agent}"
+        for key, hint in self.agent_hints.items():
+            if key.endswith(suffix):
+                from_agent = key.replace(suffix, "")
+                result[from_agent] = hint
+        return result
 
     def set_output(self, agent_type: str, output: str) -> None:
         """Set the output for a specific agent type."""
@@ -774,6 +868,8 @@ class AgentContext:
             "previous_html": self.previous_html,
             # Gemini 3 thought signatures
             "thought_signatures": self.thought_signatures,
+            # Phase 5: Agent hints
+            "agent_hints": self.agent_hints,
         }
         return json.dumps(data, ensure_ascii=False)
 
@@ -820,6 +916,8 @@ class AgentContext:
             previous_html=data.get("previous_html", ""),
             # Gemini 3 thought signatures
             thought_signatures=data.get("thought_signatures", []),
+            # Phase 5: Agent hints
+            agent_hints=data.get("agent_hints", {}),
         )
 
         if data.get("design_dna"):

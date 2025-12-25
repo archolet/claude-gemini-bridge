@@ -311,6 +311,9 @@ class AgentOrchestrator:
             f"id={context.pipeline_id}, steps={context.total_steps}"
         )
 
+        # DEBUG: Log context.sections at pipeline start
+        logger.info(f"[DEBUG] Pipeline start - context.sections={context.sections}, len={len(context.sections)}")
+
         # === Phase 1: Select Few-Shot Examples ===
         # Pass high-quality examples to guide agent outputs
         self._prepare_few_shot_examples(context)
@@ -345,8 +348,22 @@ class AgentOrchestrator:
                 if isinstance(step, ParallelGroup):
                     # Execute parallel steps
                     results = await self._execute_parallel_group(step, context)
+                    # DEBUG: Log context.html_output immediately after parallel group returns
+                    logger.info(f"[DEBUG] After parallel group '{step.name}': html_output_len={len(context.html_output) if context.html_output else 0}")
                     for agent_name, result in results.items():
                         step_results.append(result)  # Collect for Trifecta tracking
+
+                        # Record telemetry for parallel agents
+                        agent_tokens = sum(result.token_usage.values()) if result.token_usage else 0
+                        telemetry.record_agent_execution(
+                            pipeline_id=context.pipeline_id,
+                            agent_name=agent_name,
+                            execution_time_ms=result.execution_time_ms,
+                            tokens_used=agent_tokens,
+                            success=result.success,
+                            error_message=result.errors[0] if result.errors else "",
+                        )
+
                         if result.success:
                             completed_steps += 1
                             if result.token_usage:
@@ -366,6 +383,8 @@ class AgentOrchestrator:
                         logger.info(f"Skipping step: {step.agent_name}")
                         continue
 
+                    # DEBUG: Log html_output state before each step
+                    logger.info(f"[DEBUG] Before step '{step.agent_name}': html_output_len={len(context.html_output) if context.html_output else 0}")
                     result = await self._execute_step(step, context, pipeline)
                     step_results.append(result)  # Collect for Trifecta tracking
                     context.step_index += 1
@@ -385,6 +404,8 @@ class AgentOrchestrator:
                         completed_steps += 1
                         # Update context with output
                         context.set_output(step.agent_name, result.output)
+                        # DEBUG: Log html_output after set_output
+                        logger.info(f"[DEBUG] After set_output('{step.agent_name}'): html_output_len={len(context.html_output) if context.html_output else 0}")
                         if step.compress_output:
                             context.compress_current_output(result.output, step.output_type)
 
@@ -477,6 +498,9 @@ class AgentOrchestrator:
 
             # End telemetry tracking
             telemetry.end_pipeline(context.pipeline_id, pipeline_success)
+
+            # DEBUG: Final output check
+            logger.info(f"[DEBUG] Final output - html_output_len={len(context.html_output) if context.html_output else 0}, css_len={len(context.css_output) if context.css_output else 0}, js_len={len(context.js_output) if context.js_output else 0}")
 
             return PipelineResult(
                 success=pipeline_success,
@@ -904,6 +928,231 @@ class AgentOrchestrator:
         )
         return best_css, best_scores, MAX_REFINER_ITERATIONS
 
+    async def _run_targeted_refiner(
+        self,
+        context: AgentContext,
+        scores: "CriticScores",
+        max_dimensions: int = 3,
+    ) -> tuple[str, str, str, "CriticScores"]:
+        """
+        Run targeted refinement based on lowest-scoring dimensions.
+
+        This is a Phase 3 enhancement that maps low-scoring dimensions
+        to their responsible agents and runs targeted refinement:
+        - layout, code_quality, accessibility → Architect
+        - color, animation_quality, visual_density, typography → Alchemist
+        - interaction → Physicist
+
+        Args:
+            context: Pipeline context with HTML/CSS/JS outputs
+            scores: CriticScores from evaluation
+            max_dimensions: Number of lowest dimensions to target (default: 3)
+
+        Returns:
+            Tuple of (html, css, js, updated_scores)
+        """
+        from gemini_mcp.agents.critic import CriticAgent, CriticScores
+
+        logger.info(
+            f"[TargetedRefiner] Starting. Initial overall: {scores.overall:.2f}, "
+            f"Targeting {max_dimensions} lowest dimensions"
+        )
+
+        # Get lowest-scoring dimensions
+        lowest_dims = scores.get_lowest_dimensions(max_dimensions)
+        logger.info(
+            f"[TargetedRefiner] Lowest dimensions: "
+            f"{[(name, f'{score:.1f}') for name, score in lowest_dims]}"
+        )
+
+        # Group dimensions by responsible agent
+        agent_improvements: dict[str, list[str]] = {
+            "architect": [],
+            "alchemist": [],
+            "physicist": [],
+        }
+
+        for dim_name, dim_score in lowest_dims:
+            responsible_agent = scores.get_agent_for_dimension(dim_name)
+            agent_improvements[responsible_agent].append(
+                f"Improve {dim_name} (current: {dim_score:.1f}/10)"
+            )
+
+        # Track updated outputs
+        current_html = context.html_output
+        current_css = context.css_output
+        current_js = context.js_output
+
+        # Run targeted refinement for each agent with improvements
+        for agent_name, improvements in agent_improvements.items():
+            if not improvements:
+                continue
+
+            agent = self.get_agent(agent_name)
+            if agent is None:
+                logger.warning(f"[TargetedRefiner] Agent '{agent_name}' not registered")
+                continue
+
+            # Set refinement feedback for this agent
+            feedback = (
+                f"TARGETED REFINEMENT - Focus on these specific improvements:\n"
+                + "\n".join(f"- {imp}" for imp in improvements)
+            )
+            context.correction_feedback = feedback
+
+            logger.info(
+                f"[TargetedRefiner] Running {agent_name} with "
+                f"{len(improvements)} targeted improvements"
+            )
+
+            # Execute agent with correction feedback
+            result = await agent.execute(context)
+
+            if result.success and result.output:
+                # Update appropriate output based on agent
+                if agent_name == "architect":
+                    current_html = result.output
+                    context.html_output = result.output
+                    context.set_output("architect", result.output)
+                elif agent_name == "alchemist":
+                    current_css = result.output
+                    context.css_output = result.output
+                    context.set_output("alchemist", result.output)
+                elif agent_name == "physicist":
+                    current_js = result.output
+                    context.js_output = result.output
+                    context.set_output("physicist", result.output)
+
+                logger.info(
+                    f"[TargetedRefiner] {agent_name} completed. "
+                    f"Output: {len(result.output)} chars"
+                )
+            else:
+                logger.warning(
+                    f"[TargetedRefiner] {agent_name} failed: {result.errors}"
+                )
+
+        # Clear correction feedback
+        context.correction_feedback = ""
+
+        # Re-evaluate with Critic to get updated scores
+        critic_agent = self.get_agent("critic")
+        updated_scores = scores  # Default to original if re-evaluation fails
+
+        if critic_agent and isinstance(critic_agent, CriticAgent):
+            new_scores, _ = await critic_agent.evaluate(
+                html=current_html,
+                css=current_css,
+                js=current_js,
+                context=context,
+            )
+            updated_scores = new_scores
+
+            logger.info(
+                f"[TargetedRefiner] Complete. "
+                f"Score improvement: {scores.overall:.2f} → {updated_scores.overall:.2f} "
+                f"(+{updated_scores.overall - scores.overall:.2f})"
+            )
+        else:
+            logger.warning("[TargetedRefiner] Critic not available for re-evaluation")
+
+        return current_html, current_css, current_js, updated_scores
+
+    async def run_targeted_refinement(
+        self,
+        context: AgentContext,
+        quality_threshold: float = 8.0,
+        max_refinement_rounds: int = 2,
+    ) -> tuple[str, str, str, float]:
+        """
+        Public API for targeted refinement with quality loop.
+
+        Runs Critic evaluation, then targeted refinement until quality
+        threshold is met or max rounds exhausted.
+
+        Args:
+            context: Pipeline context with HTML/CSS/JS outputs
+            quality_threshold: Target quality score (1-10)
+            max_refinement_rounds: Maximum refinement iterations
+
+        Returns:
+            Tuple of (html, css, js, final_score)
+        """
+        from gemini_mcp.agents.critic import CriticAgent
+
+        critic_agent = self.get_agent("critic")
+        if not critic_agent or not isinstance(critic_agent, CriticAgent):
+            logger.warning("[TargetedRefinement] Critic not available")
+            return (
+                context.html_output,
+                context.css_output,
+                context.js_output,
+                0.0,
+            )
+
+        logger.info(
+            f"[TargetedRefinement] Starting. Threshold: {quality_threshold}, "
+            f"Max rounds: {max_refinement_rounds}"
+        )
+
+        # Initial evaluation
+        scores, improvements = await critic_agent.evaluate(
+            html=context.html_output,
+            css=context.css_output,
+            js=context.js_output,
+            context=context,
+        )
+
+        logger.info(
+            f"[TargetedRefinement] Initial score: {scores.overall:.2f}"
+        )
+
+        # Check if already meets threshold
+        if scores.overall >= quality_threshold:
+            logger.info(
+                f"[TargetedRefinement] Already meets threshold. Done."
+            )
+            return (
+                context.html_output,
+                context.css_output,
+                context.js_output,
+                scores.overall,
+            )
+
+        # Run refinement rounds
+        current_html = context.html_output
+        current_css = context.css_output
+        current_js = context.js_output
+        current_scores = scores
+
+        for round_num in range(max_refinement_rounds):
+            logger.info(
+                f"[TargetedRefinement] Round {round_num + 1}/{max_refinement_rounds}"
+            )
+
+            # Run targeted refiner
+            current_html, current_css, current_js, current_scores = (
+                await self._run_targeted_refiner(
+                    context=context,
+                    scores=current_scores,
+                    max_dimensions=3,
+                )
+            )
+
+            # Check if threshold met
+            if current_scores.overall >= quality_threshold:
+                logger.info(
+                    f"[TargetedRefinement] Threshold met at round {round_num + 1}! "
+                    f"Score: {current_scores.overall:.2f}"
+                )
+                break
+
+        logger.info(
+            f"[TargetedRefinement] Complete. Final score: {current_scores.overall:.2f}"
+        )
+
+        return current_html, current_css, current_js, current_scores.overall
+
     async def run_refiner_for_css(
         self,
         context: AgentContext,
@@ -1086,18 +1335,28 @@ class AgentOrchestrator:
         """
         Execute a group of steps in parallel.
 
-        For PAGE pipeline section_architects group, each step gets a different
-        section from context.sections.
+        Handles different parallel group types:
+        - section_architects: PAGE pipeline section generation (merges HTML)
+        - styling_interaction: COMPONENT pipeline Alchemist + Physicist (merges CSS + JS)
+
+        Performance Impact:
+            - Sequential: ~5.5s (Alchemist ~1.8s + Physicist ~1.2s + overhead)
+            - Parallel:   ~4.4s (~20% faster for COMPONENT pipeline)
         """
         from gemini_mcp.agents.base import AgentResult, AgentRole
 
         tasks = []
         step_names = []
+        step_output_types = []  # Track output type for merge strategy
         section_indices = []  # Track which section each task handles
 
-        # Check if this is a section_architects parallel group
+        # Check parallel group type
         is_section_group = group.name == "section_architects"
+        is_styling_group = group.name == "styling_interaction"
         sections = context.sections if is_section_group and context.sections else []
+
+        # DEBUG: Log parallel group execution context
+        logger.info(f"[DEBUG] Parallel group '{group.name}': is_section_group={is_section_group}, context.sections={context.sections}, sections={sections}")
 
         for idx, step in enumerate(group.steps):
             if not step.should_run(context):
@@ -1119,14 +1378,17 @@ class AgentOrchestrator:
                 step_context.component_type = section.get("type", "section")
                 # Set section-specific content structure if available
                 if section.get("content"):
-                    step_context.content_structure = section.get("content", "{}")
+                    step_context.content_structure = section.get("content", {})
 
                 step_names.append(f"{step.agent_name}_{idx}")
+                step_output_types.append(step.output_type)
                 section_indices.append(idx)
             else:
-                # Non-section parallel execution - use lightweight fork
+                # Non-section parallel execution (styling_interaction, etc.)
+                # Use lightweight fork with shared HTML context for Alchemist/Physicist
                 step_context = context.fork_for_parallel(step_index=idx)
                 step_names.append(step.agent_name)
+                step_output_types.append(step.output_type)
                 section_indices.append(-1)
 
             tasks.append(agent.execute(step_context))
@@ -1143,7 +1405,9 @@ class AgentOrchestrator:
         result_map: dict[str, AgentResult] = {}
         section_htmls: list[tuple[int, str]] = []  # (index, html) for ordering
 
-        for name, result, section_idx in zip(step_names, results, section_indices):
+        for name, result, section_idx, output_type in zip(
+            step_names, results, section_indices, step_output_types
+        ):
             if isinstance(result, Exception):
                 result_map[name] = AgentResult(
                     success=False,
@@ -1155,19 +1419,145 @@ class AgentOrchestrator:
                 logger.error(f"Parallel task {name} failed: {result}")
             else:
                 result_map[name] = result
+                # DEBUG: Log each result for section architect
+                logger.info(f"[DEBUG] Parallel result '{name}': section_idx={section_idx}, success={result.success}, output_len={len(result.output) if result.output else 0}")
                 # Collect section HTML for merging
                 if section_idx >= 0 and result.success:
                     section_htmls.append((section_idx, result.output))
+                elif section_idx >= 0 and not result.success:
+                    logger.warning(f"[DEBUG] Section architect '{name}' failed: {result.errors}")
 
-        # Merge section HTMLs in order and update context
+        # === Merge Strategy: Section Architects (PAGE Pipeline) ===
+        # DEBUG: Log section_htmls and section_indices
+        logger.info(f"[DEBUG] section_htmls count={len(section_htmls)}, section_indices={section_indices}")
         if section_htmls:
             section_htmls.sort(key=lambda x: x[0])
             merged_html = "\n\n".join(html for _, html in section_htmls)
             context.html_output = merged_html
             context.previous_output = merged_html
-            logger.info(f"Merged {len(section_htmls)} section HTMLs")
+            logger.info(f"Merged {len(section_htmls)} section HTMLs, total chars={len(merged_html)}")
+        elif is_section_group and section_indices:
+            # BUG #16 FIX: Fallback when all parallel section architects fail
+            logger.warning(f"[BUG16-FIX] All {len(section_indices)} section architects failed! Attempting sequential fallback...")
+            
+            # Collect error info from failed results
+            failed_sections = []
+            for name, result in result_map.items():
+                if not result.success:
+                    error_msg = result.errors[0][:100] if result.errors else 'No error message'
+                    failed_sections.append(f"{name}: {error_msg}")
+            
+            if failed_sections:
+                logger.error(f"[BUG16-FIX] Failed sections:\n" + "\n".join(failed_sections))
+            
+            # SEQUENTIAL FALLBACK: Try running sections one by one
+            sequential_htmls = []
+            sections = context.sections if context.sections else []
+            
+            for idx, section in enumerate(sections):
+                try:
+                    section_type = section.get("type", f"section_{idx}")
+                    logger.info(f"[BUG16-FIX] Sequential fallback - attempting section {idx}: {section_type}")
+                    
+                    # Create context for this section
+                    step_context = context.fork_for_parallel(
+                        step_index=idx,
+                        section_type=section_type,
+                    )
+                    step_context.component_type = section_type
+                    
+                    # Get architect agent and execute
+                    architect = self.get_agent("architect")
+                    if architect:
+                        seq_result = await architect.execute(step_context)
+                        if seq_result.success and seq_result.output:
+                            sequential_htmls.append((idx, seq_result.output))
+                            logger.info(f"[BUG16-FIX] Sequential section {idx} SUCCESS: {len(seq_result.output)} chars")
+                        else:
+                            logger.warning(f"[BUG16-FIX] Sequential section {idx} FAILED: {seq_result.errors}")
+                except Exception as e:
+                    logger.error(f"[BUG16-FIX] Sequential section {idx} EXCEPTION: {e}")
+            
+            if sequential_htmls:
+                # Sequential fallback succeeded - use those results
+                sequential_htmls.sort(key=lambda x: x[0])
+                merged_html = "\n\n".join(html for _, html in sequential_htmls)
+                context.html_output = merged_html
+                context.previous_output = merged_html
+                logger.info(f"[BUG16-FIX] Sequential fallback SUCCESS: merged {len(sequential_htmls)} sections, {len(merged_html)} chars")
+            else:
+                # Even sequential failed - set error HTML
+                fallback_html = f'''<!-- SECTION: error -->
+<div class="min-h-screen flex items-center justify-center bg-slate-100 dark:bg-slate-900">
+    <div class="text-center p-8 bg-white dark:bg-slate-800 rounded-xl shadow-lg max-w-md">
+        <svg class="w-16 h-16 mx-auto text-amber-500 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+        </svg>
+        <h2 class="text-xl font-bold text-slate-900 dark:text-white mb-2">Sayfa Oluşturulamadı</h2>
+        <p class="text-slate-600 dark:text-slate-300 mb-4">Paralel ve sequential oluşturma başarısız oldu. Lütfen <code class="bg-slate-100 dark:bg-slate-700 px-2 py-1 rounded">use_trifecta=False</code> ile tekrar deneyin.</p>
+        <p class="text-xs text-slate-400">Hata: {len(section_indices)} section hem paralel hem sequential olarak başarısız</p>
+    </div>
+</div>
+<!-- /SECTION: error -->'''
+                context.html_output = fallback_html
+                context.previous_output = fallback_html
+                logger.warning(f"[BUG16-FIX] Both parallel and sequential failed, set error HTML ({len(fallback_html)} chars)")
+        else:
+            logger.warning(f"[DEBUG] No section HTMLs to merge! is_section_group={is_section_group}, section_indices={section_indices}")
+
+        # === Merge Strategy: Styling + Interaction (COMPONENT Pipeline) ===
+        if is_styling_group:
+            self._merge_styling_interaction_results(result_map, context)
 
         return result_map
+
+    def _merge_styling_interaction_results(
+        self,
+        results: dict[str, "AgentResult"],
+        context: AgentContext,
+    ) -> None:
+        """
+        Merge CSS and JS outputs from parallel Alchemist + Physicist execution.
+
+        This is the core merge strategy for COMPONENT pipeline parallel execution.
+        Each agent's output is stored in the appropriate context field:
+        - Alchemist output → context.css_output
+        - Physicist output → context.js_output
+
+        Args:
+            results: Map of agent_name → AgentResult from parallel execution
+            context: Pipeline context to update with merged outputs
+        """
+        css_merged = False
+        js_merged = False
+
+        for agent_name, result in results.items():
+            if not result.success:
+                continue
+
+            # Alchemist → CSS output
+            if agent_name == "alchemist" and result.output:
+                context.css_output = result.output
+                context.set_output("alchemist", result.output)
+                css_merged = True
+                logger.debug(
+                    f"[ParallelMerge] CSS merged: {len(result.output)} chars"
+                )
+
+            # Physicist → JS output
+            elif agent_name == "physicist" and result.output:
+                context.js_output = result.output
+                context.set_output("physicist", result.output)
+                js_merged = True
+                logger.debug(
+                    f"[ParallelMerge] JS merged: {len(result.output)} chars"
+                )
+
+        logger.info(
+            f"[ParallelMerge] Styling+Interaction complete. "
+            f"CSS: {'✓' if css_merged else '✗'}, "
+            f"JS: {'✓' if js_merged else '✗'}"
+        )
 
     def _run_validation(self, context: AgentContext) -> tuple[bool, list[str]]:
         """

@@ -1296,13 +1296,13 @@ You are refining a TRI-SPLIT Component. You must return 3 separate keys:
 
 ### OUTPUT FORMAT
 ```json
-{
+{{
   "design_thinking": "1. CRITIQUE: ... 2. DENSITY PLAN: ...",
   "html": "...",
   "css": "...",
   "javascript": "...",
   "tailwind_classes_used": [...]
-}
+}}
 ```
 """
 

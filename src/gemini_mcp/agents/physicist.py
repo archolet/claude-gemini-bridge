@@ -70,7 +70,6 @@ class PhysicistAgent(BaseAgent):
         return AgentConfig(
             model="gemini-3-pro-preview",
             thinking_level="low",  # JS generation - focused output
-            thinking_budget=4096,  # Deprecated
             temperature=1.0,  # Gemini 3 optimized
             max_output_tokens=8192,
             strict_mode=True,

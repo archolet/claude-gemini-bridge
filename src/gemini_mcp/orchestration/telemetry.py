@@ -62,6 +62,24 @@ class PipelineMetrics:
     theme: str = ""
     quality_target: str = "production"
 
+    # === Phase 5: Enhanced Metrics ===
+    # Parallel execution metrics
+    parallel_speedup_ms: float = 0.0  # Time saved by parallel execution
+    parallel_agents_count: int = 0  # Number of agents run in parallel
+
+    # Quality loop metrics (Critic-driven refinement)
+    critic_iterations: int = 0  # Number of critic loop iterations
+    initial_score: float = 0.0  # First critic score
+    final_score: float = 0.0  # Final critic score after refinement
+    score_improvement: float = 0.0  # final_score - initial_score
+
+    # Fallback chain metrics
+    fallbacks_triggered: int = 0  # Number of fallback levels used
+    fallback_level_used: int = 0  # Highest fallback level reached (1-4)
+
+    # Agent hints metrics
+    hints_passed: int = 0  # Number of hints passed between agents
+
     def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary for JSON serialization."""
         return {
@@ -77,6 +95,16 @@ class PipelineMetrics:
             "component_type": self.component_type,
             "theme": self.theme,
             "quality_target": self.quality_target,
+            # Phase 5: Enhanced metrics
+            "parallel_speedup_ms": self.parallel_speedup_ms,
+            "parallel_agents_count": self.parallel_agents_count,
+            "critic_iterations": self.critic_iterations,
+            "initial_score": self.initial_score,
+            "final_score": self.final_score,
+            "score_improvement": self.score_improvement,
+            "fallbacks_triggered": self.fallbacks_triggered,
+            "fallback_level_used": self.fallback_level_used,
+            "hints_passed": self.hints_passed,
             "agents": [
                 {
                     "name": m.agent_name,
@@ -170,6 +198,120 @@ class PipelineTelemetry:
             f"{tokens_used} tokens, success={success}"
         )
 
+    # === Phase 5: Enhanced Metrics Recording ===
+
+    def record_parallel_execution(
+        self,
+        pipeline_id: str,
+        parallel_agents: list[str],
+        parallel_time_ms: float,
+        sequential_estimate_ms: float,
+    ) -> None:
+        """
+        Record metrics for parallel agent execution.
+
+        Args:
+            pipeline_id: Pipeline ID
+            parallel_agents: List of agents run in parallel (e.g., ["alchemist", "physicist"])
+            parallel_time_ms: Actual time taken for parallel execution
+            sequential_estimate_ms: Estimated time if run sequentially
+        """
+        if pipeline_id not in self._current:
+            return
+
+        metrics = self._current[pipeline_id]
+        metrics.parallel_agents_count = len(parallel_agents)
+        metrics.parallel_speedup_ms = sequential_estimate_ms - parallel_time_ms
+
+        logger.debug(
+            f"[Telemetry] Parallel execution: {parallel_agents}, "
+            f"speedup={metrics.parallel_speedup_ms:.0f}ms"
+        )
+
+    def record_critic_iteration(
+        self,
+        pipeline_id: str,
+        iteration: int,
+        score: float,
+        is_initial: bool = False,
+    ) -> None:
+        """
+        Record metrics for a critic loop iteration.
+
+        Args:
+            pipeline_id: Pipeline ID
+            iteration: Current iteration number (1, 2, 3, ...)
+            score: Critic score for this iteration (0-10)
+            is_initial: True if this is the first score before refinement
+        """
+        if pipeline_id not in self._current:
+            return
+
+        metrics = self._current[pipeline_id]
+        metrics.critic_iterations = iteration
+
+        if is_initial:
+            metrics.initial_score = score
+        metrics.final_score = score
+        metrics.score_improvement = metrics.final_score - metrics.initial_score
+
+        logger.debug(
+            f"[Telemetry] Critic iteration {iteration}: score={score:.2f}, "
+            f"improvement={metrics.score_improvement:+.2f}"
+        )
+
+    def record_fallback_usage(
+        self,
+        pipeline_id: str,
+        fallback_level: int,
+        agent_name: str = "",
+    ) -> None:
+        """
+        Record when a fallback level is triggered.
+
+        Args:
+            pipeline_id: Pipeline ID
+            fallback_level: Fallback level used (1-4)
+            agent_name: Agent that triggered the fallback
+        """
+        if pipeline_id not in self._current:
+            return
+
+        metrics = self._current[pipeline_id]
+        metrics.fallbacks_triggered += 1
+        if fallback_level > metrics.fallback_level_used:
+            metrics.fallback_level_used = fallback_level
+
+        logger.warning(
+            f"[Telemetry] Fallback L{fallback_level} triggered for {agent_name}"
+        )
+
+    def record_hints_passed(
+        self,
+        pipeline_id: str,
+        from_agent: str,
+        to_agent: str,
+        hint_keys: list[str],
+    ) -> None:
+        """
+        Record agent hints being passed between agents.
+
+        Args:
+            pipeline_id: Pipeline ID
+            from_agent: Source agent
+            to_agent: Target agent
+            hint_keys: Keys in the hint dictionary
+        """
+        if pipeline_id not in self._current:
+            return
+
+        metrics = self._current[pipeline_id]
+        metrics.hints_passed += 1
+
+        logger.debug(
+            f"[Telemetry] Hint passed: {from_agent} → {to_agent}, keys={hint_keys}"
+        )
+
     def end_pipeline(self, pipeline_id: str, success: bool) -> Optional[PipelineMetrics]:
         """End tracking for a pipeline and compute final metrics."""
         if pipeline_id not in self._current:
@@ -246,6 +388,22 @@ class PipelineTelemetry:
 
     def get_summary(self) -> dict[str, Any]:
         """Get overall telemetry summary."""
+        # Compute enhanced metrics from history
+        total_parallel_speedup = sum(m.parallel_speedup_ms for m in self._history)
+        total_critic_iterations = sum(m.critic_iterations for m in self._history)
+        total_fallbacks = sum(m.fallbacks_triggered for m in self._history)
+        total_hints = sum(m.hints_passed for m in self._history)
+
+        # Average score improvement
+        score_improvements = [
+            m.score_improvement for m in self._history if m.initial_score > 0
+        ]
+        avg_score_improvement = (
+            sum(score_improvements) / len(score_improvements)
+            if score_improvements
+            else 0.0
+        )
+
         return {
             "total_pipelines": self._total_pipelines,
             "successful_pipelines": self._successful_pipelines,
@@ -263,6 +421,17 @@ class PipelineTelemetry:
             "agent_stats": self._agent_stats,
             "active_pipelines": len(self._current),
             "history_size": len(self._history),
+            # Phase 5: Enhanced aggregate metrics
+            "total_parallel_speedup_ms": total_parallel_speedup,
+            "avg_parallel_speedup_ms": (
+                total_parallel_speedup / self._total_pipelines
+                if self._total_pipelines > 0
+                else 0.0
+            ),
+            "total_critic_iterations": total_critic_iterations,
+            "avg_score_improvement": avg_score_improvement,
+            "total_fallbacks_triggered": total_fallbacks,
+            "total_hints_passed": total_hints,
         }
 
     def get_agent_stats(self, agent_name: str) -> Optional[dict[str, Any]]:

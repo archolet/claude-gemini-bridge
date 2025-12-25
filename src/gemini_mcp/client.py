@@ -703,6 +703,18 @@ Respond ONLY with valid JSON."""
 
                 result = json.loads(response_text)
 
+                # BUG-003 FIX: Handle case where Gemini returns html as list/tuple
+                if "html" in result and isinstance(result["html"], (list, tuple)):
+                    # Extract first non-empty string from list
+                    html_list = result["html"]
+                    html_str = ""
+                    for item in html_list:
+                        if isinstance(item, str) and item.strip():
+                            html_str = item
+                            break
+                    result["html"] = html_str
+                    logger.warning("BUG-003: Converted html from list to string")
+
                 # Add model info and language to result
                 result["model_used"] = model
                 result["content_language"] = content_language
@@ -1034,7 +1046,7 @@ Also include a "design_description" field with a 2-3 sentence description of the
                 data=image_data,
                 mime_type=mime_type,
             ),
-            types.Part.from_text(analysis_prompt),
+            types.Part.from_text(text=analysis_prompt),
         ]
 
         # Configure for vision analysis

@@ -142,7 +142,6 @@ class StrategistAgent(BaseAgent):
         return AgentConfig(
             model="gemini-3-pro-preview",
             thinking_level="high",  # Planning requires deep thinking
-            thinking_budget=4096,  # Deprecated
             temperature=1.0,  # Gemini 3 optimized
             max_output_tokens=4096,
             strict_mode=False,  # Strategist output is advisory

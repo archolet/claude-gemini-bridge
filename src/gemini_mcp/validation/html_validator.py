@@ -88,6 +88,16 @@ class HTMLValidator:
     VOID_ELEMENTS = {
         "area", "base", "br", "col", "embed", "hr", "img", "input",
         "link", "meta", "param", "source", "track", "wbr",
+        # SVG void elements (can be self-closing without />)
+        "path", "circle", "ellipse", "line", "polygon", "polyline",
+        "rect", "use", "image", "animate", "animatemotion",
+        "animatetransform", "set", "stop", "feblend", "fecolormatrix",
+        "fecomponenttransfer", "fecomposite", "feconvolvematrix",
+        "fediffuselighting", "fedisplacementmap", "fedropshadow",
+        "feflood", "fefunca", "fefuncb", "fefuncg", "fefuncr",
+        "fegaussianblur", "feimage", "femergenode", "femorphology",
+        "feoffset", "fepointlight", "fespecularlighting", "fespotlight",
+        "fetile", "feturbulence",
     }
 
     # Semantic HTML5 elements

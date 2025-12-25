@@ -69,7 +69,6 @@ class ArchitectAgent(BaseAgent):
         return AgentConfig(
             model="gemini-3-pro-preview",
             thinking_level="high",  # Complex HTML structure generation
-            thinking_budget=8192,  # Deprecated
             temperature=1.0,  # Gemini 3 optimized
             max_output_tokens=16384,
             strict_mode=True,
@@ -205,9 +204,34 @@ class ArchitectAgent(BaseAgent):
             )
 
         # Section-specific (for design_page)
-        if context.sections:
-            import json
+        # CRITICAL: Check current_section_type FIRST for parallel section architects
+        if context.current_section_type:
+            # Parallel section architect - generate ONLY this specific section
+            section_type = context.current_section_type
+            section_index = context.current_section_index
 
+            # Find section details from sections list if available
+            section_details = {}
+            if context.sections and 0 <= section_index < len(context.sections):
+                section_details = context.sections[section_index]
+
+            parts.append(
+                f"## IMPORTANT: Generate ONLY ONE Section\n"
+                f"You are generating section {section_index + 1}: **{section_type.upper()}**\n"
+                f"Generate ONLY the {section_type} section HTML.\n"
+                f"Do NOT generate any other sections.\n"
+                f"Do NOT include full page structure (no html/head/body tags).\n"
+                f"Start directly with the section element."
+            )
+
+            if section_details:
+                import json
+                details_json = json.dumps(section_details, indent=2, ensure_ascii=False)
+                parts.append(f"Section details:\n{details_json}")
+
+        elif context.sections:
+            # Full page generation - all sections (legacy fallback)
+            import json
             sections_json = json.dumps(context.sections, indent=2, ensure_ascii=False)
             parts.append(f"## Sections to Generate\n{sections_json}")
 

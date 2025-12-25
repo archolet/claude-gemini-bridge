@@ -37,35 +37,116 @@ class DesignAnalysis:
     user_intent: str = ""
 
 
-# === PHASE 3: Quality Scoring Dataclass ===
+# === PHASE 3: Quality Scoring Dataclass (8-Dimension) ===
 @dataclass
 class CriticScores:
-    """Quality scores for design evaluation (1-10 scale)."""
+    """
+    Quality scores for design evaluation (1-10 scale).
 
-    layout: float = 5.0       # Layout hierarchy, spacing, alignment
-    typography: float = 5.0   # Font choices, readability, hierarchy
-    color: float = 5.0        # Color harmony, contrast, consistency
-    interaction: float = 5.0  # Hover states, animations, feedback
-    accessibility: float = 5.0  # WCAG compliance, semantic HTML
+    8-Dimension Scoring System:
+    - Original 5 dimensions (layout, typography, color, interaction, accessibility)
+    - 3 New dimensions for enhanced quality control:
+        - visual_density: Tailwind class richness per element
+        - animation_quality: Timing, easing, purposeful motion
+        - code_quality: Semantic HTML, clean structure, BEM-like naming
+
+    Weights are calibrated for production-grade frontend output:
+    - accessibility + layout + color = 45% (core UX)
+    - visual_density + code_quality = 25% (anti-laziness)
+    - animation_quality + typography + interaction = 30% (polish)
+    """
+
+    # Original dimensions
+    layout: float = 5.0           # 15% - Visual hierarchy, spacing, alignment
+    typography: float = 5.0       # 10% - Font choices, readability, hierarchy
+    color: float = 5.0            # 15% - Color harmony, contrast, consistency
+    interaction: float = 5.0      # 10% - Hover states, transitions, feedback
+    accessibility: float = 5.0    # 15% - WCAG compliance, ARIA, focus states
+
+    # New dimensions (Phase 3 Enhancement)
+    visual_density: float = 5.0   # 15% - Tailwind class count per element
+    animation_quality: float = 5.0  # 10% - Timing functions, easing, motion design
+    code_quality: float = 5.0     # 10% - Semantic HTML, clean structure
+
+    # Dimension weights (must sum to 1.0)
+    WEIGHTS: dict = field(default_factory=lambda: {
+        "layout": 0.15,
+        "typography": 0.10,
+        "color": 0.15,
+        "interaction": 0.10,
+        "accessibility": 0.15,
+        "visual_density": 0.15,
+        "animation_quality": 0.10,
+        "code_quality": 0.10,
+    }, repr=False)
 
     @property
     def overall(self) -> float:
-        """Calculate weighted average score."""
-        # Weights: accessibility highest, then layout and color
-        weights = {
-            "layout": 0.25,
-            "typography": 0.15,
-            "color": 0.20,
-            "interaction": 0.15,
-            "accessibility": 0.25,
-        }
+        """Calculate weighted average score across all 8 dimensions."""
         return (
-            self.layout * weights["layout"]
-            + self.typography * weights["typography"]
-            + self.color * weights["color"]
-            + self.interaction * weights["interaction"]
-            + self.accessibility * weights["accessibility"]
+            self.layout * self.WEIGHTS["layout"]
+            + self.typography * self.WEIGHTS["typography"]
+            + self.color * self.WEIGHTS["color"]
+            + self.interaction * self.WEIGHTS["interaction"]
+            + self.accessibility * self.WEIGHTS["accessibility"]
+            + self.visual_density * self.WEIGHTS["visual_density"]
+            + self.animation_quality * self.WEIGHTS["animation_quality"]
+            + self.code_quality * self.WEIGHTS["code_quality"]
         )
+
+    def get_dimension_scores(self) -> dict[str, float]:
+        """Get all dimension scores as a dictionary."""
+        return {
+            "layout": self.layout,
+            "typography": self.typography,
+            "color": self.color,
+            "interaction": self.interaction,
+            "accessibility": self.accessibility,
+            "visual_density": self.visual_density,
+            "animation_quality": self.animation_quality,
+            "code_quality": self.code_quality,
+        }
+
+    def get_lowest_dimensions(self, count: int = 3) -> list[tuple[str, float]]:
+        """
+        Get the N lowest-scoring dimensions for targeted refinement.
+
+        Used by the orchestrator to determine which agents need to refine output.
+
+        Args:
+            count: Number of lowest dimensions to return
+
+        Returns:
+            List of (dimension_name, score) tuples, sorted lowest to highest
+        """
+        dimension_scores = self.get_dimension_scores()
+        sorted_dims = sorted(dimension_scores.items(), key=lambda x: x[1])
+        return sorted_dims[:count]
+
+    def get_agent_for_dimension(self, dimension: str) -> str:
+        """
+        Map a dimension to the responsible agent for targeted refinement.
+
+        Args:
+            dimension: Dimension name (e.g., "layout", "animation_quality")
+
+        Returns:
+            Agent name responsible for improving this dimension
+        """
+        dimension_agent_map = {
+            # Architect-owned dimensions
+            "layout": "architect",
+            "code_quality": "architect",
+            "accessibility": "architect",  # Semantic HTML, ARIA
+            # Alchemist-owned dimensions
+            "color": "alchemist",
+            "animation_quality": "alchemist",
+            "visual_density": "alchemist",  # Tailwind class richness
+            "typography": "alchemist",
+            # Physicist-owned dimensions
+            "interaction": "physicist",
+        }
+        return dimension_agent_map.get(dimension, "architect")
 
     def to_dict(self) -> dict:
         return {
@@ -74,6 +155,9 @@ class CriticScores:
             "color": self.color,
             "interaction": self.interaction,
             "accessibility": self.accessibility,
+            "visual_density": self.visual_density,
+            "animation_quality": self.animation_quality,
+            "code_quality": self.code_quality,
             "overall": round(self.overall, 2),
         }
 
@@ -85,6 +169,9 @@ class CriticScores:
             color=data.get("color", 5.0),
             interaction=data.get("interaction", 5.0),
             accessibility=data.get("accessibility", 5.0),
+            visual_density=data.get("visual_density", 5.0),
+            animation_quality=data.get("animation_quality", 5.0),
+            code_quality=data.get("code_quality", 5.0),
         )
 
 
@@ -213,8 +300,7 @@ class CriticAgent(BaseAgent):
         return AgentConfig(
             model="gemini-3-pro-preview",
             thinking_level="high",  # Art direction requires deep analysis
-            thinking_budget=4096,  # Deprecated
-            temperature=1.0,  # Gemini 3 optimized
+            temperature=1.0,  # Gemini 3 optimized - DO NOT lower
             max_output_tokens=4096,
             strict_mode=False,  # Advisory output
             auto_fix=False,

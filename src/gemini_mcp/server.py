@@ -102,6 +102,8 @@ from .section_utils import (
     combine_sections,
     validate_page_structure,
     extract_all_sections,
+    # BUG-004 FIX: Add markers to pages without them
+    migrate_to_markers,
 )
 
 # GAP 3: Error Handling and Recovery
@@ -164,6 +166,56 @@ _BODY_CONTENT_PATTERN = re.compile(r'<body[^>]*>(.*?)</body>', re.DOTALL)
 # =============================================================================
 # AUTO-SAVE HELPER - Automatically persist design outputs to temp_designs/
 # =============================================================================
+def _wrap_html_with_tailwind(
+    html_content: str,
+    css_content: str | None = None,
+    js_content: str | None = None,
+    title: str = "Design Preview",
+    lang: str = "tr",
+) -> str:
+    """Wrap raw HTML content with full document structure and Tailwind CDN.
+
+    Args:
+        html_content: Raw HTML content (sections/components)
+        css_content: Optional CSS from Alchemist agent
+        js_content: Optional JS from Physicist agent
+        title: Page title
+        lang: Language code for html lang attribute
+
+    Returns:
+        Complete HTML document with Tailwind CDN and embedded CSS/JS
+    """
+    # Build style block if CSS provided
+    style_block = ""
+    if css_content:
+        style_block = f"\n    <style>\n{css_content}\n    </style>"
+
+    # Build script block if JS provided
+    script_block = ""
+    if js_content:
+        script_block = f"\n    <script>\n{js_content}\n    </script>"
+
+    return f'''<!DOCTYPE html>
+<html lang="{lang}">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{title}</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        .no-scrollbar::-webkit-scrollbar {{ display: none; }}
+        .no-scrollbar {{ -ms-overflow-style: none; scrollbar-width: none; }}
+    </style>{style_block}
+</head>
+<body class="min-h-screen bg-stone-50 dark:bg-stone-900 antialiased">
+{html_content}
+{script_block}
+</body>
+</html>'''
+
+
 def _auto_save_design_output(
     result: dict,
     tool_name: str,
@@ -174,6 +226,9 @@ def _auto_save_design_output(
 
     This helper ensures all design tool outputs are automatically persisted,
     preventing context loss when conversations are interrupted or compacted.
+
+    IMPORTANT: If HTML doesn't have DOCTYPE, wraps it with Tailwind CDN and
+    embeds any CSS/JS output for browser-ready preview.
 
     Args:
         result: The tool's result dictionary (must contain 'html' key)
@@ -193,8 +248,21 @@ def _auto_save_design_output(
     try:
         # Save HTML (primary output)
         if "html" in result and result["html"]:
+            html_content = result["html"]
+
+            # Wrap raw HTML with Tailwind CDN if not already a complete document
+            if not html_content.strip().lower().startswith("<!doctype"):
+                html_content = _wrap_html_with_tailwind(
+                    html_content=html_content,
+                    css_content=result.get("css_output"),
+                    js_content=result.get("js_output"),
+                    title=name_prefix.replace("_", " ").title(),
+                    lang=extra_metadata.get("content_language", "tr") if extra_metadata else "tr",
+                )
+                logger.info(f"[Auto-Save] Wrapped HTML with Tailwind CDN")
+
             html_path = draft_manager.save_artifact(
-                content=result["html"],
+                content=html_content,
                 extension="html",
                 project_name="auto_save",
                 component_type=name_prefix,
@@ -384,6 +452,7 @@ async def run_trifecta_pipeline(
     quality_target: str = "production",  # NEW: Quality target for validation
     industry: str = "",  # NEW: Industry context for corporate designs
     formality: str = "",  # NEW: Formality level for corporate designs
+    sections: list = None,  # PAGE pipeline: sections to generate (e.g., ["hero", "features"])
     **kwargs,
 ) -> dict:
     """Run a Trifecta multi-agent pipeline for design generation.
@@ -404,6 +473,7 @@ async def run_trifecta_pipeline(
         quality_target: Quality level - "draft", "production", "standard", "high", "premium", "enterprise"
         industry: Industry context (finance, healthcare, legal, tech, manufacturing, consulting)
         formality: Formality level (formal, semi-formal, approachable)
+        sections: List of section types for PAGE pipeline (e.g., ["hero", "features", "footer"])
         **kwargs: Additional pipeline-specific parameters
 
     Returns:
@@ -422,6 +492,15 @@ async def run_trifecta_pipeline(
             logger.warning(f"Invalid quality_target '{quality_target}', using PRODUCTION")
 
         # Build AgentContext with quality target
+        # Convert sections list to dict format for Architect (e.g., ["hero"] -> [{"type": "hero"}])
+        sections_dicts = []
+        if sections:
+            for s in sections:
+                if isinstance(s, str):
+                    sections_dicts.append({"type": s})
+                elif isinstance(s, dict):
+                    sections_dicts.append(s)
+
         agent_context = AgentContext(
             pipeline_type=pipeline_type.value,  # Convert enum to string for JSON serialization
             component_type=component_type,
@@ -434,6 +513,7 @@ async def run_trifecta_pipeline(
             previous_output=previous_html,
             modification_request=modification_request,
             quality_target=quality_target_enum,  # NEW: Quality target
+            sections=sections_dicts,  # PAGE pipeline: sections for Architect
         )
 
         # Add industry/formality context if provided
@@ -471,12 +551,18 @@ async def run_trifecta_pipeline(
         )
 
         # Run the pipeline
+        # Pass section_count for PAGE pipeline to enable parallel architect execution
+        pipeline_kwargs = {}
+        if sections_dicts:
+            pipeline_kwargs["section_count"] = len(sections_dicts)
+
         result = await orchestrator.run_pipeline(
             pipeline_type=pipeline_type,
             context=agent_context,
             on_step_complete=lambda step, res: logger.debug(
                 f"[Trifecta] Step {step} completed: {res.agent_role.value}"
             ),
+            **pipeline_kwargs,
         )
 
         # Convert to MCP response format
@@ -1096,6 +1182,13 @@ async def design_frontend(
     # Extract project name from context if possible, or use default
     # Future improvement: Add explicit project_name param
 
+    # 0. Parse content_structure JSON to dict BEFORE any pipeline usage
+    # This is critical for Trifecta pipeline which requires dict, not string
+    try:
+        content_dict = json.loads(content_structure) if content_structure else {}
+    except json.JSONDecodeError:
+        content_dict = {}
+
     # 1. Build Style Guide using Advanced Factory
     style_guide = build_advanced_style_guide(
         theme=theme,
@@ -1126,7 +1219,7 @@ async def design_frontend(
             component_type=component_type,
             theme=theme,
             style_guide=style_guide,
-            content_structure=content_structure,
+            content_structure=content_dict,  # Use parsed dict, not string
             context=context,
             project_context=project_context,
             content_language=content_language,
@@ -1181,11 +1274,7 @@ async def design_frontend(
         return result
 
     # 3. Standard Gemini Mode (Original Logic)
-    # Parse content_structure JSON to dict
-    try:
-        content_dict = json.loads(content_structure) if content_structure else {}
-    except json.JSONDecodeError:
-        content_dict = {}
+    # content_dict was already parsed at step 0 above
 
     # Create design_spec matching GeminiClient.design_component() signature
     design_spec = {
@@ -1709,7 +1798,12 @@ async def design_page(
         # TRIFECTA ENGINE - Multi-Agent Pipeline Mode
         # =================================================================
         if use_trifecta:
-            logger.info(f"[Trifecta] Using PAGE pipeline for {template_type}")
+            # Get template sections for PAGE pipeline (e.g., ["hero", "features", "footer"])
+            template_sections = template.get("sections", [])
+            logger.info(
+                f"[Trifecta] Using PAGE pipeline for {template_type} with "
+                f"{len(template_sections)} sections: {template_sections}"
+            )
             result = await run_trifecta_pipeline(
                 pipeline_type=PipelineType.PAGE,
                 component_type=f"page:{template_type}",
@@ -1719,6 +1813,7 @@ async def design_page(
                 context=context,
                 project_context=project_context,
                 content_language=content_language,
+                sections=template_sections,  # Pass sections for Architect
             )
         else:
             # Call the design method with page template and GAP 3 error handling
@@ -1741,22 +1836,61 @@ async def design_page(
         result["sections"] = template.get("sections", [])
 
         # GAP 2: Validate and enforce section markers in page HTML
+        # BUG-004 FIX: Actually add markers when missing, not just log warnings
         if "html" in result:
             sections = template.get("sections", [])
             is_valid, issues = validate_page_structure(result["html"], sections)
 
             if not is_valid:
-                # Page doesn't have proper markers - try to add them
-                # This is a best-effort attempt based on common HTML patterns
-                logger.warning(f"Page missing section markers: {issues}")
-                result["section_marker_issues"] = issues
+                # Page doesn't have proper markers - add them using migrate_to_markers
+                logger.warning(f"Page missing section markers: {issues}. Attempting to add...")
+
+                # Create section mapping based on common HTML patterns
+                # Maps HTML tag patterns to section types
+                section_mapping = {
+                    "<nav": "navbar",
+                    "<header": "header",
+                    "<footer": "footer",
+                }
+
+                # Add mappings for template-specific sections
+                for section in sections:
+                    if section == "hero":
+                        section_mapping["hero"] = "hero"  # Match class or id containing "hero"
+                    elif section == "features":
+                        section_mapping["features"] = "features"
+                    elif section == "pricing":
+                        section_mapping["pricing"] = "pricing"
+                    elif section == "testimonials":
+                        section_mapping["testimonials"] = "testimonials"
+                    elif section == "cta":
+                        section_mapping["cta"] = "cta"
+                    elif section == "stats":
+                        section_mapping["stats"] = "stats"
+                    elif section == "faq":
+                        section_mapping["faq"] = "faq"
+
+                # Apply migrate_to_markers for standard HTML element patterns
+                result["html"] = migrate_to_markers(result["html"], section_mapping)
+
+                # Re-validate after migration
+                is_valid_after, remaining_issues = validate_page_structure(result["html"], sections)
+
+                if is_valid_after:
+                    logger.info("Section markers successfully added via migrate_to_markers")
+                    result["section_markers_migrated"] = True
+                else:
+                    logger.warning(f"Some markers still missing after migration: {remaining_issues}")
+                    result["section_marker_issues"] = remaining_issues
+
+                is_valid = is_valid_after
 
             result["section_markers_validated"] = is_valid
 
         # Auto-save design output
         result = _auto_save_design_output(
             result, "design_page", f"page_{template_type}",
-            {"template_type": template_type, "theme": theme}
+            {"template_type": template_type, "theme": theme, "content_language": content_language}
         )
 
         logger.info(f"design_page completed: {template_type} (markers_valid={result.get('section_markers_validated', False)})")

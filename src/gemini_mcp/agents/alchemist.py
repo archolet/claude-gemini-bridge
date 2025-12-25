@@ -70,7 +70,6 @@ class AlchemistAgent(BaseAgent):
         return AgentConfig(
             model="gemini-3-pro-preview",
             thinking_level="low",  # CSS generation - latency optimized
-            thinking_budget=4096,  # Deprecated
             temperature=1.0,  # Gemini 3 optimized
             max_output_tokens=8192,
             strict_mode=True,

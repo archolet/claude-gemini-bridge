@@ -97,7 +97,6 @@ class VisionaryAgent(BaseAgent):
         return AgentConfig(
             model="gemini-3-pro-preview",  # Pro for vision capabilities
             thinking_level="high",  # Vision analysis is complex
-            thinking_budget=4096,  # Deprecated
             temperature=1.0,  # Gemini 3 optimized
             max_output_tokens=4096,
             strict_mode=False,  # Advisory output
