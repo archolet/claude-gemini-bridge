@@ -37,6 +37,7 @@ from gemini_mcp.few_shot_examples import (
     get_few_shot_examples_for_prompt,
     get_corporate_examples_for_prompt,
     get_bad_examples_for_prompt,
+    COMPONENT_EXAMPLES,
 )
 from gemini_mcp.frontend_presets import MICRO_INTERACTIONS
 from gemini_mcp.schemas import (
@@ -565,23 +566,53 @@ class AgentOrchestrator:
         Args:
             context: The agent context to populate with examples
         """
-        examples = []
+        examples: list[dict] = []
 
-        # 1. Get component-specific examples
-        component_examples = get_few_shot_examples_for_prompt(context.component_type)
-        examples.extend(component_examples)
+        # 1. Get component-specific examples from COMPONENT_EXAMPLES dict
+        # NOTE: get_few_shot_examples_for_prompt returns string (for prompt text),
+        # but agents expect list[dict]. Use COMPONENT_EXAMPLES directly.
+        component_type = context.component_type
+        if component_type and component_type in COMPONENT_EXAMPLES:
+            example_data = COMPONENT_EXAMPLES[component_type]
+            output = example_data.get("output", {})
+            examples.append({
+                "component_type": component_type,
+                "html": output.get("html", ""),
+                "css": output.get("css", ""),
+                "js": output.get("js", ""),
+            })
 
-        # 2. Get corporate examples if industry specified (Phase 5)
-        industry = context.style_guide.get("industry", "")
-        if industry:
-            corporate_examples = get_corporate_examples_for_prompt(industry)
-            examples.extend(corporate_examples)
+        # 2. Get similar component examples
+        similar_map = {
+            "button": ["cta"],
+            "hero": ["banner", "ultra_dense_card"],
+            "card": ["pricing_card", "stat_card"],
+            "pricing_card": ["card"],
+            "navbar": ["header"],
+        }
+        similar_types = similar_map.get(component_type, [])
+        for similar in similar_types[:1]:  # Limit to 1 similar
+            if similar in COMPONENT_EXAMPLES:
+                example_data = COMPONENT_EXAMPLES[similar]
+                output = example_data.get("output", {})
+                examples.append({
+                    "component_type": similar,
+                    "html": output.get("html", ""),
+                    "css": output.get("css", ""),
+                    "js": output.get("js", ""),
+                })
 
         # 3. Vibe-based examples (Phase 5)
         vibe = context.style_guide.get("vibe", "")
-        if vibe:
-            vibe_examples = get_few_shot_examples_for_prompt(vibe)
-            examples.extend(vibe_examples)
+        if vibe and vibe in COMPONENT_EXAMPLES:
+            example_data = COMPONENT_EXAMPLES[vibe]
+            output = example_data.get("output", {})
+            examples.append({
+                "component_type": vibe,
+                "html": output.get("html", ""),
+                "css": output.get("css", ""),
+                "js": output.get("js", ""),
+            })
 
         # Limit to 3 positive examples max to avoid token bloat
         context.few_shot_examples = examples[:3]
