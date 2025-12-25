@@ -18,6 +18,7 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Optional
 
 from gemini_mcp.agents.base import AgentConfig, AgentResult, AgentRole, BaseAgent
+from gemini_mcp.orchestration.context import DesignDNA
 from gemini_mcp.prompts import STRATEGIST_SYSTEM_PROMPT
 
 if TYPE_CHECKING:
@@ -31,66 +32,6 @@ def _get_dna_store():
     return get_dna_store()
 
 logger = logging.getLogger(__name__)
-
-
-@dataclass
-class DesignDNA:
-    """
-    Extracted design tokens for style consistency.
-
-    This is passed to all downstream agents to ensure visual coherence.
-    """
-
-    colors: dict[str, str] = field(default_factory=dict)
-    typography: dict[str, str] = field(default_factory=dict)
-    spacing: dict[str, str] = field(default_factory=dict)
-    borders: dict[str, str] = field(default_factory=dict)
-    animation: dict[str, str] = field(default_factory=dict)
-    mood: str = "modern-minimal"
-
-    def to_dict(self) -> dict:
-        return {
-            "colors": self.colors,
-            "typography": self.typography,
-            "spacing": self.spacing,
-            "borders": self.borders,
-            "animation": self.animation,
-            "mood": self.mood,
-        }
-
-    @classmethod
-    def from_dict(cls, data: dict) -> "DesignDNA":
-        return cls(
-            colors=data.get("colors", {}),
-            typography=data.get("typography", {}),
-            spacing=data.get("spacing", {}),
-            borders=data.get("borders", {}),
-            animation=data.get("animation", {}),
-            mood=data.get("mood", "modern-minimal"),
-        )
-
-    def to_tailwind_hints(self) -> str:
-        """Convert DNA to Tailwind class suggestions."""
-        hints = []
-
-        if self.colors:
-            primary = self.colors.get("primary", "")
-            if primary:
-                hints.append(f"Primary color: {primary}")
-
-        if self.spacing:
-            density = self.spacing.get("density", "comfortable")
-            hints.append(f"Spacing: {density}")
-
-        if self.borders:
-            radius = self.borders.get("radius", "rounded-xl")
-            hints.append(f"Border radius: {radius}")
-
-        if self.animation:
-            style = self.animation.get("style", "smooth")
-            hints.append(f"Animation style: {style}")
-
-        return "\n".join(hints)
 
 
 @dataclass
@@ -231,7 +172,7 @@ class StrategistAgent(BaseAgent):
                     dna_id = dna_store.save(
                         component_type=component_type,
                         theme=theme,
-                        dna=self._convert_to_context_dna(design_dna),
+                        dna=design_dna,
                         project_id=project_id,
                     )
                     result.metadata["dna_id"] = dna_id
@@ -434,24 +375,6 @@ class StrategistAgent(BaseAgent):
 
         # Default project
         return "default"
-
-    def _convert_to_context_dna(self, local_dna: DesignDNA) -> "DesignDNA":
-        """
-        Convert local DesignDNA to orchestration.context.DesignDNA.
-
-        This is needed because we have duplicate DesignDNA classes.
-        TODO: Refactor to use single DesignDNA class.
-        """
-        from gemini_mcp.orchestration.context import DesignDNA as ContextDNA
-
-        return ContextDNA(
-            colors=local_dna.colors,
-            typography=local_dna.typography,
-            spacing=local_dna.spacing,
-            borders=local_dna.borders,
-            animation=local_dna.animation,
-            mood=local_dna.mood,
-        )
 
     def try_load_previous_dna(
         self,

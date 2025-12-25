@@ -24,7 +24,7 @@ from gemini_mcp.agents.alchemist import AlchemistAgent
 from gemini_mcp.agents.physicist import PhysicistAgent
 
 # Extended Agents
-from gemini_mcp.agents.strategist import StrategistAgent, DesignDNA, SectionPlan
+from gemini_mcp.agents.strategist import StrategistAgent, SectionPlan
 from gemini_mcp.agents.quality_guard import QualityGuardAgent, QAReport
 from gemini_mcp.agents.critic import CriticAgent, CriticReport
 from gemini_mcp.agents.visionary import VisionaryAgent, VisualAnalysis
@@ -45,7 +45,6 @@ __all__ = [
     "CriticAgent",
     "VisionaryAgent",
     # Data classes
-    "DesignDNA",
     "SectionPlan",
     "QAReport",
     "CriticReport",
