@@ -2642,6 +2642,488 @@ def validate_theme_contrast(
         }
 
 
+# =============================================================================
+# MAESTRO - Intelligent Design Wizard (Phase 5)
+# =============================================================================
+
+# Lazy MAESTRO singleton
+_maestro_instance = None
+
+
+def get_maestro():
+    """Get or create MAESTRO singleton instance.
+
+    Uses lazy initialization to avoid import overhead until needed.
+    MAESTRO orchestrates the design interview process and decision making.
+    """
+    global _maestro_instance
+    if _maestro_instance is None:
+        from gemini_mcp.maestro import Maestro
+        _maestro_instance = Maestro(get_gemini_client())
+        logger.info("[MAESTRO] Wizard initialized")
+    return _maestro_instance
+
+
+@mcp.tool()
+async def maestro_start_session(
+    project_context: str = "",
+    existing_html: str = "",
+) -> dict:
+    """Start a new MAESTRO design wizard session.
+
+    MAESTRO asks intelligent questions to understand your design needs
+    and automatically selects the best design mode and parameters.
+
+    This is the entry point for the guided design workflow. MAESTRO will
+    ask a series of questions about your intent, scope, theme preferences,
+    and then generate a design decision.
+
+    Args:
+        project_context: Project description for context (e.g., "B2B SaaS dashboard
+                        for Turkish fintech startup"). Helps MAESTRO make better
+                        design decisions.
+        existing_html: Optional existing HTML for refinement or style matching.
+                      If provided, MAESTRO may suggest refine_frontend or
+                      design_section modes.
+
+    Returns:
+        Dict containing:
+        - session_id: Unique session identifier (use this for subsequent calls)
+        - question: First interview question with id, text, category, options
+        - progress: Interview progress (0.0 to 1.0)
+        - status: "interviewing" | "decided" | "failed"
+
+    Example:
+        # Start a new design session
+        result = await maestro_start_session(
+            project_context="E-commerce product page for Turkish market"
+        )
+        session_id = result["session_id"]
+        # Answer the first question using maestro_answer
+    """
+    try:
+        maestro = get_maestro()
+        session_id, question = await maestro.start_session(
+            project_context=project_context,
+            existing_html=existing_html or None,
+        )
+
+        return {
+            "session_id": session_id,
+            "question": {
+                "id": question.id,
+                "text": question.text,
+                "category": question.category.value,
+                "options": [
+                    {"id": opt.id, "label": opt.label, "description": opt.description}
+                    for opt in question.options
+                ],
+                "question_type": question.question_type.value,
+            },
+            "progress": 0.0,
+            "status": "interviewing",
+        }
+    except Exception as e:
+        logger.error(f"[MAESTRO] start_session failed: {e}")
+        return {"error": str(e), "status": "failed"}
+
+
+@mcp.tool()
+async def maestro_answer(
+    session_id: str,
+    question_id: str,
+    selected_options: list[str],
+    free_text: str = "",
+) -> dict:
+    """Submit an answer to the current MAESTRO question.
+
+    Call this tool to answer each question during the MAESTRO interview.
+    Returns either the next question or a design decision if the interview
+    is complete.
+
+    Args:
+        session_id: Active session ID from maestro_start_session
+        question_id: ID of the question being answered (from question.id)
+        selected_options: List of selected option IDs (e.g., ["opt_landing_page"]).
+                         Most questions require exactly one selection.
+        free_text: Optional free text input for text-type questions
+
+    Returns:
+        Dict containing EITHER:
+        - question: Next question (if interview continues)
+        - progress: Updated interview progress (0.0 to 1.0)
+        - status: "interviewing"
+
+        OR:
+        - decision: Final design decision with mode, confidence, parameters
+        - progress: 1.0
+        - status: "decided"
+
+    Example:
+        # Answer a question
+        result = await maestro_answer(
+            session_id="maestro_abc123",
+            question_id="q_intent_main",
+            selected_options=["opt_new_design"]
+        )
+        if result["status"] == "decided":
+            # Ready to execute!
+            decision = result["decision"]
+        else:
+            # More questions to answer
+            next_question = result["question"]
+    """
+    try:
+        from gemini_mcp.maestro import Answer, MaestroDecision
+
+        maestro = get_maestro()
+        answer = Answer(
+            question_id=question_id,
+            selected_options=selected_options,
+            free_text=free_text or None,
+        )
+
+        result = await maestro.process_answer(session_id, answer)
+        progress = maestro.get_progress(session_id)
+
+        if isinstance(result, MaestroDecision):
+            return {
+                "decision": {
+                    "mode": result.mode,
+                    "confidence": result.confidence,
+                    "parameters": result.parameters,
+                    "reasoning": result.reasoning,
+                    "alternatives": result.alternatives,
+                },
+                "progress": 1.0,
+                "status": "decided",
+            }
+        else:
+            # result is a Question
+            return {
+                "question": {
+                    "id": result.id,
+                    "text": result.text,
+                    "category": result.category.value,
+                    "options": [
+                        {"id": opt.id, "label": opt.label, "description": opt.description}
+                        for opt in result.options
+                    ],
+                    "question_type": result.question_type.value,
+                },
+                "progress": progress,
+                "status": "interviewing",
+            }
+    except Exception as e:
+        logger.error(f"[MAESTRO] answer failed: {e}")
+        return {"error": str(e), "status": "failed"}
+
+
+@mcp.tool()
+async def maestro_get_decision(
+    session_id: str,
+) -> dict:
+    """Force a design decision with current answers (skip remaining questions).
+
+    Use this tool when you want to proceed with partial information and
+    skip the remaining interview questions. MAESTRO will make the best
+    decision based on the answers provided so far.
+
+    Args:
+        session_id: Active session ID from maestro_start_session
+
+    Returns:
+        Dict containing:
+        - decision: Design decision with:
+          - mode: Selected design mode (design_frontend, design_page, etc.)
+          - confidence: Confidence score (0.0 to 1.0)
+          - parameters: Mode-specific parameters
+          - reasoning: Human-readable explanation
+          - alternatives: Other viable modes
+        - status: "decided" | "failed"
+
+    Example:
+        # Force decision after answering some questions
+        result = await maestro_get_decision(session_id="maestro_abc123")
+        if result["status"] == "decided":
+            print(f"Mode: {result['decision']['mode']}")
+            print(f"Confidence: {result['decision']['confidence']}")
+    """
+    try:
+        maestro = get_maestro()
+        decision = await maestro.get_final_decision(session_id)
+
+        return {
+            "decision": {
+                "mode": decision.mode,
+                "confidence": decision.confidence,
+                "parameters": decision.parameters,
+                "reasoning": decision.reasoning,
+                "alternatives": decision.alternatives,
+            },
+            "status": "decided",
+        }
+    except Exception as e:
+        logger.error(f"[MAESTRO] get_decision failed: {e}")
+        return {"error": str(e), "status": "failed"}
+
+
+@mcp.tool()
+async def maestro_execute(
+    session_id: str,
+    use_trifecta: bool = False,
+    quality_target: str = "production",
+) -> dict:
+    """Execute the design decision from the MAESTRO session.
+
+    This generates the actual design output (HTML, CSS, JS) based on
+    the mode and parameters determined during the interview.
+
+    You must have a decided session (either from completing the interview
+    or calling maestro_get_decision) before calling this tool.
+
+    Args:
+        session_id: Active session ID with a decision ready
+        use_trifecta: Use multi-agent Trifecta pipeline for higher quality.
+                     When True, uses Architect → Alchemist → Physicist →
+                     QualityGuard agents for superior output. (default: False)
+        quality_target: Quality level for output. Options:
+                       - "draft": Quick output (threshold: 6.0, 1 iteration)
+                       - "production": Standard quality (threshold: 7.0, 2 iterations)
+                       - "high": High quality with Critic (threshold: 8.0, 3 iterations)
+                       - "premium": Premium quality (threshold: 8.5, 4 iterations)
+                       - "enterprise": Enterprise-grade (threshold: 9.0, 5 iterations)
+                       (default: "production")
+
+    Returns:
+        Dict containing:
+        - html: Generated HTML output
+        - mode: Design mode that was executed
+        - trifecta_enabled: Whether Trifecta pipeline was used
+        - quality_target: Quality level used
+        - css_output: Separate CSS (only if trifecta=True)
+        - js_output: Separate JS (only if trifecta=True)
+        - design_notes: Explanation of design decisions
+        - status: "complete" | "failed"
+
+    Example:
+        # Execute with Trifecta for high quality
+        result = await maestro_execute(
+            session_id="maestro_abc123",
+            use_trifecta=True,
+            quality_target="premium"
+        )
+        if result["status"] == "complete":
+            html = result["html"]
+    """
+    try:
+        maestro = get_maestro()
+        session = maestro.get_session(session_id)
+
+        if session is None:
+            return {"error": "Session not found or expired", "status": "failed"}
+
+        # Get the decision if not already made
+        decision = await maestro.get_final_decision(session_id)
+
+        # Execute
+        result = await maestro.execute(
+            session_id,
+            decision,
+            use_trifecta=use_trifecta,
+            quality_target=quality_target,
+        )
+
+        # Auto-save if HTML is present
+        if result.get("html"):
+            result = _auto_save_design_output(
+                result,
+                component_type=f"maestro_{decision.mode}",
+                project_name="maestro_output",
+                metadata={
+                    "mode": decision.mode,
+                    "trifecta_enabled": use_trifecta,
+                    "quality_target": quality_target,
+                    "confidence": decision.confidence,
+                },
+            )
+
+        result["status"] = "complete"
+        logger.info(
+            f"[MAESTRO] Execution complete: mode={decision.mode}, "
+            f"trifecta={use_trifecta}, quality={quality_target}"
+        )
+
+        return result
+
+    except Exception as e:
+        logger.error(f"[MAESTRO] execute failed: {e}")
+        return {"error": str(e), "status": "failed"}
+
+
+@mcp.tool()
+async def maestro_abort(
+    session_id: str,
+) -> dict:
+    """Abort and cleanup a MAESTRO session.
+
+    Use this to cancel an in-progress interview and free resources.
+    Sessions automatically expire after 1 hour, but you can use this
+    to immediately cleanup if needed.
+
+    Args:
+        session_id: Session ID to abort
+
+    Returns:
+        Dict containing:
+        - success: True if session was aborted, False if not found
+        - message: Human-readable status message
+
+    Example:
+        # Abort an active session
+        result = await maestro_abort(session_id="maestro_abc123")
+        if result["success"]:
+            print("Session aborted successfully")
+    """
+    try:
+        maestro = get_maestro()
+        success = maestro.abort_session(session_id)
+
+        if success:
+            logger.info(f"[MAESTRO] Session aborted: {session_id}")
+            return {"success": True, "message": f"Session {session_id} aborted"}
+        else:
+            return {"success": False, "message": "Session not found or already expired"}
+
+    except Exception as e:
+        logger.error(f"[MAESTRO] abort failed: {e}")
+        return {"error": str(e), "success": False}
+
+
+# =============================================================================
+# MAESTRO PHASE 6: Analytics, Recommendations, Rich UI
+# =============================================================================
+
+
+@mcp.tool()
+async def maestro_get_recommendations() -> dict:
+    """Get smart design recommendations based on user preferences.
+
+    Phase 6 feature: Uses AI-powered recommendation engine to suggest
+    optimal theme, mode, and quality settings based on:
+    - User preference history
+    - Project context analysis
+    - Industry best practices
+
+    Returns:
+        Dict containing:
+        - theme: Theme recommendation with confidence and alternatives
+        - mode: Design mode recommendation
+        - quality: Quality level recommendation
+        - defaults: Recommended default values for all parameters
+
+    Example:
+        # Get recommendations before starting a session
+        recs = await maestro_get_recommendations()
+        print(f"Önerilen tema: {recs['theme']['value']}")
+        print(f"Güven: {recs['theme']['confidence']:.0%}")
+    """
+    try:
+        maestro = get_maestro()
+        recommendations = maestro.get_recommendations()
+
+        logger.info("[MAESTRO] Recommendations generated")
+        return {
+            "status": "success",
+            "recommendations": recommendations,
+        }
+
+    except Exception as e:
+        logger.error(f"[MAESTRO] get_recommendations failed: {e}")
+        return {"error": str(e), "status": "failed"}
+
+
+@mcp.tool()
+async def maestro_get_analytics() -> dict:
+    """Get MAESTRO session analytics and usage metrics.
+
+    Phase 6 feature: Provides comprehensive analytics including:
+    - Session tracking (duration, questions asked)
+    - Cost analysis (API token usage, estimated costs)
+    - Quality metrics (design scores, dimension breakdowns)
+
+    Returns:
+        Dict containing:
+        - session_tracker: Session statistics
+        - cost_summary: Token usage and cost estimates
+        - quality_summary: Quality score aggregations
+
+    Example:
+        # Get analytics after running several sessions
+        analytics = await maestro_get_analytics()
+        print(f"Toplam oturum: {analytics['session_tracker']['total_sessions']}")
+        print(f"Tahmini maliyet: ${analytics['cost_summary']['total_cost']:.4f}")
+    """
+    try:
+        maestro = get_maestro()
+        analytics = maestro.get_analytics()
+
+        logger.info("[MAESTRO] Analytics retrieved")
+        return {
+            "status": "success",
+            "analytics": analytics,
+        }
+
+    except Exception as e:
+        logger.error(f"[MAESTRO] get_analytics failed: {e}")
+        return {"error": str(e), "status": "failed"}
+
+
+@mcp.tool()
+async def maestro_get_progress(
+    session_id: str,
+) -> dict:
+    """Get rich formatted progress display for a session.
+
+    Phase 6 feature: Returns visual progress information including:
+    - Progress bar with percentage
+    - Current step indicator
+    - Category-specific tips
+
+    Args:
+        session_id: Active session ID
+
+    Returns:
+        Dict containing:
+        - progress_bar: Visual ASCII progress bar
+        - percentage: Progress as percentage string
+        - current_step: Current step number
+        - total_steps: Estimated total steps
+        - category_tip: Helpful tip for current category
+
+    Example:
+        progress = await maestro_get_progress(session_id="maestro_abc123")
+        print(progress["progress_bar"])
+        # ████████░░░░░░░░ 50%
+    """
+    try:
+        maestro = get_maestro()
+        progress = maestro.get_formatted_progress(session_id)
+
+        logger.info(f"[MAESTRO] Progress retrieved for {session_id}")
+        return {
+            "status": "success",
+            "session_id": session_id,
+            **progress,
+        }
+
+    except ValueError as e:
+        return {"error": str(e), "status": "failed"}
+    except Exception as e:
+        logger.error(f"[MAESTRO] get_progress failed: {e}")
+        return {"error": str(e), "status": "failed"}
+
+
 def _config_valid() -> bool:
     """Check if configuration is valid without raising errors."""
     try:
