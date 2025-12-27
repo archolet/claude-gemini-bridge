@@ -5,427 +5,290 @@ This module provides factory functions for creating customizable themes.
 Each theme factory allows extensive customization while maintaining
 design consistency and accessibility standards.
 
-Based on tema-rehberi.md comprehensive enhancement plans.
+This is a backward-compatible wrapper that delegates to the unified
+`create_theme()` function in the `themes` package.
 """
 
-from typing import Dict, Any, List, Optional, Tuple, Literal
+from typing import Dict, Any, Optional, Literal, List
 from dataclasses import dataclass
-import re
-import colorsys
+
+# Import from the new themes package
+from .themes import (
+    create_theme,
+    list_themes,
+    hex_to_rgb,
+    rgb_to_hex,
+    hex_to_hsl,
+    hsl_to_hex,
+    relative_luminance,
+    contrast_ratio,
+    validate_contrast,
+)
+
+# Import constants for re-export (backward compatibility)
+from .themes.constants import (
+    BRUTALIST_CONTRAST_PAIRS,
+    NEOBRUTALISM_GRADIENTS,
+    GRADIENT_ANIMATIONS,
+    CORPORATE_INDUSTRIES,
+    CORPORATE_LAYOUTS,
+    FORMALITY_TYPOGRAPHY,
+    GRADIENT_LIBRARY,
+    NEON_COLORS,
+    GLOW_INTENSITIES,
+    RETRO_FONT_PAIRINGS,
+    PASTEL_ACCESSIBLE_PAIRS,
+    NATURE_SEASONS,
+    STARTUP_ARCHETYPES,
+    THEME_VIBE_COMPATIBILITY,
+    CORPORATE_PRESETS,
+)
+
 
 # =============================================================================
-# UTILITY FUNCTIONS
+# HELPER FUNCTIONS (for backward compatibility)
 # =============================================================================
 
-def hex_to_rgb(hex_color: str) -> Tuple[int, int, int]:
-    """Convert hex color to RGB tuple."""
-    hex_color = hex_color.lstrip('#')
-    return tuple(int(hex_color[i:i+2], 16) for i in (0, 2, 4))
-
-
-def rgb_to_hex(r: int, g: int, b: int) -> str:
-    """Convert RGB to hex color."""
-    return f"#{r:02x}{g:02x}{b:02x}"
-
-
-def hex_to_hsl(hex_color: str) -> Tuple[float, float, float]:
-    """Convert hex color to HSL values (h: 0-360, s: 0-100, l: 0-100)."""
-    r, g, b = hex_to_rgb(hex_color)
-    r, g, b = r / 255, g / 255, b / 255
-    hue, lum, sat = colorsys.rgb_to_hls(r, g, b)
-    return hue * 360, sat * 100, lum * 100
-
-
-def hsl_to_hex(h: float, s: float, lightness: float) -> str:
-    """Convert HSL (h: 0-360, s: 0-100, l: 0-100) to hex color."""
-    h, s, lum = h / 360, s / 100, lightness / 100
-    r, g, b = colorsys.hls_to_rgb(h, lum, s)
-    return rgb_to_hex(int(r * 255), int(g * 255), int(b * 255))
-
-
-def relative_luminance(r: int, g: int, b: int) -> float:
-    """Calculate relative luminance per WCAG 2.1."""
-    def adjust(c):
-        c = c / 255
-        return c / 12.92 if c <= 0.03928 else ((c + 0.055) / 1.055) ** 2.4
-    return 0.2126 * adjust(r) + 0.7152 * adjust(g) + 0.0722 * adjust(b)
-
-
-def contrast_ratio(color1: str, color2: str) -> float:
-    """Calculate contrast ratio between two hex colors."""
-    l1 = relative_luminance(*hex_to_rgb(color1))
-    l2 = relative_luminance(*hex_to_rgb(color2))
-    lighter = max(l1, l2)
-    darker = min(l1, l2)
-    return (lighter + 0.05) / (darker + 0.05)
-
-
-def validate_contrast(
-    foreground: str,
-    background: str,
-    level: str = "AA",
-    text_size: str = "normal"
-) -> Tuple[bool, float, str]:
-    """
-    Validate WCAG contrast requirements.
-
-    Returns:
-        (passes, ratio, message)
-    """
-    ratio = contrast_ratio(foreground, background)
-
-    requirements = {
-        ("AA", "normal"): 4.5,
-        ("AA", "large"): 3.0,
-        ("AAA", "normal"): 7.0,
-        ("AAA", "large"): 4.5,
+def calculate_neumorphism_shadows(
+    base_color: str,
+    intensity: Literal["subtle", "medium", "strong"] = "medium",
+    is_dark_mode: bool = False,
+) -> Dict[str, str]:
+    """Calculate proper neumorphism shadows for any base color."""
+    intensity_map = {
+        "subtle": {"light_offset": 8, "dark_offset": 12, "blur": 15},
+        "medium": {"light_offset": 15, "dark_offset": 20, "blur": 20},
+        "strong": {"light_offset": 20, "dark_offset": 25, "blur": 25},
     }
 
-    required = requirements.get((level, text_size), 4.5)
-    passes = ratio >= required
+    settings = intensity_map[intensity]
 
-    message = f"Contrast ratio: {ratio:.2f}:1 ({'PASS' if passes else 'FAIL'} {level} {text_size})"
-
-    return passes, ratio, message
-
-
-def _to_css_color(tailwind_color: str) -> str:
-    """Convert Tailwind color to CSS RGB values."""
-    color_map = {
-        "blue-600": "59 130 246",
-        "blue-700": "29 78 216",
-        "blue-800": "30 64 175",
-        "indigo-600": "79 70 229",
-        "indigo-500": "99 102 241",
-        "pink-500": "236 72 153",
+    neumorphism_colors = {
+        "slate-100": {"light": "#ffffff", "dark": "#c8d0db", "bg": "#f1f5f9"},
+        "slate-200": {"light": "#ffffff", "dark": "#b8c2cf", "bg": "#e2e8f0"},
+        "gray-100": {"light": "#ffffff", "dark": "#c7ccd1", "bg": "#f3f4f6"},
+        "slate-800": {"light": "#3d4a5c", "dark": "#0f1623", "bg": "#1e293b"},
+        "slate-900": {"light": "#283548", "dark": "#000000", "bg": "#0f172a"},
+        "zinc-800": {"light": "#3f3f46", "dark": "#0a0a0b", "bg": "#27272a"},
+        "zinc-900": {"light": "#2d2d31", "dark": "#000000", "bg": "#18181b"},
     }
-    return color_map.get(tailwind_color, "59 130 246")
 
-
-def _next_shadow(intensity: str) -> str:
-    """Get the next shadow intensity level for hover states."""
-    shadow_levels = ["none", "sm", "md", "lg", "xl", "2xl"]
-    try:
-        idx = shadow_levels.index(intensity)
-        return shadow_levels[min(idx + 1, len(shadow_levels) - 1)]
-    except ValueError:
-        return "md"
-
-
-def get_vibe_specs(vibe_name: str) -> Dict[str, Any]:
-    """Get technical specifications for a specific design vibe."""
-    vibes = {
-        "elite_corporate": {
-            "easing": "cubic-bezier(0.25, 1, 0.5, 1)",
-            "duration": "500ms",
-            "glass_opacity": 0.05,
-            "border_opacity": 0.1,
-            "shadow_glow": "rgba(99, 102, 241, 0.2)",
-            "typography_tracking": "tracking-tight",
-            "persona_note": "Focus on extreme precision and rhythmic hierarchy."
-        },
-        "playful_funny": {
-            "easing": "cubic-bezier(0.34, 1.56, 0.64, 1)",
-            "duration": "300ms",
-            "glass_opacity": 0.2,
-            "border_opacity": 1.0,
-            "shadow_glow": "rgba(236, 72, 153, 0.5)",
-            "typography_tracking": "tracking-tighter",
-            "persona_note": "Focus on high-energy, bouncy physics and bold color pops."
-        },
-        "cyberpunk_edge": {
-            "easing": "linear",
-            "duration": "200ms",
-            "glass_opacity": 0.1,
-            "border_opacity": 0.3,
-            "shadow_glow": "rgba(34, 211, 238, 0.8)",
-            "typography_tracking": "tracking-widest",
-            "persona_note": "Focus on high contrast, glitch-like snappy transitions."
-        },
-        "luxury_editorial": {
-            "easing": "cubic-bezier(0.4, 0, 0.2, 1)",
-            "duration": "800ms",
-            "glass_opacity": 0.02,
-            "border_opacity": 0.05,
-            "shadow_glow": "rgba(168, 162, 158, 0.1)",
-            "typography_tracking": "tracking-wide",
-            "persona_note": "Focus on expansive white space, artistic asymmetry, and elegant slow transitions."
-        }
-    }
-    return vibes.get(vibe_name, vibes["elite_corporate"])
-
-
-# =============================================================================
-# VIBE ANIMATION MAPPING (2025 UX Enhancement)
-# =============================================================================
-# Maps each vibe to optimal animation parameters following:
-# - Nielsen Norman: 100-400ms for UI feedback
-# - Material Design: 150-300ms for small components
-# - Apple HIG: 250-350ms for standard transitions
-
-VIBE_ANIMATION_MAPPING: Dict[str, Dict[str, Any]] = {
-    "elite_corporate": {
-        "hover_duration": "200ms",
-        "modal_duration": "300ms",
-        "page_duration": "400ms",
-        "easing": "cubic-bezier(0.25, 1, 0.5, 1)",
-        "easing_name": "ease-out-quart",
-        "intensity": "subtle",
-        "lerp_factor": 0.12,  # Smooth, professional feel
-        "micro_scale": 1.02,  # Minimal hover scale
-        "shadow_transition": "150ms",
-        "reduced_motion_fallback": "opacity",
-    },
-    "playful_funny": {
-        "hover_duration": "250ms",
-        "modal_duration": "350ms",
-        "page_duration": "450ms",
-        "easing": "cubic-bezier(0.34, 1.56, 0.64, 1)",  # Bouncy overshoot
-        "easing_name": "ease-out-back",
-        "intensity": "high",
-        "lerp_factor": 0.08,  # Bouncier, more playful
-        "micro_scale": 1.08,  # Noticeable hover scale
-        "shadow_transition": "200ms",
-        "reduced_motion_fallback": "color",
-    },
-    "cyberpunk_edge": {
-        "hover_duration": "150ms",
-        "modal_duration": "250ms",
-        "page_duration": "350ms",
-        "easing": "cubic-bezier(0.0, 0.0, 0.2, 1)",  # Snappy, no ease-in
-        "easing_name": "ease-out-expo",
-        "intensity": "intense",
-        "lerp_factor": 0.15,  # Fast, immediate response
-        "micro_scale": 1.05,
-        "shadow_transition": "100ms",
-        "reduced_motion_fallback": "border-color",
-    },
-    "luxury_editorial": {
-        "hover_duration": "350ms",
-        "modal_duration": "450ms",
-        "page_duration": "600ms",
-        "easing": "cubic-bezier(0.4, 0, 0.2, 1)",  # Smooth Material easing
-        "easing_name": "ease-in-out",
-        "intensity": "refined",
-        "lerp_factor": 0.06,  # Slow, elegant motion
-        "micro_scale": 1.01,  # Barely perceptible scale
-        "shadow_transition": "250ms",
-        "reduced_motion_fallback": "opacity",
-    },
-}
-
-
-def get_vibe_animation_config(vibe_name: str) -> Dict[str, Any]:
-    """
-    Get animation configuration for a specific vibe.
-
-    Returns optimized animation parameters following 2025 UX best practices:
-    - Timing within 150-500ms optimal range
-    - Appropriate easing for vibe personality
-    - Lerp factors for requestAnimationFrame animations
-    - Reduced-motion fallbacks
-
-    Args:
-        vibe_name: One of 'elite_corporate', 'playful_funny',
-                  'cyberpunk_edge', 'luxury_editorial'
-
-    Returns:
-        Dict with animation configuration, defaults to 'elite_corporate' if unknown.
-    """
-    default_config = VIBE_ANIMATION_MAPPING.get("elite_corporate", {})
-    return VIBE_ANIMATION_MAPPING.get(vibe_name, default_config)
-
-
-def get_vibe_css_variables(vibe_name: str) -> Dict[str, str]:
-    """
-    Generate CSS variables for a vibe's animation settings.
-
-    Returns a dict suitable for including in :root CSS.
-
-    Args:
-        vibe_name: The vibe to generate variables for.
-
-    Returns:
-        Dict mapping CSS variable names to values.
-    """
-    config = get_vibe_animation_config(vibe_name)
-    specs = get_vibe_specs(vibe_name)
+    colors = neumorphism_colors.get(base_color, neumorphism_colors["slate-100"])
+    offset = settings["light_offset"]
+    blur = settings["blur"]
 
     return {
-        "--vibe-duration": config.get("hover_duration", "300ms"),
-        "--vibe-easing": config.get("easing", "ease-out"),
-        "--vibe-modal-duration": config.get("modal_duration", "300ms"),
-        "--vibe-page-duration": config.get("page_duration", "400ms"),
-        "--vibe-shadow-glow": specs.get("shadow_glow", "rgba(99, 102, 241, 0.2)"),
-        "--vibe-intensity": config.get("intensity", "medium"),
-        "--vibe-micro-scale": str(config.get("micro_scale", 1.02)),
+        "shadow": f"shadow-[{offset}px_{offset}px_{blur}px_{colors['dark']},-{offset}px_-{offset}px_{blur}px_{colors['light']}]",
+        "shadow_inset": f"shadow-[inset_{offset}px_{offset}px_{blur}px_{colors['dark']},inset_-{offset}px_-{offset}px_{blur}px_{colors['light']}]",
+        "background_color": colors["bg"],
     }
 
 
+def generate_neon_glow(
+    color: str,
+    intensity: Literal["subtle", "medium", "strong", "intense", "extreme"] = "medium",
+    animated: bool = False,
+) -> str:
+    """Generate multi-layer neon glow shadow."""
+    neon = NEON_COLORS.get(color, NEON_COLORS["cyan"])
+    settings = GLOW_INTENSITIES.get(intensity, GLOW_INTENSITIES["medium"])
+
+    rgb = neon["rgb"]
+    base_opacity = settings["opacity"]
+    base_blur = int(settings["blur"].replace("px", ""))
+    layers = settings["layers"]
+
+    shadows = []
+
+    if layers >= 1:
+        shadows.append(f"0_0_{base_blur // 2}px_rgba({rgb},{base_opacity + 0.1})")
+    if layers >= 2:
+        shadows.append(f"0_0_{base_blur}px_rgba({rgb},{base_opacity})")
+    if layers >= 3:
+        shadows.append(f"0_0_{base_blur * 2}px_rgba({rgb},{base_opacity - 0.1})")
+
+    shadow_class = f"shadow-[{','.join(shadows)}]"
+
+    if animated:
+        shadow_class += " animate-glow-pulse"
+
+    return shadow_class
+
+
+def get_gradient(name: str) -> Dict[str, Any]:
+    """Get a specific gradient from the library."""
+    return GRADIENT_LIBRARY.get(name, GRADIENT_LIBRARY["aurora"])
+
+
+def list_gradients_by_category(category: str) -> List[str]:
+    """List gradients by category."""
+    return [name for name, g in GRADIENT_LIBRARY.items() if g.get("category") == category]
+
+
+def get_formality_typography(formality: str) -> Dict[str, Any]:
+    """Get typography settings for a formality level."""
+    return FORMALITY_TYPOGRAPHY.get(formality, FORMALITY_TYPOGRAPHY.get("semi-formal", {}))
+
+
 # =============================================================================
-# THEME-VIBE COMPATIBILITY MATRIX (Creativity Enhancement)
+# VIBE COMPATIBILITY FUNCTIONS
 # =============================================================================
-# Scores 1-5: 1=poor match, 3=neutral, 5=perfect synergy
-# This matrix guides users toward optimal theme-vibe combinations
 
-THEME_VIBE_COMPATIBILITY: Dict[str, Dict[str, int]] = {
-    "modern-minimal": {
-        "elite_corporate": 5,  # Perfect: both value precision and restraint
-        "luxury_editorial": 4,  # Great: both value whitespace
-        "playful_funny": 2,    # Tension: minimal vs energetic
-        "cyberpunk_edge": 1,   # Conflict: clean vs industrial
-    },
-    "brutalist": {
-        "elite_corporate": 3,  # Neutral: can work if intentional
-        "luxury_editorial": 2,  # Tension: raw vs refined
-        "playful_funny": 4,    # Good: both are bold and unapologetic
-        "cyberpunk_edge": 4,   # Good: industrial aesthetics align
-    },
-    "glassmorphism": {
-        "elite_corporate": 4,  # Good: sophisticated and modern
-        "luxury_editorial": 5,  # Perfect: ethereal, premium feel
-        "playful_funny": 3,    # Neutral: can work with right colors
-        "cyberpunk_edge": 3,   # Neutral: glass + neon is common
-    },
-    "neo-brutalism": {
-        "elite_corporate": 2,  # Tension: playful borders vs corporate
-        "luxury_editorial": 1,  # Conflict: loud vs understated
-        "playful_funny": 5,    # Perfect: both embrace boldness
-        "cyberpunk_edge": 3,   # Neutral: can work with right colors
-    },
-    "soft-ui": {
-        "elite_corporate": 4,  # Good: professional neumorphism
-        "luxury_editorial": 3,  # Neutral: subtle but different philosophy
-        "playful_funny": 3,    # Neutral: soft can be playful
-        "cyberpunk_edge": 1,   # Conflict: soft vs harsh
-    },
-    "corporate": {
-        "elite_corporate": 5,  # Perfect: designed for each other
-        "luxury_editorial": 3,  # Neutral: professional but different
-        "playful_funny": 2,    # Tension: serious vs fun
-        "cyberpunk_edge": 1,   # Conflict: traditional vs futuristic
-    },
-    "gradient": {
-        "elite_corporate": 3,  # Neutral: depends on gradient choice
-        "luxury_editorial": 3,  # Neutral: gradients can be elegant
-        "playful_funny": 4,    # Good: vibrant gradients match energy
-        "cyberpunk_edge": 4,   # Good: neon gradients work great
-    },
-    "cyberpunk": {
-        "elite_corporate": 1,  # Conflict: neon vs corporate
-        "luxury_editorial": 2,  # Tension: gritty vs refined
-        "playful_funny": 3,    # Neutral: both are energetic
-        "cyberpunk_edge": 5,   # Perfect: theme designed for this vibe
-    },
-    "retro": {
-        "elite_corporate": 2,  # Tension: vintage vs modern corporate
-        "luxury_editorial": 2,  # Tension: nostalgic vs contemporary elegance
-        "playful_funny": 4,    # Good: retro is inherently playful
-        "cyberpunk_edge": 3,   # Neutral: retro-futurism is a genre
-    },
-    "pastel": {
-        "elite_corporate": 2,  # Tension: soft colors vs authority
-        "luxury_editorial": 4,  # Good: pastels can be sophisticated
-        "playful_funny": 5,    # Perfect: light, friendly, approachable
-        "cyberpunk_edge": 1,   # Conflict: soft vs harsh
-    },
-    "dark_mode_first": {
-        "elite_corporate": 4,  # Good: professional dark UI
-        "luxury_editorial": 3,  # Neutral: dark can be luxurious
-        "playful_funny": 2,    # Tension: dark vs bright energy
-        "cyberpunk_edge": 5,   # Perfect: dark + neon = cyberpunk
-    },
-    "high_contrast": {
-        "elite_corporate": 4,  # Good: clear, authoritative
-        "luxury_editorial": 2,  # Tension: bold vs subtle
-        "playful_funny": 3,    # Neutral: can work if intentional
-        "cyberpunk_edge": 3,   # Neutral: contrast matches intensity
-    },
-    "nature": {
-        "elite_corporate": 2,  # Tension: organic vs corporate
-        "luxury_editorial": 4,  # Good: nature photography + editorial
-        "playful_funny": 3,    # Neutral: friendly nature brands
-        "cyberpunk_edge": 1,   # Conflict: organic vs synthetic
-    },
-    "startup": {
-        "elite_corporate": 3,  # Neutral: depends on startup stage
-        "luxury_editorial": 2,  # Tension: fast-paced vs slow luxury
-        "playful_funny": 4,    # Good: startup energy is playful
-        "cyberpunk_edge": 3,   # Neutral: tech startups can be edgy
-    },
-}
-
-
-def get_recommended_vibes(theme: str) -> List[str]:
+def get_recommended_vibes(theme: str, top_n: int = 4) -> List[tuple]:
     """
-    Get vibes sorted by compatibility with the given theme (best first).
-
-    Use this to suggest optimal vibe choices for a selected theme.
+    Get recommended vibes for a theme, sorted by compatibility score.
 
     Args:
-        theme: The theme name (e.g., "cyberpunk", "modern-minimal")
+        theme: Theme name (e.g., "cyberpunk", "corporate")
+        top_n: Number of top recommendations to return
 
     Returns:
-        List of vibe names sorted by compatibility score (highest first)
-
-    Example:
-        >>> get_recommended_vibes("cyberpunk")
-        ['cyberpunk_edge', 'playful_funny', 'luxury_editorial', 'elite_corporate']
+        List of (vibe_name, score) tuples sorted by score descending
     """
-    theme_lower = theme.lower()
-    # Try both hyphenated and underscored versions for compatibility
-    compat = THEME_VIBE_COMPATIBILITY.get(theme_lower)
-    if compat is None:
-        # Try alternate format (swap hyphens/underscores)
-        theme_alt = theme_lower.replace("-", "_") if "-" in theme_lower else theme_lower.replace("_", "-")
-        compat = THEME_VIBE_COMPATIBILITY.get(theme_alt, {})
-    if not compat:
-        # Return all vibes in default order if theme not found
-        return ["elite_corporate", "playful_funny", "cyberpunk_edge", "luxury_editorial"]
-    return sorted(compat.keys(), key=lambda v: compat.get(v, 0), reverse=True)
+    theme_key = theme.replace("-", "_") if "-" in theme else theme
+    if theme_key not in THEME_VIBE_COMPATIBILITY:
+        # Try with hyphen
+        theme_key = theme.replace("_", "-")
+
+    vibes = THEME_VIBE_COMPATIBILITY.get(theme_key, {})
+    sorted_vibes = sorted(vibes.items(), key=lambda x: x[1], reverse=True)
+    return sorted_vibes[:top_n]
 
 
-def get_vibe_compatibility(theme: str, vibe: str) -> Tuple[int, str]:
+def get_vibe_compatibility(theme: str, vibe) -> tuple:
     """
-    Get compatibility score and message for a theme-vibe combination.
-
-    Use this to validate user choices or provide guidance.
+    Get compatibility score and message for a theme-vibe pair.
 
     Args:
-        theme: The theme name
-        vibe: The vibe name
+        theme: Theme name
+        vibe: Vibe name (str) or tuple from get_recommended_vibes (vibe_name, score)
 
     Returns:
-        Tuple of (score 1-5, descriptive message)
-
-    Example:
-        >>> get_vibe_compatibility("cyberpunk", "cyberpunk_edge")
-        (5, "Perfect match! Amplifies both theme and vibe.")
+        Tuple of (score, message)
     """
-    theme_lower = theme.lower()
-    vibe_lower = vibe.lower().replace("-", "_")
+    # Handle tuple input from get_recommended_vibes
+    if isinstance(vibe, tuple):
+        vibe = vibe[0]
 
-    # Try both hyphenated and underscored versions for compatibility
-    compat = THEME_VIBE_COMPATIBILITY.get(theme_lower)
-    if compat is None:
-        theme_alt = theme_lower.replace("-", "_") if "-" in theme_lower else theme_lower.replace("_", "-")
-        compat = THEME_VIBE_COMPATIBILITY.get(theme_alt, {})
+    theme_key = theme.replace("-", "_") if "-" in theme else theme
+    if theme_key not in THEME_VIBE_COMPATIBILITY:
+        theme_key = theme.replace("_", "-")
 
-    score = compat.get(vibe_lower, 3)
+    vibes = THEME_VIBE_COMPATIBILITY.get(theme_key, {})
+    score = vibes.get(vibe, 0)
 
-    messages = {
-        5: "Perfect match! Amplifies both theme and vibe.",
-        4: "Great combination. Complementary aesthetics.",
-        3: "Neutral pairing. Will work but may feel generic.",
-        2: "Some tension. Use intentionally for creative contrast.",
-        1: "Conflicting aesthetics. Consider a different vibe.",
-    }
+    if score >= 5:
+        message = "Perfect match! This vibe amplifies this theme's essence."
+    elif score >= 4:
+        message = "Great compatibility. This combination works very well."
+    elif score >= 3:
+        message = "Good compatibility. This combination is acceptable."
+    elif score >= 2:
+        message = "Low compatibility. Consider a different vibe."
+    else:
+        message = "Style conflict. This combination creates visual tension."
 
-    return (score, messages.get(score, "Unknown compatibility"))
+    return (score, message)
 
 
 # =============================================================================
-# 1. MODERN-MINIMAL THEME FACTORY
+# CORPORATE PRESET FUNCTIONS
+# =============================================================================
+
+def get_corporate_preset(name: str) -> Optional[Dict[str, Any]]:
+    """Get a corporate preset by name."""
+    return CORPORATE_PRESETS.get(name)
+
+
+def list_corporate_presets() -> List[str]:
+    """List all available corporate presets."""
+    return list(CORPORATE_PRESETS.keys())
+
+
+def apply_corporate_preset(preset_name: str) -> Dict[str, Any]:
+    """
+    Apply a corporate preset and return theme settings.
+
+    Args:
+        preset_name: Name of the preset (e.g., "enterprise_bank")
+
+    Returns:
+        Theme configuration dict with preset settings applied
+    """
+    preset = CORPORATE_PRESETS.get(preset_name)
+    if not preset:
+        return {}
+
+    theme_name = preset.get("theme", "corporate")
+    kwargs = {k: v for k, v in preset.items() if k != "theme"}
+
+    return create_theme(theme_name, **kwargs)
+
+
+# Re-export utilities for backward compatibility
+__all__ = [
+    # Utilities
+    "hex_to_rgb",
+    "rgb_to_hex",
+    "hex_to_hsl",
+    "hsl_to_hex",
+    "relative_luminance",
+    "contrast_ratio",
+    "validate_contrast",
+    # Brand colors
+    "BrandColors",
+    # Factory functions
+    "create_modern_minimal_theme",
+    "create_brutalist_theme",
+    "create_glassmorphism_theme",
+    "create_neo_brutalism_theme",
+    "create_soft_ui_theme",
+    "create_corporate_theme",
+    "create_gradient_theme",
+    "create_cyberpunk_theme",
+    "create_retro_theme",
+    "create_pastel_theme",
+    "create_dark_mode_first_theme",
+    "create_high_contrast_theme",
+    "create_nature_theme",
+    "create_startup_theme",
+    # Unified factory
+    "create_theme",
+    "list_themes",
+    # Constants
+    "BRUTALIST_CONTRAST_PAIRS",
+    "NEOBRUTALISM_GRADIENTS",
+    "GRADIENT_ANIMATIONS",
+    "CORPORATE_INDUSTRIES",
+    "CORPORATE_LAYOUTS",
+    "FORMALITY_TYPOGRAPHY",
+    "GRADIENT_LIBRARY",
+    "NEON_COLORS",
+    "GLOW_INTENSITIES",
+    "RETRO_FONT_PAIRINGS",
+    "PASTEL_ACCESSIBLE_PAIRS",
+    "NATURE_SEASONS",
+    "STARTUP_ARCHETYPES",
+    "THEME_VIBE_COMPATIBILITY",
+    "CORPORATE_PRESETS",
+    # Helper functions
+    "calculate_neumorphism_shadows",
+    "generate_neon_glow",
+    "get_gradient",
+    "list_gradients_by_category",
+    "get_formality_typography",
+    # Vibe compatibility functions
+    "get_recommended_vibes",
+    "get_vibe_compatibility",
+    # Corporate preset functions
+    "get_corporate_preset",
+    "list_corporate_presets",
+    "apply_corporate_preset",
+]
+
+
+# =============================================================================
+# BRAND COLORS
 # =============================================================================
 
 @dataclass
@@ -452,6 +315,10 @@ class BrandColors:
         )
 
 
+# =============================================================================
+# FACTORY FUNCTIONS (Backward-Compatible Wrappers)
+# =============================================================================
+
 def create_modern_minimal_theme(
     brand: Optional[BrandColors] = None,
     neutral_base: Literal["slate", "gray", "zinc", "neutral", "stone"] = "slate",
@@ -475,80 +342,19 @@ def create_modern_minimal_theme(
             border_radius="xl"
         )
     """
-    if brand is None:
-        brand = BrandColors(
-            primary="blue-600",
-            primary_hover="blue-700",
-            primary_light="blue-50",
-            primary_dark="blue-900",
-            secondary="slate-600",
-            accent="emerald-500"
-        )
-
-    return {
-        "name": "modern-minimal-custom",
-        "description": "Customized modern minimal theme",
-
-        # Brand Colors
-        "primary": brand.primary,
-        "primary_hover": brand.primary_hover,
-        "primary_light": brand.primary_light,
-        "primary_dark": brand.primary_dark,
-        "secondary": brand.secondary,
-        "accent": brand.accent,
-
-        # Neutral Scale
-        "background": "white",
-        "background_dark": f"{neutral_base}-900",
-        "surface": f"{neutral_base}-50",
-        "surface_dark": f"{neutral_base}-800",
-        "border": f"{neutral_base}-200",
-        "border_dark": f"{neutral_base}-700",
-        "text": f"{neutral_base}-900",
-        "text_dark": f"{neutral_base}-100",
-        "text_muted": f"{neutral_base}-500",
-
-        # Style
-        "border_radius": f"rounded-{border_radius}",
-        "shadow": f"shadow-{shadow_intensity}" if shadow_intensity != "none" else "",
-        "shadow_hover": f"shadow-{_next_shadow(shadow_intensity)}",
-
-        # Typography
-        "font": "font-sans",
-        "transition": "transition-all duration-200 ease-out",
-
-        # CSS Variables
-        "css_variables": {
-            "--color-primary": _to_css_color(brand.primary),
-            "--color-primary-hover": _to_css_color(brand.primary_hover),
-            "--color-accent": _to_css_color(brand.accent),
-        },
-
-        # Component bundles
-        "button_base": f"bg-{brand.primary} hover:bg-{brand.primary_hover} text-white rounded-{border_radius} shadow-{shadow_intensity} hover:shadow-{_next_shadow(shadow_intensity)} transition-all duration-200",
-        "card_base": f"bg-white dark:bg-{neutral_base}-800 rounded-{border_radius} shadow-{shadow_intensity} border border-{neutral_base}-200 dark:border-{neutral_base}-700",
-        "input_base": f"bg-white dark:bg-{neutral_base}-900 border border-{neutral_base}-300 dark:border-{neutral_base}-600 rounded-{border_radius} focus:ring-2 focus:ring-{brand.primary}/50 focus:border-{brand.primary}",
-    }
-
-
-# =============================================================================
-# 2. BRUTALIST THEME FACTORY
-# =============================================================================
-
-BRUTALIST_CONTRAST_PAIRS = {
-    "white": {"text": "black", "text_muted": "slate-700", "min_contrast": 7.0},
-    "black": {"text": "white", "text_muted": "slate-300", "min_contrast": 7.0},
-    "yellow-400": {"text": "black", "text_muted": "slate-800", "min_contrast": 4.5},
-    "blue-600": {"text": "white", "text_muted": "blue-100", "min_contrast": 4.5},
-    "red-600": {"text": "white", "text_muted": "red-100", "min_contrast": 4.5},
-}
+    return create_theme(
+        "modern-minimal",
+        brand=brand,
+        neutral_base=neutral_base,
+        border_radius=border_radius,
+        shadow_intensity=shadow_intensity,
+    )
 
 
 def create_brutalist_theme(
     contrast_mode: Literal["standard", "high", "maximum"] = "high",
     accent_color: Literal["yellow", "red", "cyan", "pink", "lime"] = "yellow",
     include_focus_indicators: bool = True,
-    # === CREATIVITY ENHANCEMENT: New parameters ===
     enable_animations: bool = False,
     border_width: Literal["2", "4", "8"] = "4",
     shadow_offset: Literal["sm", "md", "lg"] = "md",
@@ -560,107 +366,22 @@ def create_brutalist_theme(
 
     Args:
         contrast_mode: Contrast level - "standard" (AA), "high" (AAA), "maximum" (AAA+)
-        accent_color: Accent color preset - "yellow", "red", "cyan", "pink", "lime"
-        include_focus_indicators: Include focus ring styles
-        enable_animations: Enable hover/transition animations (default: False for pure brutalist)
-        border_width: Border thickness - "2" (subtle), "4" (standard), "8" (bold)
-        shadow_offset: Hard shadow offset - "sm" (4px), "md" (8px), "lg" (12px)
+        accent_color: Accent color choice.
+        include_focus_indicators: Whether to include focus indicators.
+        enable_animations: Enable animations.
+        border_width: Border width.
+        shadow_offset: Shadow offset size.
     """
-    contrast_requirements = {
-        "standard": {"normal_text": 4.5, "large_text": 3.0, "ui": 3.0},
-        "high": {"normal_text": 7.0, "large_text": 4.5, "ui": 4.5},
-        "maximum": {"normal_text": 10.0, "large_text": 7.0, "ui": 7.0},
-    }
+    return create_theme(
+        "brutalist",
+        contrast_mode=contrast_mode,
+        accent_color=accent_color,
+        include_focus_indicators=include_focus_indicators,
+        enable_animations=enable_animations,
+        border_width=border_width,
+        shadow_offset=shadow_offset,
+    )
 
-    # Accent color mapping
-    accent_colors = {
-        "yellow": "yellow-400",
-        "red": "red-500",
-        "cyan": "cyan-400",
-        "pink": "pink-500",
-        "lime": "lime-400",
-    }
-
-    # Shadow offset mapping
-    shadow_offsets = {
-        "sm": ("4px", "6px"),   # (default, hover)
-        "md": ("8px", "10px"),
-        "lg": ("12px", "14px"),
-    }
-
-    # Border width mapping
-    border_widths = {
-        "2": "border-2",
-        "4": "border-4",
-        "8": "border-8",
-    }
-
-    reqs = contrast_requirements[contrast_mode]
-    accent = accent_colors.get(accent_color, "yellow-400")
-    offset = shadow_offsets.get(shadow_offset, ("8px", "10px"))
-    border_class = border_widths.get(border_width, "border-4")
-
-    theme = {
-        "name": f"brutalist-{contrast_mode}",
-        "description": f"Brutalist theme with {contrast_mode} contrast (WCAG {'AA' if contrast_mode == 'standard' else 'AAA'})",
-
-        # Core brutalist aesthetic
-        "primary": "black",
-        "primary_hover": "slate-800",
-        "secondary": "white",
-        "accent": accent,
-
-        # High contrast backgrounds
-        "background": "white",
-        "background_dark": "black",
-        "surface": "slate-100",
-        "surface_dark": "slate-900",
-
-        # Guaranteed contrast text
-        "text": "black",
-        "text_dark": "white",
-        "text_muted": "slate-700",
-        "text_muted_dark": "slate-300",
-
-        # Brutalist style
-        "border": "black",
-        "border_dark": "white",
-        "border_radius": "rounded-none",
-        "border_width": border_class,
-
-        # Signature shadows with configurable offset
-        "shadow": f"shadow-[{offset[0]}_{offset[0]}_0px_#000]",
-        "shadow_hover": f"shadow-[{offset[1]}_{offset[1]}_0px_#000]",
-        "shadow_dark": f"shadow-[{offset[0]}_{offset[0]}_0px_#fff]",
-
-        "font": "font-mono",
-
-        # Animations (optional)
-        "transition": "transition-all duration-150" if enable_animations else "",
-        "hover_transform": "hover:-translate-x-0.5 hover:-translate-y-0.5" if enable_animations else "",
-
-        # Focus indicators
-        "focus_ring": "ring-4 ring-black ring-offset-2" if include_focus_indicators else "",
-        "focus_ring_dark": "ring-4 ring-white ring-offset-2 ring-offset-black",
-
-        # Metadata
-        "_contrast_mode": contrast_mode,
-        "_min_contrast_ratios": reqs,
-        "_enable_animations": enable_animations,
-        "_border_width": border_width,
-        "_shadow_offset": shadow_offset,
-    }
-
-    # Accent color text pairing
-    accent_pair = BRUTALIST_CONTRAST_PAIRS.get(accent, {"text": "black"})
-    theme["accent_text"] = accent_pair["text"]
-
-    return theme
-
-
-# =============================================================================
-# 3. GLASSMORPHISM THEME FACTORY
-# =============================================================================
 
 def create_glassmorphism_theme(
     blur_intensity: Literal["sm", "md", "lg", "xl", "2xl", "3xl"] = "xl",
@@ -674,152 +395,22 @@ def create_glassmorphism_theme(
 
     Generates CSS with backdrop-filter when supported and falls back
     to semi-transparent backgrounds when not.
+
+    Args:
+        blur_intensity: Blur intensity level.
+        opacity: Glass opacity (0.3 to 0.95).
+        tint_color: Tint color for glass effect.
+        enable_fallback: Enable fallback for unsupported browsers.
+        performance_mode: Performance mode (quality/balanced/performance).
     """
-    def min_blur(requested: str, maximum: str) -> str:
-        scale = ["sm", "md", "lg", "xl", "2xl", "3xl"]
-        req_idx = scale.index(requested) if requested in scale else 3
-        max_idx = scale.index(maximum) if maximum in scale else 2
-        return scale[min(req_idx, max_idx)]
-
-    performance_settings = {
-        "quality": {
-            "blur": blur_intensity,
-            "will_change": "backdrop-filter",
-            "transform": "translateZ(0)",
-        },
-        "balanced": {
-            "blur": min_blur(blur_intensity, "lg"),
-            "will_change": "auto",
-            "transform": "",
-        },
-        "performance": {
-            "blur": "md",
-            "will_change": "auto",
-            "transform": "",
-        }
-    }
-
-    perf = performance_settings[performance_mode]
-    fallback_opacity = min(opacity + 0.15, 0.95)
-
-    # Tint color handling
-    if tint_color == "white":
-        glass_bg = f"bg-white/{int(opacity * 100)}"
-        glass_bg_fallback = f"bg-white/{int(fallback_opacity * 100)}"
-        border_color = "border-white/20"
-    elif tint_color == "black":
-        glass_bg = f"bg-black/{int(opacity * 100)}"
-        glass_bg_fallback = f"bg-slate-900/{int(fallback_opacity * 100)}"
-        border_color = "border-white/10"
-    else:
-        glass_bg = f"bg-{tint_color}/{int(opacity * 100)}"
-        glass_bg_fallback = f"bg-{tint_color}/{int(fallback_opacity * 100)}"
-        border_color = f"border-{tint_color}/20"
-
-    return {
-        "name": f"glassmorphism-{performance_mode}",
-        "description": f"Safari-optimized glassmorphism ({performance_mode} mode)",
-
-        # Glass effect
-        "glass_effect": f"{glass_bg} backdrop-blur-{perf['blur']} {border_color} border ring-1 ring-white/20 ring-inset",
-        "glass_effect_strong": f"bg-white/{int(opacity * 100 + 10)} backdrop-blur-{blur_intensity} border-white/30 border ring-1 ring-white/40 ring-inset shadow-[0_8px_32px_0_rgba(31,38,135,0.37)]",
-        "glass_fallback": f"{glass_bg_fallback} border {border_color}",
-
-        # Surface colors
-        "surface": f"white/{int(opacity * 100 - 10)}",
-        "surface_dark": f"slate-900/{int(opacity * 100 - 10)}",
-
-        # Core colors
-        "primary": "indigo-500",
-        "primary_hover": "indigo-600",
-        "secondary": "purple-500",
-        "background": "slate-900",
-        "background_dark": "slate-950",
-        "text": "white",
-        "text_muted": "slate-300",
-
-        # Borders and shadows
-        "border": "white/20",
-        "border_radius": "rounded-2xl",
-        "shadow": "shadow-lg shadow-black/10",
-        "shadow_hover": "shadow-xl shadow-black/20",
-
-        # Safari optimizations
-        "_safari_optimizations": {
-            "use_transform_hack": performance_mode == "quality",
-            "limit_nested_blur": True,
-            "prefer_opacity_over_rgba": True,
-        },
-
-        # Feature detection CSS
-        "_feature_detection_css": """
-        @supports (backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px)) {
-            .glass {
-                -webkit-backdrop-filter: blur(16px);
-                backdrop-filter: blur(16px);
-            }
-        }
-        @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
-            .glass {
-                background-color: rgba(255, 255, 255, 0.85);
-            }
-        }
-        """,
-    }
-
-
-# =============================================================================
-# 4. NEO-BRUTALISM THEME FACTORY
-# =============================================================================
-
-NEOBRUTALISM_GRADIENTS = {
-    "sunset": {"colors": ["yellow-400", "orange-500", "pink-500"], "angle": "to-r"},
-    "ocean": {"colors": ["cyan-400", "blue-500", "purple-500"], "angle": "to-r"},
-    "forest": {"colors": ["lime-400", "emerald-500", "teal-500"], "angle": "to-r"},
-    "candy": {"colors": ["pink-400", "purple-500", "indigo-500"], "angle": "to-r"},
-    "fire": {"colors": ["yellow-400", "orange-500", "red-500"], "angle": "to-r"},
-}
-
-GRADIENT_ANIMATIONS = {
-    "flow": {
-        "keyframes": """
-        @keyframes gradient-flow {
-            0%, 100% { background-position: 0% 50%; }
-            50% { background-position: 100% 50%; }
-        }
-        """,
-        "class": "bg-[length:200%_200%] animate-[gradient-flow_3s_ease_infinite]",
-    },
-    "pulse": {
-        "keyframes": """
-        @keyframes gradient-pulse {
-            0%, 100% { background-size: 100% 100%; opacity: 1; }
-            50% { background-size: 120% 120%; opacity: 0.9; }
-        }
-        """,
-        "class": "animate-[gradient-pulse_2s_ease-in-out_infinite]",
-    },
-    "shimmer": {
-        "keyframes": """
-        @keyframes gradient-shimmer {
-            0% { background-position: -200% 0; }
-            100% { background-position: 200% 0; }
-        }
-        """,
-        "class": "bg-[length:200%_100%] animate-[gradient-shimmer_2s_linear_infinite]",
-    },
-    "wave": {
-        "keyframes": """
-        @keyframes gradient-wave {
-            0%, 100% { background-position: 0% 0%; }
-            25% { background-position: 100% 0%; }
-            50% { background-position: 100% 100%; }
-            75% { background-position: 0% 100%; }
-        }
-        """,
-        "class": "bg-[length:200%_200%] animate-[gradient-wave_4s_ease_infinite]",
-    },
-}
+    return create_theme(
+        "glassmorphism",
+        blur_intensity=blur_intensity,
+        opacity=opacity,
+        tint_color=tint_color,
+        enable_fallback=enable_fallback,
+        performance_mode=performance_mode,
+    )
 
 
 def create_neo_brutalism_theme(
@@ -831,135 +422,22 @@ def create_neo_brutalism_theme(
 ) -> Dict[str, Any]:
     """
     Neo-Brutalism with animated gradients and playful effects.
+
+    Args:
+        gradient_preset: Gradient color preset.
+        animation: Animation type for gradients.
+        animation_speed: Animation speed.
+        shadow_color: Shadow color.
+        include_hover_animations: Include hover animations.
     """
-    gradient = NEOBRUTALISM_GRADIENTS[gradient_preset]
-    colors = gradient["colors"]
-
-    gradient_class = f"bg-gradient-{gradient['angle']} from-{colors[0]} via-{colors[1]} to-{colors[2]}"
-
-    speed_map = {"slow": 1.5, "normal": 1.0, "fast": 0.5}
-    speed = speed_map[animation_speed]
-
-    anim_config = GRADIENT_ANIMATIONS.get(animation, {"class": "", "keyframes": ""})
-    anim_class = anim_config.get("class", "")
-
-    # Modify animation duration based on speed
-    if speed != 1.0 and "animate-[" in anim_class:
-        anim_class = re.sub(
-            r'(\d+(?:\.\d+)?)s',
-            lambda m: f"{float(m.group(1)) * speed}s",
-            anim_class
-        )
-
-    def _color_to_hex(color: str) -> str:
-        if color == "black":
-            return "000"
-        elif color == "white":
-            return "fff"
-        return "000"
-
-    def _contrast_text(bg_color: str) -> str:
-        light_colors = ["yellow", "lime", "amber", "cyan"]
-        if any(c in bg_color for c in light_colors):
-            return "black"
-        return "white"
-
-    return {
-        "name": f"neo-brutalism-{gradient_preset}",
-        "description": f"Playful neo-brutalism with {gradient_preset} gradient",
-
-        # Animated gradient
-        "gradient_primary": gradient_class,
-        "gradient_animated": f"{gradient_class} {anim_class}",
-        "gradient_keyframes": anim_config.get("keyframes", ""),
-
-        # Colors
-        "primary": colors[0],
-        "primary_hover": colors[1],
-        "secondary": colors[2],
-        "accent": colors[1],
-
-        # Backgrounds
-        "background": "amber-50",
-        "background_dark": "slate-900",
-        "surface": "white",
-        "surface_dark": "slate-800",
-
-        # Brutalist elements
-        "border": shadow_color,
-        "border_width": "border-2",
-        "border_radius": "rounded-xl",
-
-        # Offset shadows
-        "shadow": f"shadow-[4px_4px_0px_#{_color_to_hex(shadow_color)}]",
-        "shadow_hover": f"shadow-[6px_6px_0px_#{_color_to_hex(shadow_color)}] translate-x-[-2px] translate-y-[-2px]",
-        "shadow_active": f"shadow-[2px_2px_0px_#{_color_to_hex(shadow_color)}]",
-
-        # Text
-        "text": "black",
-        "text_dark": "white",
-        "font": "font-sans",
-
-        # Hover animations
-        "hover_transform": "hover:-translate-y-1 hover:translate-x-1" if include_hover_animations else "",
-        "active_transform": "active:translate-y-0 active:translate-x-0",
-
-        # Button with animated gradient
-        "button_gradient": f"""
-            {gradient_class} {anim_class}
-            text-{_contrast_text(colors[0])} font-bold
-            px-6 py-3 rounded-xl
-            border-2 border-black
-            shadow-[4px_4px_0px_#000]
-            hover:shadow-[6px_6px_0px_#000]
-            hover:-translate-y-0.5 hover:translate-x-0.5
-            active:shadow-[2px_2px_0px_#000]
-            active:translate-y-0 active:translate-x-0
-            transition-all duration-200
-        """,
-    }
-
-
-# =============================================================================
-# 5. SOFT-UI (NEUMORPHISM) THEME FACTORY
-# =============================================================================
-
-def calculate_neumorphism_shadows(
-    base_color: str,
-    intensity: Literal["subtle", "medium", "strong"] = "medium",
-    is_dark_mode: bool = False,
-) -> Dict[str, str]:
-    """
-    Calculate proper neumorphism shadows for any base color.
-    """
-    intensity_map = {
-        "subtle": {"light_offset": 8, "dark_offset": 12, "blur": 15},
-        "medium": {"light_offset": 15, "dark_offset": 20, "blur": 20},
-        "strong": {"light_offset": 20, "dark_offset": 25, "blur": 25},
-    }
-
-    settings = intensity_map[intensity]
-
-    neumorphism_colors = {
-        "slate-100": {"light": "#ffffff", "dark": "#c8d0db", "bg": "#f1f5f9"},
-        "slate-200": {"light": "#ffffff", "dark": "#b8c2cf", "bg": "#e2e8f0"},
-        "gray-100": {"light": "#ffffff", "dark": "#c7ccd1", "bg": "#f3f4f6"},
-        "slate-800": {"light": "#3d4a5c", "dark": "#0f1623", "bg": "#1e293b"},
-        "slate-900": {"light": "#283548", "dark": "#000000", "bg": "#0f172a"},
-        "zinc-800": {"light": "#3f3f46", "dark": "#0a0a0b", "bg": "#27272a"},
-        "zinc-900": {"light": "#2d2d31", "dark": "#000000", "bg": "#18181b"},
-    }
-
-    colors = neumorphism_colors.get(base_color, neumorphism_colors["slate-100"])
-    offset = settings["light_offset"]
-    blur = settings["blur"]
-
-    return {
-        "raised": f"shadow-[{offset}px_{offset}px_{blur}px_{colors['dark']},-{offset}px_-{offset}px_{blur}px_{colors['light']}]",
-        "pressed": f"shadow-[inset_{offset}px_{offset}px_{blur}px_{colors['dark']},inset_-{offset}px_-{offset}px_{blur}px_{colors['light']}]",
-        "flat": "shadow-none",
-        "bg_color": colors["bg"],
-    }
+    return create_theme(
+        "neo-brutalism",
+        gradient_preset=gradient_preset,
+        animation=animation,
+        animation_speed=animation_speed,
+        shadow_color=shadow_color,
+        include_hover_animations=include_hover_animations,
+    )
 
 
 def create_soft_ui_theme(
@@ -967,7 +445,6 @@ def create_soft_ui_theme(
     base_color_dark: str = "slate-800",
     primary_color: str = "blue-500",
     intensity: Literal["subtle", "medium", "strong"] = "medium",
-    # === CREATIVITY ENHANCEMENT: New parameters for theme parity ===
     color_temperature: Literal["cool", "neutral", "warm"] = "neutral",
     surface_variant: Literal["flat", "raised", "inset"] = "raised",
     glow_color: Optional[str] = None,
@@ -977,215 +454,26 @@ def create_soft_ui_theme(
     Proper dual-mode neumorphism with calculated shadows.
 
     Args:
-        base_color_light: Light mode base color (e.g., "slate-100")
-        base_color_dark: Dark mode base color (e.g., "slate-800")
-        primary_color: Primary accent color (e.g., "blue-500")
-        intensity: Shadow depth - "subtle", "medium", or "strong"
-        color_temperature: Color warmth - "cool" (blue tints), "neutral", or "warm" (amber tints)
-        surface_variant: Default surface style - "flat", "raised", or "inset"
-        glow_color: Optional glow effect color (e.g., "blue-400"). None disables glow.
-        enable_inner_shadow: Whether to enable inner shadow effects on interactive elements
+        base_color_light: Light mode base color.
+        base_color_dark: Dark mode base color.
+        primary_color: Primary accent color.
+        intensity: Neumorphism intensity (subtle/medium/strong).
+        color_temperature: Color temperature (cool/neutral/warm).
+        surface_variant: Surface variant (flat/raised/inset).
+        glow_color: Optional glow color.
+        enable_inner_shadow: Enable inner shadow effect.
     """
-    light_shadows = calculate_neumorphism_shadows(base_color_light, intensity, False)
-    dark_shadows = calculate_neumorphism_shadows(base_color_dark, intensity, True)
-
-    # === Color temperature adjustments ===
-    TEMPERATURE_TINTS = {
-        "cool": {
-            "text_tint": "blue",
-            "bg_overlay": "bg-blue-50/30 dark:bg-blue-950/20",
-            "accent_shift": "-50",  # Cooler accent
-        },
-        "neutral": {
-            "text_tint": "slate",
-            "bg_overlay": "",
-            "accent_shift": "",
-        },
-        "warm": {
-            "text_tint": "amber",
-            "bg_overlay": "bg-amber-50/20 dark:bg-amber-950/10",
-            "accent_shift": "+50",  # Warmer accent
-        },
-    }
-    temp_config = TEMPERATURE_TINTS[color_temperature]
-
-    # === Surface variant shadow selection ===
-    SURFACE_SHADOWS = {
-        "flat": {"light": "shadow-none", "dark": "shadow-none"},
-        "raised": {"light": light_shadows["raised"], "dark": dark_shadows["raised"]},
-        "inset": {"light": light_shadows["pressed"], "dark": dark_shadows["pressed"]},
-    }
-    surface_shadow = SURFACE_SHADOWS[surface_variant]
-
-    # === Glow effect configuration ===
-    glow_effect = ""
-    if glow_color:
-        glow_effect = f"shadow-[0_0_30px_rgba(var(--{glow_color})/0.15)] hover:shadow-[0_0_40px_rgba(var(--{glow_color})/0.25)]"
-
-    # === Inner shadow for interactive elements ===
-    inner_shadow_class = light_shadows["pressed"] if enable_inner_shadow else "shadow-none"
-    inner_shadow_dark = dark_shadows["pressed"] if enable_inner_shadow else "shadow-none"
-
-    return {
-        "name": f"soft-ui-{intensity}-{color_temperature}",
-        "description": f"Neumorphic design with {intensity} shadows, {color_temperature} temperature in both light and dark modes",
-
-        # Primary colors
-        "primary": primary_color,
-        "primary_hover": primary_color.replace("-500", "-600"),
-
-        # Backgrounds
-        "background": base_color_light,
-        "background_dark": base_color_dark,
-        "surface": base_color_light,
-        "surface_dark": base_color_dark,
-
-        # === CREATIVITY ENHANCEMENT: Temperature overlay ===
-        "background_overlay": temp_config["bg_overlay"],
-
-        # Neumorphic shadows
-        "shadow_raised": light_shadows["raised"],
-        "shadow_pressed": light_shadows["pressed"],
-        "shadow_raised_dark": dark_shadows["raised"],
-        "shadow_pressed_dark": dark_shadows["pressed"],
-
-        # Combined classes
-        "shadow_raised_auto": f"{light_shadows['raised']} dark:{dark_shadows['raised']}",
-        "shadow_pressed_auto": f"{light_shadows['pressed']} dark:{dark_shadows['pressed']}",
-
-        # === CREATIVITY ENHANCEMENT: Surface variant shadows ===
-        "surface_shadow": f"{surface_shadow['light']} dark:{surface_shadow['dark']}",
-
-        # === CREATIVITY ENHANCEMENT: Glow effect ===
-        "glow_effect": glow_effect,
-
-        # Text with temperature tint
-        "text": f"{temp_config['text_tint']}-700",
-        "text_dark": f"{temp_config['text_tint']}-200",
-        "text_muted": f"{temp_config['text_tint']}-400",
-
-        # Borders
-        "border": "transparent",
-        "border_radius": "rounded-2xl",
-
-        # Component classes
-        "button_raised": f"""
-            bg-{base_color_light} dark:bg-{base_color_dark}
-            {surface_shadow['light']} dark:{surface_shadow['dark']}
-            text-{primary_color} font-medium
-            px-6 py-3 rounded-2xl
-            active:{inner_shadow_class}
-            dark:active:{inner_shadow_dark}
-            transition-all duration-150
-            {glow_effect}
-        """,
-
-        "card_raised": f"""
-            bg-{base_color_light} dark:bg-{base_color_dark}
-            {surface_shadow['light']} dark:{surface_shadow['dark']}
-            rounded-3xl p-6
-            {temp_config['bg_overlay']}
-            {glow_effect}
-        """,
-
-        # === CREATIVITY ENHANCEMENT: Flat card variant ===
-        "card_flat": f"""
-            bg-{base_color_light} dark:bg-{base_color_dark}
-            rounded-3xl p-6
-            {temp_config['bg_overlay']}
-        """,
-
-        # === CREATIVITY ENHANCEMENT: Inset card variant ===
-        "card_inset": f"""
-            bg-{base_color_light} dark:bg-{base_color_dark}
-            {light_shadows['pressed']} dark:{dark_shadows['pressed']}
-            rounded-3xl p-6
-            {temp_config['bg_overlay']}
-        """,
-
-        "input_inset": f"""
-            bg-{base_color_light} dark:bg-{base_color_dark}
-            {inner_shadow_class} dark:{inner_shadow_dark}
-            rounded-xl px-4 py-3
-            text-{temp_config['text_tint']}-700 dark:text-{temp_config['text_tint']}-200
-            placeholder:text-{temp_config['text_tint']}-400
-            focus:outline-none focus:ring-2 focus:ring-{primary_color}/50
-        """,
-
-        # === CREATIVITY ENHANCEMENT: Metadata for introspection ===
-        "_color_temperature": color_temperature,
-        "_surface_variant": surface_variant,
-        "_glow_color": glow_color,
-        "_enable_inner_shadow": enable_inner_shadow,
-    }
-
-
-# =============================================================================
-# 6. CORPORATE THEME FACTORY
-# =============================================================================
-
-CORPORATE_INDUSTRIES = {
-    "finance": {
-        "name": "Corporate Finance",
-        "primary": "blue-800",
-        "secondary": "emerald-600",
-        "accent": "amber-500",
-        "personality": "trustworthy, stable, premium",
-        "suggested_fonts": ["Inter", "SF Pro", "IBM Plex Sans"],
-        "icon_style": "outline",
-    },
-    "healthcare": {
-        "name": "Corporate Healthcare",
-        "primary": "teal-600",
-        "secondary": "blue-500",
-        "accent": "rose-500",
-        "personality": "caring, clean, professional",
-        "suggested_fonts": ["Plus Jakarta Sans", "Source Sans Pro"],
-        "icon_style": "outline",
-    },
-    "legal": {
-        "name": "Corporate Legal",
-        "primary": "slate-800",
-        "secondary": "amber-700",
-        "accent": "blue-600",
-        "personality": "authoritative, traditional, refined",
-        "suggested_fonts": ["Playfair Display", "Lora", "Libre Baskerville"],
-        "icon_style": "solid",
-    },
-    "tech": {
-        "name": "Corporate Tech",
-        "primary": "indigo-600",
-        "secondary": "violet-500",
-        "accent": "cyan-400",
-        "personality": "innovative, modern, dynamic",
-        "suggested_fonts": ["Outfit", "Space Grotesk", "Manrope"],
-        "icon_style": "outline",
-    },
-    "manufacturing": {
-        "name": "Corporate Manufacturing",
-        "primary": "orange-600",
-        "secondary": "slate-700",
-        "accent": "yellow-500",
-        "personality": "reliable, industrial, strong",
-        "suggested_fonts": ["DM Sans", "Roboto", "Work Sans"],
-        "icon_style": "solid",
-    },
-    "consulting": {
-        "name": "Corporate Consulting",
-        "primary": "blue-700",
-        "secondary": "slate-600",
-        "accent": "emerald-500",
-        "personality": "expert, strategic, sophisticated",
-        "suggested_fonts": ["Graphik", "Calibre"],
-        "icon_style": "outline",
-    },
-}
-
-CORPORATE_LAYOUTS = {
-    "traditional": {"max_width": "max-w-6xl", "spacing": "generous"},
-    "modern": {"max_width": "max-w-7xl", "spacing": "balanced"},
-    "editorial": {"max_width": "max-w-4xl", "spacing": "airy"},
-}
+    return create_theme(
+        "soft-ui",
+        base_color_light=base_color_light,
+        base_color_dark=base_color_dark,
+        primary_color=primary_color,
+        intensity=intensity,
+        color_temperature=color_temperature,
+        surface_variant=surface_variant,
+        glow_color=glow_color,
+        enable_inner_shadow=enable_inner_shadow,
+    )
 
 
 def create_corporate_theme(
@@ -1196,505 +484,20 @@ def create_corporate_theme(
 ) -> Dict[str, Any]:
     """
     Industry-specific corporate theme with personality.
-    """
-    ind = CORPORATE_INDUSTRIES[industry]
-    lay = CORPORATE_LAYOUTS[layout]
-
-    formality_settings = {
-        "formal": {"heading_weight": "font-semibold", "button_style": "uppercase tracking-wider"},
-        "semi-formal": {"heading_weight": "font-bold", "button_style": "normal-case"},
-        "approachable": {"heading_weight": "font-bold", "button_style": "normal-case font-medium"},
-    }
-
-    form = formality_settings[formality]
-
-    spacing_map = {
-        "generous": {"section": "py-20 md:py-28", "gap": "gap-12"},
-        "balanced": {"section": "py-16 md:py-20", "gap": "gap-8"},
-        "airy": {"section": "py-24 md:py-32", "gap": "gap-16"},
-    }
-    spacing = spacing_map.get(lay["spacing"], spacing_map["balanced"])
-
-    return {
-        "name": f"corporate-{industry}-{layout}",
-        "description": f"{ind['name']} with {layout} layout - {ind['personality']}",
-
-        # Industry colors
-        "primary": ind["primary"],
-        "primary_hover": ind["primary"].replace("-800", "-900").replace("-700", "-800").replace("-600", "-700"),
-        "secondary": ind["secondary"],
-        "accent": ind["accent"],
-
-        # Neutral base
-        "background": "white",
-        "background_dark": "slate-900",
-        "surface": "slate-50",
-        "surface_dark": "slate-800",
-        "border": "slate-200",
-        "border_dark": "slate-700",
-
-        # Typography
-        "text": "slate-800",
-        "text_dark": "slate-100",
-        "text_muted": "slate-500",
-        "font": "font-sans",
-        "heading_weight": form["heading_weight"],
-
-        # Layout
-        "max_width": lay["max_width"],
-        "section_padding": spacing["section"],
-        "element_gap": spacing["gap"],
-
-        # Style
-        "border_radius": "rounded-lg",
-        "shadow": "shadow-sm",
-        "shadow_hover": "shadow-md",
-
-        # Button
-        "button_primary": f"""
-            bg-{ind['primary']} hover:bg-{ind['primary'].replace('-700', '-800').replace('-600', '-700')}
-            text-white {form['button_style']}
-            px-6 py-3 rounded-lg
-            shadow-sm hover:shadow-md
-            transition-all duration-200
-        """,
-
-        # Accent gradient
-        "accent_gradient": f"bg-gradient-to-r from-{ind['primary']} to-{ind['secondary']}" if include_accent_gradients else "",
-
-        # Metadata
-        "_industry": industry,
-        "_personality": ind["personality"],
-        "_suggested_fonts": ind["suggested_fonts"],
-    }
-
-
-# =============================================================================
-# CORPORATE PRESETS - One-Click Professional Configurations
-# =============================================================================
-
-CORPORATE_PRESETS: Dict[str, Dict[str, Any]] = {
-    # Finance Industry
-    "enterprise_bank": {
-        "industry": "finance",
-        "layout": "traditional",
-        "formality": "formal",
-        "vibe": "elite_corporate",
-        "quality_target": "premium",
-        "accessibility_level": "AAA",
-        "description": "Fortune 500 banka/finans kurumu için kurumsal tasarım",
-    },
-    "fintech_startup": {
-        "industry": "finance",
-        "layout": "modern",
-        "formality": "semi-formal",
-        "vibe": "elite_corporate",
-        "quality_target": "high",
-        "accessibility_level": "AA",
-        "description": "Modern fintech startup için yenilikçi tasarım",
-    },
-
-    # Healthcare Industry
-    "hospital_portal": {
-        "industry": "healthcare",
-        "layout": "traditional",
-        "formality": "formal",
-        "vibe": "elite_corporate",
-        "quality_target": "premium",
-        "accessibility_level": "AAA",
-        "description": "Hastane/sağlık kuruluşu portalı için erişilebilir tasarım",
-    },
-    "healthtech_app": {
-        "industry": "healthcare",
-        "layout": "modern",
-        "formality": "approachable",
-        "vibe": "elite_corporate",
-        "quality_target": "high",
-        "accessibility_level": "AA",
-        "description": "Sağlık teknolojisi uygulaması için modern tasarım",
-    },
-
-    # Legal Industry
-    "law_firm": {
-        "industry": "legal",
-        "layout": "editorial",
-        "formality": "formal",
-        "vibe": "luxury_editorial",
-        "quality_target": "premium",
-        "accessibility_level": "AA",
-        "description": "Prestijli hukuk bürosu için editorial tasarım",
-    },
-
-    # Tech Industry
-    "saas_enterprise": {
-        "industry": "tech",
-        "layout": "modern",
-        "formality": "semi-formal",
-        "vibe": "elite_corporate",
-        "quality_target": "premium",
-        "accessibility_level": "AA",
-        "description": "Enterprise SaaS platformu için profesyonel tasarım",
-    },
-    "developer_tools": {
-        "industry": "tech",
-        "layout": "modern",
-        "formality": "approachable",
-        "vibe": "cyberpunk_edge",
-        "quality_target": "high",
-        "accessibility_level": "AA",
-        "description": "Developer araçları için modern teknik tasarım",
-    },
-
-    # Manufacturing Industry
-    "industrial_b2b": {
-        "industry": "manufacturing",
-        "layout": "traditional",
-        "formality": "formal",
-        "vibe": "elite_corporate",
-        "quality_target": "high",
-        "accessibility_level": "AA",
-        "description": "B2B endüstriyel şirket için güvenilir tasarım",
-    },
-
-    # Consulting Industry
-    "management_consulting": {
-        "industry": "consulting",
-        "layout": "editorial",
-        "formality": "formal",
-        "vibe": "luxury_editorial",
-        "quality_target": "premium",
-        "accessibility_level": "AA",
-        "description": "Big 4 / yönetim danışmanlığı için lüks tasarım",
-    },
-    "boutique_agency": {
-        "industry": "consulting",
-        "layout": "modern",
-        "formality": "semi-formal",
-        "vibe": "elite_corporate",
-        "quality_target": "high",
-        "accessibility_level": "AA",
-        "description": "Butik ajans/danışmanlık için şık tasarım",
-    },
-}
-
-
-def get_corporate_preset(preset_name: str) -> Dict[str, Any]:
-    """
-    Get a predefined corporate preset configuration.
 
     Args:
-        preset_name: Name of the preset (e.g., "enterprise_bank", "saas_enterprise")
-
-    Returns:
-        Preset configuration dictionary, defaults to "saas_enterprise" if not found
-
-    Example:
-        >>> preset = get_corporate_preset("enterprise_bank")
-        >>> print(preset["industry"])  # "finance"
-        >>> print(preset["quality_target"])  # "premium"
+        industry: Industry vertical for color/style customization.
+        layout: Layout style.
+        formality: Formality level.
+        include_accent_gradients: Include accent gradients.
     """
-    return CORPORATE_PRESETS.get(preset_name, CORPORATE_PRESETS["saas_enterprise"])
-
-
-def list_corporate_presets() -> List[str]:
-    """
-    List all available corporate preset names.
-
-    Returns:
-        List of preset names
-
-    Example:
-        >>> presets = list_corporate_presets()
-        >>> print(presets)  # ["enterprise_bank", "fintech_startup", ...]
-    """
-    return list(CORPORATE_PRESETS.keys())
-
-
-def apply_corporate_preset(preset_name: str) -> Dict[str, Any]:
-    """
-    Apply a preset and return the full theme configuration.
-
-    This is the main entry point for using corporate presets.
-    It combines the preset configuration with the actual theme
-    generation from create_corporate_theme().
-
-    Args:
-        preset_name: Name of the preset to apply
-
-    Returns:
-        Complete theme configuration dictionary with:
-        - All theme properties from create_corporate_theme()
-        - _preset_name: The applied preset name
-        - _vibe: Design personality/vibe
-        - _quality_target: Target quality level
-        - _accessibility_level: WCAG level (AA or AAA)
-
-    Example:
-        >>> theme = apply_corporate_preset("enterprise_bank")
-        >>> print(theme["_quality_target"])  # "premium"
-        >>> print(theme["primary"])  # "blue-800" (finance industry)
-    """
-    preset = get_corporate_preset(preset_name)
-
-    # Generate base theme using create_corporate_theme
-    theme = create_corporate_theme(
-        industry=preset["industry"],
-        layout=preset["layout"],
-        formality=preset["formality"],
+    return create_theme(
+        "corporate",
+        industry=industry,
+        layout=layout,
+        formality=formality,
+        include_accent_gradients=include_accent_gradients,
     )
-
-    # Add preset metadata
-    theme["_preset_name"] = preset_name
-    theme["_vibe"] = preset.get("vibe", "elite_corporate")
-    theme["_quality_target"] = preset.get("quality_target", "high")
-    theme["_accessibility_level"] = preset.get("accessibility_level", "AA")
-    theme["_preset_description"] = preset.get("description", "")
-
-    return theme
-
-
-def get_presets_by_industry(industry: str) -> List[str]:
-    """
-    Get all presets for a specific industry.
-
-    Args:
-        industry: Industry name (finance, healthcare, legal, tech, manufacturing, consulting)
-
-    Returns:
-        List of preset names for that industry
-
-    Example:
-        >>> finance_presets = get_presets_by_industry("finance")
-        >>> print(finance_presets)  # ["enterprise_bank", "fintech_startup"]
-    """
-    return [
-        name for name, config in CORPORATE_PRESETS.items()
-        if config["industry"] == industry
-    ]
-
-
-def get_presets_by_quality(quality_target: str) -> List[str]:
-    """
-    Get all presets with a specific quality target.
-
-    Args:
-        quality_target: Quality level (standard, high, premium, enterprise)
-
-    Returns:
-        List of preset names with that quality target
-
-    Example:
-        >>> premium_presets = get_presets_by_quality("premium")
-        >>> print(premium_presets)  # ["enterprise_bank", "hospital_portal", ...]
-    """
-    return [
-        name for name, config in CORPORATE_PRESETS.items()
-        if config.get("quality_target") == quality_target
-    ]
-
-
-# =============================================================================
-# FORMALITY-BASED TYPOGRAPHY SYSTEM
-# =============================================================================
-# Typography configurations that adapt based on formality level.
-# - formal: Conservative, serif headlines, precise tracking
-# - semi-formal: Modern sans-serif, balanced weights
-# - approachable: Bold, expressive, larger sizes
-
-FORMALITY_TYPOGRAPHY: Dict[str, Dict[str, Any]] = {
-    "formal": {
-        "description": "Conservative, traditional, authoritative typography",
-        "heading_font": "font-serif",
-        "heading_weight": "font-semibold",
-        "body_font": "font-sans",
-        "body_weight": "font-normal",
-        "button_case": "uppercase tracking-wider",
-        "h1": "text-3xl md:text-4xl lg:text-5xl",
-        "h2": "text-2xl md:text-3xl lg:text-4xl",
-        "h3": "text-xl md:text-2xl",
-        "body": "text-base md:text-lg",
-        "small": "text-sm",
-        "letter_spacing": {
-            "heading": "tracking-tight",
-            "body": "tracking-normal",
-            "label": "tracking-wider",
-        },
-        "line_height": {
-            "heading": "leading-tight",
-            "body": "leading-relaxed",
-        },
-        "styles": {
-            "headline": "font-serif font-semibold tracking-tight",
-            "subheadline": "font-sans font-light tracking-normal",
-            "cta_button": "font-sans font-medium uppercase tracking-wider",
-            "label": "font-sans text-xs uppercase tracking-[0.15em]",
-            "quote": "font-serif italic",
-        },
-    },
-    "semi-formal": {
-        "description": "Modern, professional, balanced typography",
-        "heading_font": "font-sans",
-        "heading_weight": "font-bold",
-        "body_font": "font-sans",
-        "body_weight": "font-normal",
-        "button_case": "normal-case",
-        "h1": "text-4xl md:text-5xl lg:text-6xl",
-        "h2": "text-3xl md:text-4xl",
-        "h3": "text-xl md:text-2xl",
-        "body": "text-base md:text-lg",
-        "small": "text-sm",
-        "letter_spacing": {
-            "heading": "tracking-tight",
-            "body": "tracking-normal",
-            "label": "tracking-wide",
-        },
-        "line_height": {
-            "heading": "leading-tight",
-            "body": "leading-relaxed",
-        },
-        "styles": {
-            "headline": "font-sans font-bold tracking-tight",
-            "subheadline": "font-sans font-normal",
-            "cta_button": "font-sans font-semibold",
-            "label": "font-sans text-sm font-medium",
-            "quote": "font-sans italic",
-        },
-    },
-    "approachable": {
-        "description": "Friendly, expressive, energetic typography",
-        "heading_font": "font-sans",
-        "heading_weight": "font-extrabold",
-        "body_font": "font-sans",
-        "body_weight": "font-normal",
-        "button_case": "normal-case",
-        "h1": "text-4xl md:text-6xl lg:text-7xl",
-        "h2": "text-3xl md:text-4xl lg:text-5xl",
-        "h3": "text-2xl md:text-3xl",
-        "body": "text-lg md:text-xl",
-        "small": "text-base",
-        "letter_spacing": {
-            "heading": "tracking-tighter",
-            "body": "tracking-normal",
-            "label": "tracking-normal",
-        },
-        "line_height": {
-            "heading": "leading-none",
-            "body": "leading-relaxed",
-        },
-        "styles": {
-            "headline": "font-sans font-extrabold tracking-tighter",
-            "subheadline": "font-sans font-medium",
-            "cta_button": "font-sans font-bold",
-            "label": "font-sans text-sm font-semibold",
-            "quote": "font-sans font-medium",
-        },
-    },
-}
-
-
-def get_formality_typography(formality: str) -> Dict[str, Any]:
-    """
-    Get typography settings for a formality level.
-
-    Args:
-        formality: Formality level (formal, semi-formal, approachable)
-
-    Returns:
-        Dict with typography configuration
-
-    Example:
-        >>> typography = get_formality_typography("formal")
-        >>> print(typography["heading_font"])  # "font-serif"
-    """
-    return FORMALITY_TYPOGRAPHY.get(formality, FORMALITY_TYPOGRAPHY["semi-formal"])
-
-
-def get_typography_style(formality: str, style_name: str) -> str:
-    """
-    Get a specific typography style class string.
-
-    Args:
-        formality: Formality level (formal, semi-formal, approachable)
-        style_name: Style name (headline, subheadline, cta_button, label, quote)
-
-    Returns:
-        Tailwind class string for the style
-
-    Example:
-        >>> classes = get_typography_style("formal", "headline")
-        >>> print(classes)  # "font-serif font-semibold tracking-tight"
-    """
-    typography = get_formality_typography(formality)
-    styles = typography.get("styles", {})
-    return styles.get(style_name, "")
-
-
-def build_typography_css_vars(formality: str) -> Dict[str, str]:
-    """
-    Build CSS custom properties for typography based on formality.
-
-    Args:
-        formality: Formality level
-
-    Returns:
-        Dict of CSS custom property names and values
-
-    Example:
-        >>> vars = build_typography_css_vars("formal")
-        >>> # Can be used in style attribute or CSS
-    """
-    typography = get_formality_typography(formality)
-
-    return {
-        "--heading-font": typography.get("heading_font", "font-sans").replace("font-", ""),
-        "--heading-weight": typography.get("heading_weight", "font-bold").replace("font-", ""),
-        "--body-font": typography.get("body_font", "font-sans").replace("font-", ""),
-        "--h1-size": typography.get("h1", "text-4xl"),
-        "--h2-size": typography.get("h2", "text-3xl"),
-        "--h3-size": typography.get("h3", "text-xl"),
-    }
-
-
-def list_formality_levels() -> List[str]:
-    """List all available formality levels."""
-    return list(FORMALITY_TYPOGRAPHY.keys())
-
-
-# =============================================================================
-# 7. GRADIENT THEME FACTORY
-# =============================================================================
-
-GRADIENT_LIBRARY = {
-    # Signature Gradients
-    "aurora": {"class": "bg-gradient-to-r from-violet-600 via-fuchsia-500 to-pink-500", "text_contrast": "white", "category": "vibrant"},
-    "sunset": {"class": "bg-gradient-to-r from-orange-500 via-pink-500 to-purple-600", "text_contrast": "white", "category": "warm"},
-    "ocean": {"class": "bg-gradient-to-r from-cyan-500 via-blue-500 to-indigo-500", "text_contrast": "white", "category": "cool"},
-    "forest": {"class": "bg-gradient-to-r from-emerald-500 via-teal-500 to-cyan-500", "text_contrast": "white", "category": "nature"},
-    "fire": {"class": "bg-gradient-to-r from-yellow-500 via-orange-500 to-red-500", "text_contrast": "white", "category": "warm"},
-
-    # Subtle Gradients
-    "slate_subtle": {"class": "bg-gradient-to-br from-slate-50 via-slate-100 to-slate-200", "text_contrast": "slate-800", "category": "subtle"},
-    "blue_subtle": {"class": "bg-gradient-to-br from-blue-50 via-indigo-50 to-violet-50", "text_contrast": "slate-800", "category": "subtle"},
-    "warm_subtle": {"class": "bg-gradient-to-br from-amber-50 via-orange-50 to-rose-50", "text_contrast": "slate-800", "category": "subtle"},
-
-    # Mesh Gradients
-    "mesh_purple": {"class": "bg-[radial-gradient(at_top_left,_#c084fc_0%,_transparent_50%),radial-gradient(at_bottom_right,_#f472b6_0%,_transparent_50%),radial-gradient(at_top_right,_#60a5fa_0%,_transparent_50%)]", "bg_color": "bg-slate-900", "text_contrast": "white", "category": "mesh"},
-    "mesh_ocean": {"class": "bg-[radial-gradient(at_top_left,_#22d3ee_0%,_transparent_50%),radial-gradient(at_bottom_right,_#3b82f6_0%,_transparent_50%),radial-gradient(at_center,_#8b5cf6_0%,_transparent_60%)]", "bg_color": "bg-slate-950", "text_contrast": "white", "category": "mesh"},
-
-    # Glass Gradients
-    "glass_light": {"class": "bg-gradient-to-br from-white/60 via-white/40 to-white/20 backdrop-blur-xl", "text_contrast": "slate-800", "category": "glass"},
-    "glass_dark": {"class": "bg-gradient-to-br from-slate-900/80 via-slate-800/60 to-slate-900/40 backdrop-blur-xl", "text_contrast": "white", "category": "glass"},
-
-    # Dark Mode
-    "dark_glow": {"class": "bg-gradient-to-r from-slate-900 via-purple-900/50 to-slate-900", "text_contrast": "white", "category": "dark"},
-    "dark_aurora": {"class": "bg-[linear-gradient(to_right,#0f172a,#1e1b4b,#312e81,#1e1b4b,#0f172a)]", "text_contrast": "white", "category": "dark"},
-
-    # Animated
-    "animated_flow": {"class": "bg-gradient-to-r from-violet-600 via-fuchsia-500 to-pink-500 bg-[length:200%_200%] animate-gradient-x", "text_contrast": "white", "category": "animated", "keyframes": "@keyframes gradient-x { 0%, 100% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } }"},
-
-    # Text Gradients
-    "text_vibrant": {"class": "bg-gradient-to-r from-violet-600 via-fuchsia-500 to-pink-500 bg-clip-text text-transparent", "category": "text"},
-}
 
 
 def create_gradient_theme(
@@ -1707,134 +510,24 @@ def create_gradient_theme(
 ) -> Dict[str, Any]:
     """
     Comprehensive gradient theme with multiple presets.
+
+    Args:
+        primary_gradient: Primary gradient preset name.
+        secondary_gradient: Secondary gradient preset name.
+        button_style: Button styling approach.
+        card_style: Card styling approach.
+        dark_mode_gradient: Dark mode gradient preset.
+        include_animations: Include gradient animations.
     """
-    primary = GRADIENT_LIBRARY[primary_gradient]
-    secondary = GRADIENT_LIBRARY[secondary_gradient]
-    dark_bg = GRADIENT_LIBRARY[dark_mode_gradient]
-
-    keyframes = []
-    if include_animations:
-        for g in [primary, secondary]:
-            if "keyframes" in g:
-                keyframes.append(g["keyframes"])
-
-    return {
-        "name": f"gradient-{primary_gradient}",
-        "description": f"Gradient theme with {primary_gradient} primary",
-
-        # Gradient presets
-        "gradient_primary": primary["class"],
-        "gradient_secondary": secondary["class"],
-        "gradient_text": GRADIENT_LIBRARY["text_vibrant"]["class"],
-
-        # Standard colors
-        "primary": "violet-600",
-        "primary_hover": "violet-700",
-        "secondary": "fuchsia-500",
-        "accent": "cyan-400",
-
-        # Backgrounds
-        "background": "white",
-        "background_dark": "slate-950",
-        "background_gradient_dark": dark_bg["class"],
-        "surface": "slate-50",
-        "surface_dark": "slate-900",
-
-        # Text
-        "text": "slate-900",
-        "text_dark": "white",
-        "text_muted": "slate-500",
-
-        # Style
-        "border": "slate-200",
-        "border_radius": "rounded-2xl",
-        "shadow": "shadow-lg shadow-violet-500/10",
-        "shadow_hover": "shadow-xl shadow-violet-500/20",
-
-        # Button variants
-        "button_gradient": f"""
-            {primary['class']}
-            text-{primary['text_contrast']} font-semibold
-            px-6 py-3 rounded-xl
-            shadow-lg shadow-violet-500/25
-            hover:shadow-xl hover:shadow-violet-500/40
-            hover:scale-[1.02]
-            active:scale-[0.98]
-            transition-all duration-200
-        """,
-
-        # Available gradients
-        "available_gradients": list(GRADIENT_LIBRARY.keys()),
-
-        # Keyframes
-        "_keyframes": "\n".join(keyframes),
-    }
-
-
-def get_gradient(name: str) -> Dict[str, Any]:
-    """Get a specific gradient from the library."""
-    return GRADIENT_LIBRARY.get(name, GRADIENT_LIBRARY["aurora"])
-
-
-def list_gradients_by_category(category: str) -> List[str]:
-    """List gradients by category."""
-    return [name for name, g in GRADIENT_LIBRARY.items() if g.get("category") == category]
-
-
-# =============================================================================
-# 8. CYBERPUNK THEME FACTORY
-# =============================================================================
-
-NEON_COLORS = {
-    "cyan": {"hex": "#22d3ee", "rgb": "34, 211, 238", "tailwind": "cyan-400"},
-    "fuchsia": {"hex": "#e879f9", "rgb": "232, 121, 249", "tailwind": "fuchsia-400"},
-    "yellow": {"hex": "#facc15", "rgb": "250, 204, 21", "tailwind": "yellow-400"},
-    "green": {"hex": "#4ade80", "rgb": "74, 222, 128", "tailwind": "green-400"},
-    "pink": {"hex": "#f472b6", "rgb": "244, 114, 182", "tailwind": "pink-400"},
-    "blue": {"hex": "#60a5fa", "rgb": "96, 165, 250", "tailwind": "blue-400"},
-    "purple": {"hex": "#a78bfa", "rgb": "167, 139, 250", "tailwind": "violet-400"},
-    "red": {"hex": "#f87171", "rgb": "248, 113, 113", "tailwind": "red-400"},
-    "orange": {"hex": "#fb923c", "rgb": "251, 146, 60", "tailwind": "orange-400"},
-}
-
-GLOW_INTENSITIES = {
-    "subtle": {"blur": "10px", "opacity": 0.2, "spread": "0px", "layers": 1},
-    "medium": {"blur": "15px", "opacity": 0.3, "spread": "0px", "layers": 2},
-    "strong": {"blur": "20px", "opacity": 0.4, "spread": "5px", "layers": 2},
-    "intense": {"blur": "30px", "opacity": 0.5, "spread": "10px", "layers": 3},
-    "extreme": {"blur": "40px", "opacity": 0.6, "spread": "15px", "layers": 3},
-}
-
-
-def generate_neon_glow(
-    color: str,
-    intensity: Literal["subtle", "medium", "strong", "intense", "extreme"] = "medium",
-    animated: bool = False,
-) -> str:
-    """Generate multi-layer neon glow shadow."""
-    neon = NEON_COLORS.get(color, NEON_COLORS["cyan"])
-    settings = GLOW_INTENSITIES[intensity]
-
-    rgb = neon["rgb"]
-    base_opacity = settings["opacity"]
-    base_blur = int(settings["blur"].replace("px", ""))
-    layers = settings["layers"]
-
-    shadows = []
-
-    if layers >= 1:
-        shadows.append(f"0_0_{base_blur // 2}px_rgba({rgb},{base_opacity + 0.1})")
-    if layers >= 2:
-        shadows.append(f"0_0_{base_blur}px_rgba({rgb},{base_opacity})")
-    if layers >= 3:
-        shadows.append(f"0_0_{base_blur * 2}px_rgba({rgb},{base_opacity - 0.1})")
-
-    shadow_class = f"shadow-[{','.join(shadows)}]"
-
-    if animated:
-        shadow_class += " animate-glow-pulse"
-
-    return shadow_class
+    return create_theme(
+        "gradient",
+        primary_gradient=primary_gradient,
+        secondary_gradient=secondary_gradient,
+        button_style=button_style,
+        card_style=card_style,
+        dark_mode_gradient=dark_mode_gradient,
+        include_animations=include_animations,
+    )
 
 
 def create_cyberpunk_theme(
@@ -1846,131 +539,22 @@ def create_cyberpunk_theme(
 ) -> Dict[str, Any]:
     """
     Cyberpunk theme with configurable neon effects.
+
+    Args:
+        primary_neon: Primary neon color.
+        secondary_neon: Secondary neon color.
+        glow_intensity: Glow effect intensity.
+        enable_animations: Enable neon animations.
+        scanline_effect: Enable CRT scanline effect.
     """
-    primary = NEON_COLORS[primary_neon]
-    secondary = NEON_COLORS[secondary_neon]
-
-    primary_glow = generate_neon_glow(primary_neon, glow_intensity, enable_animations)
-    secondary_glow = generate_neon_glow(secondary_neon, glow_intensity, False)
-
-    # Hover intensified glow
-    intensity_order = list(GLOW_INTENSITIES.keys())
-    current_idx = intensity_order.index(glow_intensity)
-    hover_intensity = intensity_order[min(current_idx + 1, len(intensity_order) - 1)]
-    hover_glow = generate_neon_glow(primary_neon, hover_intensity, False)
-
-    return {
-        "name": f"cyberpunk-{primary_neon}-{glow_intensity}",
-        "description": f"Cyberpunk with {primary_neon} neon at {glow_intensity} intensity",
-
-        # Neon colors
-        "primary": primary["tailwind"],
-        "primary_hex": primary["hex"],
-        "secondary": secondary["tailwind"],
-        "secondary_hex": secondary["hex"],
-        "accent": "yellow-400",
-
-        # Dark backgrounds
-        "background": "slate-950",
-        "background_dark": "black",
-        "surface": "slate-900",
-        "surface_dark": "slate-950",
-
-        # Neon text
-        "text": "slate-100",
-        "text_dark": "white",
-        "text_muted": "slate-400",
-        "text_neon": f"text-{primary['tailwind']} {primary_glow}",
-
-        # Borders
-        "border": f"{primary['tailwind']}/30",
-        "border_radius": "rounded-none",
-        "border_width": "border",
-
-        # Glow effects
-        "glow_primary": primary_glow,
-        "glow_secondary": secondary_glow,
-        "glow_hover": hover_glow,
-
-        # Shadows
-        "shadow": primary_glow,
-        "shadow_hover": hover_glow,
-
-        # Typography
-        "font": "font-mono",
-
-        # Components
-        "button_neon": f"""
-            bg-transparent
-            text-{primary['tailwind']} font-bold uppercase tracking-wider
-            px-6 py-3
-            border-2 border-{primary['tailwind']}
-            {primary_glow}
-            hover:{hover_glow}
-            hover:bg-{primary['tailwind']}/10
-            transition-all duration-300
-        """,
-
-        "button_neon_filled": f"""
-            bg-{primary['tailwind']}
-            text-black font-bold uppercase tracking-wider
-            px-6 py-3
-            {primary_glow}
-            hover:{hover_glow}
-            hover:brightness-110
-            transition-all duration-300
-        """,
-
-        "card_neon": f"""
-            bg-slate-900/80 backdrop-blur-sm
-            border border-{primary['tailwind']}/30
-            {generate_neon_glow(primary_neon, "subtle")}
-            hover:{primary_glow}
-            transition-all duration-500
-        """,
-
-        # Metadata
-        "available_intensities": list(GLOW_INTENSITIES.keys()),
-        "current_intensity": glow_intensity,
-    }
-
-
-# =============================================================================
-# 9. RETRO THEME FACTORY
-# =============================================================================
-
-RETRO_FONT_PAIRINGS = {
-    "80s_tech": {
-        "heading": {"family": "'VT323', monospace", "tailwind_class": "font-['VT323']", "fallback": "font-mono", "style": "uppercase tracking-[0.2em]"},
-        "body": {"family": "'Share Tech Mono', monospace", "tailwind_class": "font-['Share_Tech_Mono']", "fallback": "font-mono"},
-        "era": "1980s tech/sci-fi",
-    },
-    "80s_neon": {
-        "heading": {"family": "'Monoton', cursive", "tailwind_class": "font-['Monoton']", "fallback": "font-serif", "style": "uppercase"},
-        "body": {"family": "'Rajdhani', sans-serif", "tailwind_class": "font-['Rajdhani']", "fallback": "font-sans"},
-        "era": "1980s neon/arcade",
-    },
-    "90s_grunge": {
-        "heading": {"family": "'Bebas Neue', sans-serif", "tailwind_class": "font-['Bebas_Neue']", "fallback": "font-sans", "style": "uppercase tracking-wide"},
-        "body": {"family": "'Work Sans', sans-serif", "tailwind_class": "font-['Work_Sans']", "fallback": "font-sans"},
-        "era": "1990s grunge/alternative",
-    },
-    "90s_web": {
-        "heading": {"family": "'Comic Neue', cursive", "tailwind_class": "font-['Comic_Neue']", "fallback": "font-sans"},
-        "body": {"family": "'Courier Prime', monospace", "tailwind_class": "font-['Courier_Prime']", "fallback": "font-mono"},
-        "era": "1990s early web/Geocities",
-    },
-    "retro_futurism": {
-        "heading": {"family": "'Syncopate', sans-serif", "tailwind_class": "font-['Syncopate']", "fallback": "font-sans", "style": "uppercase tracking-widest"},
-        "body": {"family": "'Exo 2', sans-serif", "tailwind_class": "font-['Exo_2']", "fallback": "font-sans"},
-        "era": "Retro-futurism (Space Age)",
-    },
-    "vintage_americana": {
-        "heading": {"family": "'Righteous', cursive", "tailwind_class": "font-['Righteous']", "fallback": "font-serif"},
-        "body": {"family": "'Lato', sans-serif", "tailwind_class": "font-['Lato']", "fallback": "font-sans"},
-        "era": "1950s-60s Americana",
-    },
-}
+    return create_theme(
+        "cyberpunk",
+        primary_neon=primary_neon,
+        secondary_neon=secondary_neon,
+        glow_intensity=glow_intensity,
+        enable_animations=enable_animations,
+        scanline_effect=scanline_effect,
+    )
 
 
 def create_retro_theme(
@@ -1980,78 +564,18 @@ def create_retro_theme(
 ) -> Dict[str, Any]:
     """
     Retro theme with era-specific font pairings.
+
+    Args:
+        era: Era style (80s_tech, 80s_neon, 90s_grunge, etc.)
+        color_scheme: Color scheme (neon, pastel, earthy, chrome).
+        enable_crt_effects: Enable CRT visual effects.
     """
-    fonts = RETRO_FONT_PAIRINGS[era]
-
-    color_schemes = {
-        "neon": {"primary": "fuchsia-500", "secondary": "cyan-400", "accent": "yellow-400", "background": "slate-900", "surface": "slate-800"},
-        "pastel": {"primary": "pink-400", "secondary": "sky-400", "accent": "lime-400", "background": "amber-50", "surface": "white"},
-        "earthy": {"primary": "orange-600", "secondary": "teal-600", "accent": "amber-500", "background": "stone-100", "surface": "white"},
-        "chrome": {"primary": "slate-400", "secondary": "blue-400", "accent": "amber-400", "background": "slate-900", "surface": "slate-800"},
-    }
-
-    colors = color_schemes[color_scheme]
-
-    return {
-        "name": f"retro-{era}-{color_scheme}",
-        "description": f"{fonts['era']} aesthetic with {color_scheme} colors",
-
-        # Typography
-        "font_heading": fonts["heading"]["tailwind_class"],
-        "font_heading_style": fonts["heading"].get("style", ""),
-        "font_body": fonts["body"]["tailwind_class"],
-        "font_fallback_heading": fonts["heading"]["fallback"],
-        "font_fallback_body": fonts["body"]["fallback"],
-
-        # Colors
-        "primary": colors["primary"],
-        "secondary": colors["secondary"],
-        "accent": colors["accent"],
-        "background": colors["background"],
-        "background_dark": "slate-950",
-        "surface": colors["surface"],
-        "surface_dark": "slate-800",
-
-        # Era-specific styling
-        "border": colors["primary"].split("-")[0] + "-300",
-        "border_radius": "rounded-none" if era in ["80s_tech", "90s_grunge"] else "rounded-lg",
-
-        # Retro shadows
-        "shadow": f"shadow-[4px_4px_0px] shadow-{colors['primary']}",
-        "shadow_hover": f"shadow-[6px_6px_0px] shadow-{colors['primary']}",
-
-        # Button
-        "button_retro": f"""
-            {fonts["heading"]["tailwind_class"]}
-            {fonts["heading"].get("style", "")}
-            bg-{colors["primary"]} text-white
-            px-6 py-3
-            shadow-[4px_4px_0px] shadow-black
-            hover:shadow-[6px_6px_0px]
-            hover:-translate-y-0.5 hover:translate-x-0.5
-            active:shadow-[2px_2px_0px]
-            active:translate-y-0 active:translate-x-0
-            transition-all duration-150
-        """,
-
-        # Metadata
-        "_era": era,
-    }
-
-
-# =============================================================================
-# 10. PASTEL THEME FACTORY
-# =============================================================================
-
-PASTEL_ACCESSIBLE_PAIRS = {
-    "rose": {"bg": "rose-50", "bg_medium": "rose-100", "text_safe": "rose-900", "text_medium": "rose-800", "accent": "rose-600", "button_bg": "rose-600"},
-    "pink": {"bg": "pink-50", "bg_medium": "pink-100", "text_safe": "pink-900", "text_medium": "pink-800", "accent": "pink-600", "button_bg": "pink-600"},
-    "sky": {"bg": "sky-50", "bg_medium": "sky-100", "text_safe": "sky-900", "text_medium": "sky-800", "accent": "sky-600", "button_bg": "sky-600"},
-    "violet": {"bg": "violet-50", "bg_medium": "violet-100", "text_safe": "violet-900", "text_medium": "violet-800", "accent": "violet-600", "button_bg": "violet-600"},
-    "teal": {"bg": "teal-50", "bg_medium": "teal-100", "text_safe": "teal-900", "text_medium": "teal-800", "accent": "teal-600", "button_bg": "teal-600"},
-    "amber": {"bg": "amber-50", "bg_medium": "amber-100", "text_safe": "amber-900", "text_medium": "amber-800", "accent": "amber-600", "button_bg": "amber-700"},
-    "lime": {"bg": "lime-50", "bg_medium": "lime-100", "text_safe": "lime-900", "text_medium": "lime-800", "accent": "lime-700", "button_bg": "lime-700"},
-}
+    return create_theme(
+        "retro",
+        era=era,
+        color_scheme=color_scheme,
+        enable_crt_effects=enable_crt_effects,
+    )
 
 
 def create_pastel_theme(
@@ -2062,86 +586,21 @@ def create_pastel_theme(
 ) -> Dict[str, Any]:
     """
     WCAG-compliant pastel theme with guaranteed contrast ratios.
+
+    Args:
+        primary_pastel: Primary pastel color.
+        secondary_pastel: Secondary pastel color.
+        wcag_level: WCAG compliance level (AA or AAA).
+        dark_mode_handling: Dark mode color handling strategy.
     """
-    primary = PASTEL_ACCESSIBLE_PAIRS[primary_pastel]
-    secondary = PASTEL_ACCESSIBLE_PAIRS[secondary_pastel]
+    return create_theme(
+        "pastel",
+        primary_pastel=primary_pastel,
+        secondary_pastel=secondary_pastel,
+        wcag_level=wcag_level,
+        dark_mode_handling=dark_mode_handling,
+    )
 
-    # Text color based on WCAG level
-    if wcag_level == "AAA":
-        text_color = primary["text_safe"]
-        muted_color = primary["text_medium"]
-    else:
-        text_color = primary["text_medium"]
-        muted_color = f"{primary_pastel}-700"
-
-    # Dark mode strategy
-    dark_mode_colors = {
-        "invert": {"background": f"{primary_pastel}-900", "surface": f"{primary_pastel}-800", "text": f"{primary_pastel}-100"},
-        "desaturate": {"background": "slate-800", "surface": "slate-700", "text": "slate-200"},
-        "vibrant": {"background": f"{primary_pastel}-950", "surface": f"{primary_pastel}-900", "text": f"{primary_pastel}-200"},
-    }
-
-    dark = dark_mode_colors[dark_mode_handling]
-
-    return {
-        "name": f"pastel-{primary_pastel}-{wcag_level}",
-        "description": f"Accessible pastel theme (WCAG {wcag_level} compliant)",
-
-        # Primary colors
-        "primary": primary["accent"],
-        "primary_hover": primary["button_bg"],
-        "secondary": secondary["accent"],
-        "accent": secondary["button_bg"],
-
-        # Light mode backgrounds
-        "background": primary["bg"],
-        "surface": primary["bg_medium"],
-
-        # Dark mode backgrounds
-        "background_dark": dark["background"],
-        "surface_dark": dark["surface"],
-
-        # Text (WCAG compliant)
-        "text": text_color,
-        "text_dark": dark["text"],
-        "text_muted": muted_color,
-
-        # Borders
-        "border": secondary["bg_medium"],
-        "border_dark": "slate-600",
-
-        # Styling
-        "border_radius": "rounded-2xl",
-        "shadow": "shadow-sm",
-        "shadow_hover": "shadow-md",
-
-        # Contrast-safe button
-        "button_primary": f"""
-            bg-{primary['button_bg']} hover:bg-{primary['button_bg'].replace('-600', '-700').replace('-700', '-800')}
-            text-white font-medium
-            px-6 py-3 rounded-xl
-            shadow-sm hover:shadow-md
-            transition-all duration-200
-        """,
-
-        # Secondary button
-        "button_secondary": f"""
-            bg-{primary['bg_medium']} hover:bg-{primary['bg']}
-            text-{text_color} font-medium
-            border border-{primary['accent']}/30
-            px-6 py-3 rounded-xl
-            transition-all duration-200
-        """,
-
-        # Metadata
-        "_wcag_level": wcag_level,
-        "_min_contrast_ratio": 7.0 if wcag_level == "AAA" else 4.5,
-    }
-
-
-# =============================================================================
-# 11. DARK MODE FIRST THEME FACTORY
-# =============================================================================
 
 def create_dark_mode_first_theme(
     primary_glow: str = "emerald",
@@ -2150,96 +609,19 @@ def create_dark_mode_first_theme(
 ) -> Dict[str, Any]:
     """
     Dark mode optimized theme with equally polished light mode.
+
+    Args:
+        primary_glow: Primary glow color.
+        contrast_level: Contrast level (normal/high).
+        light_mode_style: Light mode styling approach.
     """
-    glow_colors = {
-        "emerald": {"primary": "emerald-500", "primary_hover": "emerald-400", "glow": "emerald-500/20", "light_accent": "emerald-600"},
-        "cyan": {"primary": "cyan-400", "primary_hover": "cyan-300", "glow": "cyan-400/20", "light_accent": "cyan-600"},
-        "violet": {"primary": "violet-500", "primary_hover": "violet-400", "glow": "violet-500/20", "light_accent": "violet-600"},
-        "amber": {"primary": "amber-500", "primary_hover": "amber-400", "glow": "amber-500/20", "light_accent": "amber-600"},
-    }
+    return create_theme(
+        "dark-mode-first",
+        primary_glow=primary_glow,
+        contrast_level=contrast_level,
+        light_mode_style=light_mode_style,
+    )
 
-    glow = glow_colors.get(primary_glow, glow_colors["emerald"])
-
-    light_styles = {
-        "minimal": {"background": "white", "surface": "slate-50", "text": "slate-900", "text_muted": "slate-600", "border": "slate-200"},
-        "warm": {"background": "amber-50", "surface": "white", "text": "stone-900", "text_muted": "stone-600", "border": "amber-200"},
-        "cool": {"background": "slate-100", "surface": "white", "text": "slate-900", "text_muted": "slate-500", "border": "slate-300"},
-        "inverted": {"background": "slate-200", "surface": "slate-100", "text": "slate-900", "text_muted": "slate-600", "border": "slate-300"},
-    }
-
-    light = light_styles[light_mode_style]
-
-    theme = {
-        "name": f"dark-first-{primary_glow}",
-        "description": f"Dark mode optimized with {light_mode_style} light mode",
-
-        # Primary
-        "primary": glow["primary"],
-        "primary_hover": glow["primary_hover"],
-        "primary_light": glow["light_accent"],
-
-        # Dark Mode (Primary)
-        "background_dark": "slate-900",
-        "background_darker": "slate-950",
-        "surface_dark": "slate-800",
-        "surface_elevated_dark": "slate-700",
-        "text_dark": "white",
-        "text_muted_dark": "slate-400",
-        "border_dark": "slate-700",
-
-        # Glow effects
-        "glow_dark": f"shadow-lg shadow-{glow['glow']}",
-        "glow_hover_dark": f"shadow-xl shadow-{glow['glow'].replace('/20', '/30')}",
-
-        # Light Mode
-        "background": light["background"],
-        "surface": light["surface"],
-        "surface_elevated": "white",
-        "text": light["text"],
-        "text_muted": light["text_muted"],
-        "border": light["border"],
-
-        # Light mode shadows
-        "shadow": "shadow-sm",
-        "shadow_hover": "shadow-md",
-
-        # Style
-        "border_radius": "rounded-xl",
-
-        # Button
-        "button_primary": f"""
-            bg-{glow['primary']} hover:bg-{glow['primary_hover']}
-            text-black dark:text-black font-medium
-            px-6 py-3 rounded-xl
-            shadow-sm hover:shadow-md
-            dark:shadow-lg dark:shadow-{glow['glow']}
-            dark:hover:shadow-xl dark:hover:shadow-{glow['glow'].replace('/20', '/30')}
-            transition-all duration-200
-        """,
-
-        # Card
-        "card_adaptive": f"""
-            bg-{light['surface']} dark:bg-slate-800
-            text-{light['text']} dark:text-white
-            border border-{light['border']} dark:border-slate-700
-            rounded-xl p-6
-            shadow-sm dark:shadow-lg dark:shadow-black/20
-        """,
-    }
-
-    # High contrast adjustments
-    if contrast_level == "high":
-        theme["text"] = "black"
-        theme["text_dark"] = "white"
-        theme["text_muted"] = "slate-700"
-        theme["text_muted_dark"] = "slate-300"
-
-    return theme
-
-
-# =============================================================================
-# 12. HIGH CONTRAST THEME FACTORY
-# =============================================================================
 
 def create_high_contrast_theme(
     softness_level: Literal["sharp", "balanced", "smooth"] = "balanced",
@@ -2248,91 +630,18 @@ def create_high_contrast_theme(
 ) -> Dict[str, Any]:
     """
     WCAG AAA compliant theme with adjustable visual softness.
+
+    Args:
+        softness_level: Visual softness level.
+        color_scheme: Color scheme.
+        animation_preference: Animation preference for accessibility.
     """
-    softness_settings = {
-        "sharp": {"radius": "rounded-none", "transition": "transition-none", "shadow": "shadow-none", "border_style": "border-2"},
-        "balanced": {"radius": "rounded-md", "transition": "transition-colors duration-150", "shadow": "shadow-sm", "border_style": "border-2"},
-        "smooth": {"radius": "rounded-lg", "transition": "transition-all duration-200 ease-out", "shadow": "shadow-md", "border_style": "border"},
-    }
-
-    soft = softness_settings[softness_level]
-
-    schemes = {
-        "blue": {"primary": "blue-800", "primary_hover": "blue-900", "focus_ring": "blue-600", "link": "blue-700"},
-        "purple": {"primary": "purple-800", "primary_hover": "purple-900", "focus_ring": "purple-600", "link": "purple-700"},
-        "green": {"primary": "emerald-800", "primary_hover": "emerald-900", "focus_ring": "emerald-600", "link": "emerald-700"},
-        "neutral": {"primary": "slate-800", "primary_hover": "slate-900", "focus_ring": "slate-600", "link": "slate-900"},
-    }
-
-    colors = schemes[color_scheme]
-
-    return {
-        "name": f"high-contrast-{color_scheme}-{softness_level}",
-        "description": f"WCAG AAA theme ({softness_level} style)",
-
-        # Colors
-        "primary": colors["primary"],
-        "primary_hover": colors["primary_hover"],
-        "secondary": "slate-700",
-
-        # Maximum contrast backgrounds
-        "background": "white",
-        "background_dark": "black",
-        "surface": "slate-50",
-        "surface_dark": "slate-950",
-
-        # Text
-        "text": "black",
-        "text_dark": "white",
-        "text_muted": "slate-700",
-        "text_muted_dark": "slate-300",
-
-        # Borders
-        "border": "slate-900",
-        "border_dark": "white",
-        "border_width": soft["border_style"],
-        "border_radius": soft["radius"],
-
-        # Focus indicators
-        "focus_ring": f"ring-4 ring-{colors['focus_ring']} ring-offset-2",
-        "focus_ring_dark": f"ring-4 ring-{colors['focus_ring'].replace('-600', '-400')} ring-offset-2 ring-offset-black",
-
-        # Links
-        "link_color": colors["link"],
-        "link_decoration": "underline underline-offset-4 decoration-2",
-
-        # Shadows
-        "shadow": soft["shadow"],
-        "shadow_hover": "shadow-lg" if softness_level != "sharp" else "shadow-none",
-
-        # Transitions
-        "transition": soft["transition"],
-
-        # Button
-        "button_primary": f"""
-            bg-{colors['primary']} hover:bg-{colors['primary_hover']}
-            text-white font-semibold
-            px-6 py-3 {soft['radius']} {soft['border_style']} border-black
-            {soft['transition']}
-            focus:outline-none focus:ring-4 focus:ring-{colors['focus_ring']} focus:ring-offset-2
-        """,
-
-        # Metadata
-        "_wcag_level": "AAA",
-        "_min_contrast_ratio": 7.0,
-    }
-
-
-# =============================================================================
-# 13. NATURE THEME FACTORY
-# =============================================================================
-
-NATURE_SEASONS = {
-    "spring": {"name": "Spring", "mood": "Fresh, renewal, growth", "primary": "lime-500", "secondary": "emerald-500", "accent": "pink-400", "background": "lime-50", "surface": "white", "text": "emerald-900"},
-    "summer": {"name": "Summer", "mood": "Vibrant, warm, energetic", "primary": "amber-500", "secondary": "orange-500", "accent": "sky-400", "background": "amber-50", "surface": "white", "text": "stone-900"},
-    "autumn": {"name": "Autumn", "mood": "Warm, cozy, harvest", "primary": "orange-600", "secondary": "red-600", "accent": "amber-400", "background": "orange-50", "surface": "white", "text": "stone-900"},
-    "winter": {"name": "Winter", "mood": "Cool, serene, minimal", "primary": "slate-600", "secondary": "sky-400", "accent": "red-500", "background": "slate-50", "surface": "white", "text": "slate-900"},
-}
+    return create_theme(
+        "high-contrast",
+        softness_level=softness_level,
+        color_scheme=color_scheme,
+        animation_preference=animation_preference,
+    )
 
 
 def create_nature_theme(
@@ -2342,108 +651,18 @@ def create_nature_theme(
 ) -> Dict[str, Any]:
     """
     Nature-inspired theme with seasonal variations.
+
+    Args:
+        season: Season for color palette.
+        organic_shapes: Use organic/blob-like shapes.
+        eco_friendly_mode: Reduce animations for energy efficiency.
     """
-    s = NATURE_SEASONS[season]
-
-    # Organic vs geometric
-    if organic_shapes:
-        radius = "rounded-[30%_70%_70%_30%/30%_30%_70%_70%]"
-        radius_subtle = "rounded-3xl"
-        radius_button = "rounded-full"
-    else:
-        radius = "rounded-xl"
-        radius_subtle = "rounded-lg"
-        radius_button = "rounded-lg"
-
-    theme = {
-        "name": f"nature-{season}",
-        "description": f"{s['name']} - {s['mood']}",
-
-        # Season colors
-        "primary": s["primary"],
-        "primary_hover": s["primary"].replace("-500", "-600").replace("-600", "-700"),
-        "secondary": s["secondary"],
-        "accent": s["accent"],
-
-        # Backgrounds
-        "background": s["background"],
-        "background_dark": "stone-900",
-        "surface": s["surface"],
-        "surface_dark": "stone-800",
-
-        # Text
-        "text": s["text"],
-        "text_dark": "stone-100",
-        "text_muted": s["text"].replace("-900", "-600"),
-
-        # Organic styling
-        "border": s["primary"].replace("-500", "-200").replace("-600", "-200"),
-        "border_radius": radius_subtle,
-        "border_radius_organic": radius,
-        "border_radius_button": radius_button,
-
-        # Shadows
-        "shadow": f"shadow-lg shadow-{s['primary'].split('-')[0]}-500/10",
-        "shadow_hover": f"shadow-xl shadow-{s['primary'].split('-')[0]}-500/20",
-
-        # Font
-        "font": "font-sans",
-
-        # Organic button
-        "button_organic": f"""
-            bg-{s['primary']} hover:bg-{s['primary'].replace('-500', '-600')}
-            text-white font-medium
-            px-8 py-3 {radius_button}
-            shadow-lg shadow-{s['primary'].split('-')[0]}-500/30
-            hover:shadow-xl hover:-translate-y-0.5
-            transition-all duration-300
-        """,
-
-        # Card
-        "card_organic": f"""
-            bg-{s['surface']} dark:bg-stone-800
-            {radius_subtle}
-            shadow-lg shadow-{s['primary'].split('-')[0]}-500/5
-            border border-{s['primary'].split('-')[0]}-100
-            overflow-hidden
-        """,
-
-        # Decorative blob
-        "decorative_blob": f"""
-            absolute -z-10
-            w-96 h-96
-            bg-{s['primary']}/10
-            {radius}
-            blur-3xl
-        """,
-
-        # Metadata
-        "_season": season,
-    }
-
-    # Eco-friendly mode
-    if eco_friendly_mode:
-        theme["shadow"] = "shadow-sm"
-        theme["shadow_hover"] = "shadow-md"
-        theme["border_radius"] = "rounded-lg"
-        theme["decorative_blob"] = ""
-
-    return theme
-
-
-# =============================================================================
-# 14. STARTUP THEME FACTORY
-# =============================================================================
-
-STARTUP_ARCHETYPES = {
-    "disruptor": {"name": "Disruptor", "tagline": "Challenge the status quo", "primary": "violet-600", "secondary": "fuchsia-500", "accent": "lime-400", "personality": ["bold", "unconventional", "energetic"], "gradient": "from-violet-600 via-fuchsia-500 to-pink-500", "motion": "dynamic, fast"},
-    "enterprise": {"name": "Enterprise SaaS", "tagline": "Trusted by industry leaders", "primary": "blue-700", "secondary": "slate-600", "accent": "emerald-500", "personality": ["reliable", "professional", "scalable"], "gradient": "from-blue-700 to-blue-900", "motion": "subtle, professional"},
-    "consumer": {"name": "Consumer App", "tagline": "Delightful everyday experiences", "primary": "pink-500", "secondary": "orange-400", "accent": "cyan-400", "personality": ["friendly", "playful", "accessible"], "gradient": "from-pink-500 via-orange-400 to-yellow-400", "motion": "bouncy, fun"},
-    "fintech": {"name": "Fintech", "tagline": "The future of finance", "primary": "emerald-600", "secondary": "teal-500", "accent": "amber-400", "personality": ["trustworthy", "innovative", "secure"], "gradient": "from-emerald-600 to-teal-600", "motion": "smooth, confident"},
-    "healthtech": {"name": "Healthtech", "tagline": "Better health through technology", "primary": "sky-600", "secondary": "teal-500", "accent": "rose-400", "personality": ["caring", "scientific", "approachable"], "gradient": "from-sky-500 to-teal-500", "motion": "calm, reassuring"},
-    "ai_ml": {"name": "AI/ML Startup", "tagline": "Intelligence amplified", "primary": "purple-600", "secondary": "blue-500", "accent": "cyan-400", "personality": ["cutting-edge", "intelligent", "futuristic"], "gradient": "from-purple-600 via-blue-500 to-cyan-400", "motion": "algorithmic, precise"},
-    "sustainability": {"name": "Sustainability/Green", "tagline": "Building a better tomorrow", "primary": "green-600", "secondary": "lime-500", "accent": "amber-400", "personality": ["conscious", "hopeful", "natural"], "gradient": "from-green-600 to-emerald-500", "motion": "flowing, natural"},
-}
+    return create_theme(
+        "nature",
+        season=season,
+        organic_shapes=organic_shapes,
+        eco_friendly_mode=eco_friendly_mode,
+    )
 
 
 def create_startup_theme(
@@ -2453,173 +672,15 @@ def create_startup_theme(
 ) -> Dict[str, Any]:
     """
     Startup-specific theme with archetype-based differentiation.
+
+    Args:
+        archetype: Startup archetype for styling.
+        stage: Company stage for visual boldness.
+        enable_motion: Enable motion/animations.
     """
-    arch = STARTUP_ARCHETYPES[archetype]
-
-    stage_settings = {
-        "seed": {"boldness": "high", "shadow_intensity": "lg"},
-        "growth": {"boldness": "medium", "shadow_intensity": "md"},
-        "scale": {"boldness": "refined", "shadow_intensity": "sm"},
-    }
-
-    stg = stage_settings[stage]
-
-    motion_styles = {
-        "dynamic, fast": "transition-all duration-200",
-        "subtle, professional": "transition-all duration-300 ease-out",
-        "bouncy, fun": "transition-all duration-300 ease-[cubic-bezier(0.68,-0.55,0.265,1.55)]",
-        "smooth, confident": "transition-all duration-400 ease-out",
-        "calm, reassuring": "transition-all duration-500 ease-out",
-        "algorithmic, precise": "transition-all duration-150 ease-linear",
-        "flowing, natural": "transition-all duration-600 ease-in-out",
-    }
-
-    motion = motion_styles.get(arch["motion"], "transition-all duration-300") if enable_motion else "transition-none"
-
-    def _generate_hero_cta() -> str:
-        if archetype == "disruptor":
-            return f"""
-                bg-gradient-to-r {arch['gradient']}
-                text-white font-bold text-lg
-                px-8 py-4 rounded-xl
-                shadow-lg hover:shadow-xl
-                hover:-translate-y-1 active:translate-y-0
-                {motion}
-            """
-        elif archetype == "consumer":
-            return f"""
-                bg-gradient-to-r {arch['gradient']}
-                text-white font-bold text-lg
-                px-10 py-4 rounded-full
-                shadow-lg hover:shadow-xl
-                hover:scale-105 active:scale-95
-                {motion}
-            """
-        else:
-            return f"""
-                bg-{arch['primary']} hover:bg-{arch['primary'].replace('-600', '-700')}
-                text-white font-semibold
-                px-8 py-4 rounded-xl
-                shadow-md hover:shadow-lg
-                {motion}
-            """
-
-    return {
-        "name": f"startup-{archetype}-{stage}",
-        "description": f"{arch['name']} - {arch['tagline']}",
-        "personality": arch["personality"],
-
-        # Core colors
-        "primary": arch["primary"],
-        "primary_hover": arch["primary"].replace("-600", "-700").replace("-500", "-600"),
-        "secondary": arch["secondary"],
-        "accent": arch["accent"],
-
-        # Gradient
-        "gradient_primary": f"bg-gradient-to-r {arch['gradient']}",
-        "gradient_text": f"bg-gradient-to-r {arch['gradient']} bg-clip-text text-transparent",
-
-        # Backgrounds
-        "background": "white",
-        "background_dark": "slate-950",
-        "surface": "slate-50",
-        "surface_dark": "slate-900",
-
-        # Text
-        "text": "slate-900",
-        "text_dark": "white",
-        "text_muted": "slate-500",
-
-        # Style
-        "border": "slate-200",
-        "border_radius": "rounded-xl",
-        "shadow": f"shadow-{stg['shadow_intensity']}",
-        "shadow_hover": f"shadow-{_next_shadow(stg['shadow_intensity'])}",
-
-        # Motion
-        "transition": motion,
-
-        # Hero CTA
-        "hero_cta": _generate_hero_cta(),
-
-        # Feature card
-        "feature_card": f"""
-            bg-white dark:bg-slate-800
-            rounded-2xl p-6
-            border border-slate-100 dark:border-slate-700
-            shadow-{stg['shadow_intensity']} hover:shadow-{_next_shadow(stg['shadow_intensity'])}
-            {motion}
-            group
-        """,
-
-        # Badges
-        "beta_badge": f"bg-{arch['primary']}/10 text-{arch['primary']} px-3 py-1 rounded-full text-xs font-semibold uppercase tracking-wider",
-
-        # Metadata
-        "_archetype": archetype,
-        "_stage": stage,
-        "_personality": arch["personality"],
-    }
-
-
-# =============================================================================
-# EXPORTS
-# =============================================================================
-
-__all__ = [
-    # Utility functions
-    "hex_to_rgb",
-    "rgb_to_hex",
-    "hex_to_hsl",
-    "hsl_to_hex",
-    "relative_luminance",
-    "contrast_ratio",
-    "validate_contrast",
-
-    # Brand Colors
-    "BrandColors",
-
-    # Theme Factory Functions
-    "create_modern_minimal_theme",
-    "create_brutalist_theme",
-    "create_glassmorphism_theme",
-    "create_neo_brutalism_theme",
-    "create_soft_ui_theme",
-    "create_corporate_theme",
-    "create_gradient_theme",
-    "create_cyberpunk_theme",
-    "create_retro_theme",
-    "create_pastel_theme",
-    "create_dark_mode_first_theme",
-    "create_high_contrast_theme",
-    "create_nature_theme",
-    "create_startup_theme",
-
-    # Helper functions
-    "calculate_neumorphism_shadows",
-    "generate_neon_glow",
-    "get_gradient",
-    "list_gradients_by_category",
-
-    # Constants
-    "BRUTALIST_CONTRAST_PAIRS",
-    "NEOBRUTALISM_GRADIENTS",
-    "GRADIENT_ANIMATIONS",
-    "GRADIENT_LIBRARY",
-    "NEON_COLORS",
-    "GLOW_INTENSITIES",
-    "RETRO_FONT_PAIRINGS",
-    "PASTEL_ACCESSIBLE_PAIRS",
-    "NATURE_SEASONS",
-    "STARTUP_ARCHETYPES",
-    "CORPORATE_INDUSTRIES",
-    "CORPORATE_LAYOUTS",
-
-    # Corporate Presets
-    "CORPORATE_PRESETS",
-    "get_corporate_preset",
-    "list_corporate_presets",
-    "apply_corporate_preset",
-    "get_presets_by_industry",
-    "get_presets_by_quality",
-]
+    return create_theme(
+        "startup",
+        archetype=archetype,
+        stage=stage,
+        enable_motion=enable_motion,
+    )
