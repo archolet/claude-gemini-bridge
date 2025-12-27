@@ -77,6 +77,11 @@ from gemini_mcp.maestro.execution import ToolExecutor
 # Phase 5: Session Management
 from gemini_mcp.maestro.session import SessionManager
 
+# MAESTRO v2: Soul-Aware Interview System
+from gemini_mcp.maestro.v2.wrapper import MAESTROv2Wrapper
+from gemini_mcp.maestro.v2.session import SoulAwareSession, SessionState
+from gemini_mcp.maestro.models.soul import ProjectSoul, InterviewPhase
+
 __all__ = [
     # Main class
     "Maestro",
@@ -117,6 +122,12 @@ __all__ = [
     "ToolExecutor",
     # Phase 5: Session Management
     "SessionManager",
+    # MAESTRO v2: Soul-Aware Interview System
+    "MAESTROv2Wrapper",
+    "SoulAwareSession",
+    "SessionState",
+    "ProjectSoul",
+    "InterviewPhase",
 ]
 
 __version__ = "0.1.0"

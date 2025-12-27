@@ -1,0 +1,191 @@
+---
+metadata:
+  name: layout_bento
+  version: "1.0.0"
+  description: "Bento box dashboard grid layout for high information density"
+  author: "Gemini MCP Team"
+  tags:
+    - segment
+    - enterprise
+    - dashboard
+    - layout
+    - grid
+
+applies_to:
+  - architect
+
+priority: high
+
+content: |
+  ## BENTO BOX DASHBOARD LAYOUT
+
+  Bento box layouts maximize information density while maintaining visual hierarchy.
+  Named after Japanese bento boxes with organized, distinct compartments.
+
+  ### GRID SYSTEM
+
+  ```css
+  .bento-dashboard {
+    display: grid;
+    grid-template-columns: repeat(6, 1fr);
+    grid-template-rows: repeat(4, minmax(180px, auto));
+    gap: 16px;
+    padding: 16px;
+  }
+
+  /* Zone assignments */
+  .primary-kpi { grid-area: 1 / 1 / 3 / 3; }      /* 2x2 */
+  .secondary-kpi { grid-area: 1 / 3 / 3 / 5; }   /* 2x2 */
+  .mini-widgets { grid-area: 1 / 5 / 3 / 7; }    /* 2x2 (contains 4 mini) */
+  .main-chart { grid-area: 3 / 1 / 5 / 4; }      /* 2x3 */
+  .data-table { grid-area: 3 / 4 / 5 / 7; }      /* 2x3 */
+  ```
+
+  ### ZONE DIAGRAM
+
+  ```
+  ┌──────────────┬──────────────┬──────────────┐
+  │              │              │   [m1] [m2]  │
+  │  Primary     │  Secondary   ├──────────────┤
+  │  KPI (2x2)   │  KPI (2x2)   │   [m3] [m4]  │
+  │              │              │  Mini Cards  │
+  ├──────────────┴──────────────┼──────────────┤
+  │                             │              │
+  │  Main Chart                 │  Data Table  │
+  │  (2x3)                      │  (2x3)       │
+  │                             │              │
+  └─────────────────────────────┴──────────────┘
+  ```
+
+  ### HTML STRUCTURE
+
+  ```html
+  <div class="grid grid-cols-6 gap-4 p-4" style="grid-template-rows: repeat(4, minmax(180px, auto));">
+
+    <!-- Primary KPI (2x2) -->
+    <div class="col-span-2 row-span-2 bg-white border border-slate-200 rounded-lg p-5">
+      <!-- Large KPI card with all 5 components -->
+    </div>
+
+    <!-- Secondary KPI (2x2) -->
+    <div class="col-span-2 row-span-2 bg-white border border-slate-200 rounded-lg p-5">
+      <!-- Large KPI card with all 5 components -->
+    </div>
+
+    <!-- Mini Widgets Zone (2x2 = 4 mini cards) -->
+    <div class="col-span-2 row-span-2 grid grid-cols-2 grid-rows-2 gap-3">
+      <div class="bg-white border border-slate-200 rounded-lg p-3">
+        <!-- Mini KPI: label + value + trend only -->
+      </div>
+      <div class="bg-white border border-slate-200 rounded-lg p-3">
+        <!-- Mini KPI -->
+      </div>
+      <div class="bg-white border border-slate-200 rounded-lg p-3">
+        <!-- Mini KPI -->
+      </div>
+      <div class="bg-white border border-slate-200 rounded-lg p-3">
+        <!-- Mini KPI -->
+      </div>
+    </div>
+
+    <!-- Main Chart (2x3) -->
+    <div class="col-span-3 row-span-2 bg-white border border-slate-200 rounded-lg p-4">
+      <div class="flex items-center justify-between mb-4">
+        <h3 class="text-sm font-semibold text-slate-700">Revenue Over Time</h3>
+        <div class="flex items-center gap-2">
+          <!-- Time range selector -->
+          <select class="text-sm border border-slate-200 rounded px-2 py-1">
+            <option>Last 30 days</option>
+            <option>Last 90 days</option>
+            <option>Last 12 months</option>
+          </select>
+        </div>
+      </div>
+      <div class="h-[calc(100%-60px)]">
+        <!-- Chart area -->
+      </div>
+    </div>
+
+    <!-- Data Table (2x3) -->
+    <div class="col-span-3 row-span-2 bg-white border border-slate-200 rounded-lg overflow-hidden">
+      <!-- Enterprise data table -->
+    </div>
+
+  </div>
+  ```
+
+  ### RESPONSIVE BREAKPOINTS
+
+  ```css
+  /* Desktop (default): 6 columns */
+  @media (max-width: 1280px) {
+    /* Tablet landscape: 4 columns */
+    .bento-dashboard {
+      grid-template-columns: repeat(4, 1fr);
+    }
+    .primary-kpi { grid-area: 1 / 1 / 2 / 3; }
+    .secondary-kpi { grid-area: 1 / 3 / 2 / 5; }
+    .mini-widgets { grid-area: 2 / 1 / 3 / 5; }
+    .main-chart { grid-area: 3 / 1 / 4 / 3; }
+    .data-table { grid-area: 3 / 3 / 4 / 5; }
+  }
+
+  @media (max-width: 768px) {
+    /* Mobile: 1 column stack */
+    .bento-dashboard {
+      grid-template-columns: 1fr;
+      grid-template-rows: auto;
+    }
+    [class*="col-span"] {
+      grid-column: span 1;
+    }
+  }
+  ```
+
+  ### INFORMATION DENSITY TARGETS
+
+  | Zone | Min Data Points | Content Type |
+  |------|-----------------|--------------|
+  | Primary KPI | 5 | Full 5-component card |
+  | Secondary KPI | 5 | Full 5-component card |
+  | Mini Widgets (each) | 3 | Label + value + trend |
+  | Main Chart | 12+ | Time series, 12 data points |
+  | Data Table | 10+ | 10 visible rows minimum |
+
+  **Total minimum: 40+ data points per viewport**
+
+  ### CARD SIZE GUIDELINES
+
+  | Zone | Min Width | Min Height |
+  |------|-----------|------------|
+  | Primary KPI | 280px | 240px |
+  | Secondary KPI | 280px | 240px |
+  | Mini Widget | 120px | 100px |
+  | Main Chart | 400px | 300px |
+  | Data Table | 400px | 300px |
+
+  ### ANTI-PATTERNS (FORBIDDEN)
+
+  - ❌ Equal-sized cards everywhere
+  - ❌ Hero section taking >20% of viewport
+  - ❌ Empty zones without data
+  - ❌ Single-column layouts on desktop
+  - ❌ Gap > 20px between cards
+  - ❌ Cards without borders or shadows (must have visual separation)
+
+  ### EXAMPLE: SALES DASHBOARD
+
+  ```
+  ┌─────────────────┬─────────────────┬────────────────┐
+  │ TOTAL REVENUE   │ NEW CUSTOMERS   │ Conv│ Avg │    │
+  │ $4.2M           │ 1,247           │ Rate│Order│    │
+  │ ▲ +15.3%        │ ▲ +8.2%         ├─────┼─────┤    │
+  │ ▁▂▃▄▅▆▇█        │ ▁▂▃▅▄▃▅▆        │ MRR │ Churn    │
+  │ Target: $5M 84% │ Target: 1.5K 83%│     │     │    │
+  ├─────────────────┴─────────────────┼────────────────┤
+  │                                   │ ID    Customer │
+  │   Revenue by Month [LINE CHART]   │ 101   John D.  │
+  │                                   │ 102   Jane S.  │
+  │                                   │ 103   Bob M.   │
+  └───────────────────────────────────┴────────────────┘
+  ```

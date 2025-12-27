@@ -1,0 +1,471 @@
+---
+metadata:
+  name: visionary_patterns
+  version: "1.0.0"
+  description: "Extended visual pattern detection for states, boundaries, and enterprise layouts"
+  author: "Gemini MCP Team"
+  tags:
+    - segment
+    - enterprise
+    - visionary
+    - vision
+    - patterns
+
+applies_to:
+  - visionary
+
+priority: high
+
+content: |
+  ## VISIONARY EXTENDED PATTERN DETECTION
+
+  This segment extends Visionary with advanced pattern detection capabilities
+  for UI states, component boundaries, and enterprise layout patterns.
+
+  ---
+
+  ## STATE VISUAL DETECTION
+
+  When analyzing reference images, identify visual representations of component states.
+  Many designs show multiple states in a single image (especially component libraries).
+
+  ### 5 Core States to Detect
+
+  | State | Visual Indicators |
+  |-------|-------------------|
+  | Default | Base appearance, neutral colors, no effects |
+  | Hover | Slightly elevated, brighter/darker bg, cursor change hint |
+  | Active/Pressed | Compressed, darker, inset shadow |
+  | Focus | Visible ring/outline, distinct border color |
+  | Disabled | Faded (50% opacity), muted colors, no shadow |
+
+  ### Detection Patterns
+
+  **Hover State Indicators:**
+  - Background slightly lighter/darker than default
+  - Shadow appears or increases
+  - Text color may shift
+  - Scale slightly larger (transform hint)
+  - Border color change
+
+  **Active State Indicators:**
+  - Background darker than hover
+  - Shadow reduced or inset
+  - Scale slightly smaller
+  - Border may thicken
+
+  **Focus State Indicators:**
+  - Ring/outline around element (2-4px typical)
+  - Ring color usually blue or primary
+  - Ring offset from element edge
+  - Background may differ from default
+
+  **Disabled State Indicators:**
+  - Overall opacity reduced (40-60%)
+  - Grayscale or muted colors
+  - No shadow
+  - Text less contrasted
+  - Cursor would be not-allowed
+
+  ### State Detection Output
+
+  ```json
+  {
+    "detected_states": {
+      "button_primary": ["default", "hover", "active", "focus", "disabled"],
+      "input_field": ["default", "focus", "error", "disabled"],
+      "card": ["default", "hover"]
+    },
+    "state_styles": {
+      "hover_transform": "scale-105",
+      "active_transform": "scale-95",
+      "focus_ring": "ring-2 ring-blue-500 ring-offset-2",
+      "disabled_opacity": "opacity-50"
+    }
+  }
+  ```
+
+  ---
+
+  ## COMPONENT BOUNDARY DETECTION
+
+  Identify where one component ends and another begins. Critical for accurate extraction.
+
+  ### Boundary Indicators
+
+  | Indicator | Signal |
+  |-----------|--------|
+  | **Whitespace** | Large gap (24px+) between areas |
+  | **Dividers** | Visible lines, borders, or separators |
+  | **Background Change** | Surface color shifts |
+  | **Shadow Edge** | Drop shadow creates visual separation |
+  | **Grid Break** | Column structure changes |
+  | **Z-Index Layers** | Overlapping elements create depth |
+
+  ### Boundary Detection Algorithm
+
+  ```
+  1. Identify major horizontal breaks (section dividers)
+  2. Within sections, identify vertical breaks (columns)
+  3. Within columns, identify nested containers
+  4. Mark each container as a potential component
+  5. Apply component detection heuristics to classify
+  ```
+
+  ### Edge Case Handling
+
+  **Overlapping Elements:**
+  - Floating badges → part of parent component
+  - Dropdown menus → separate component with trigger reference
+  - Modal overlays → separate component, note trigger element
+
+  **Nested Components:**
+  - Card containing buttons → card is parent, buttons are children
+  - List containing items → list is parent, items are repeated children
+  - Form containing inputs → form is parent, inputs are children
+
+  ---
+
+  ## LAYOUT PATTERN RECOGNITION
+
+  Identify the overall layout strategy used in the design.
+
+  ### Layout Types
+
+  **1. Grid Layout**
+  - Regular column structure (2, 3, 4, 6, 12 columns)
+  - Equal or defined width columns
+  - Responsive breakpoint hints (columns collapse)
+
+  **2. Flex Layout**
+  - Row-based arrangement
+  - Variable widths
+  - Space-between or space-around distribution
+
+  **3. Bento Box Layout**
+  - Mixed-size grid cells
+  - Some cells span multiple rows/columns
+  - Dashboard/widget style
+
+  **4. Masonry Layout**
+  - Pinterest-style stacking
+  - Variable height elements
+  - Waterfall effect
+
+  **5. Asymmetric Layout**
+  - Deliberate imbalance
+  - Overlapping elements
+  - Editorial/artistic feel
+
+  **6. Sidebar + Content**
+  - Fixed-width sidebar (left or right)
+  - Fluid content area
+  - Common in dashboards/apps
+
+  ### Layout Detection Output
+
+  ```json
+  {
+    "layout_analysis": {
+      "primary_layout": "bento-box",
+      "grid_columns": 4,
+      "responsive_hints": ["md:grid-cols-2", "lg:grid-cols-4"],
+      "sidebar_detected": false,
+      "max_content_width": "max-w-7xl"
+    },
+    "zone_map": [
+      {"name": "header", "position": "top", "height_estimate": "80px"},
+      {"name": "hero", "position": "top-main", "height_estimate": "60vh"},
+      {"name": "features", "position": "middle", "columns": 3},
+      {"name": "testimonials", "position": "middle", "columns": 1},
+      {"name": "footer", "position": "bottom", "columns": 4}
+    ]
+  }
+  ```
+
+  ---
+
+  ## ENTERPRISE LAYOUT DETECTION
+
+  Special patterns for corporate/dashboard designs.
+
+  ### Data Dashboard Patterns
+
+  **KPI Strip:**
+  - Row of 3-5 metric cards
+  - Large numbers with labels
+  - Trend indicators (arrows, percentages)
+  - Usually at top of dashboard
+
+  **Stat Card Detection:**
+  ```json
+  {
+    "type": "stat_card",
+    "structure": {
+      "has_label": true,
+      "has_value": true,
+      "has_trend": true,
+      "has_chart_sparkline": false,
+      "has_icon": true
+    }
+  }
+  ```
+
+  **Data Table Detection:**
+  - Multiple rows with consistent structure
+  - Column headers (often sticky)
+  - Row actions (icons on right)
+  - Selection checkboxes (left column)
+  - Pagination or scroll indicators
+
+  **Filter Bar Detection:**
+  - Row of input fields/dropdowns
+  - Search box
+  - Filter chips/tags
+  - Clear all button
+
+  ---
+
+  ## DESIGN TOKEN EXTRACTION (9 Categories)
+
+  Extract tokens in these categories for comprehensive design DNA.
+
+  ### 1. Color Palette (Primary)
+  ```json
+  {
+    "primary": "#2563EB",
+    "secondary": "#64748B",
+    "accent": "#F59E0B",
+    "background": "#FFFFFF",
+    "surface": "#F8FAFC",
+    "text": "#0F172A",
+    "text_muted": "#64748B",
+    "border": "#E2E8F0",
+    "error": "#EF4444",
+    "success": "#22C55E"
+  }
+  ```
+
+  ### 2. Typography Tokens
+  ```json
+  {
+    "font_family": "system-ui, sans-serif",
+    "heading_sizes": ["text-4xl", "text-2xl", "text-xl", "text-lg"],
+    "body_sizes": ["text-base", "text-sm", "text-xs"],
+    "font_weights": ["font-bold", "font-semibold", "font-medium", "font-normal"],
+    "line_heights": ["leading-tight", "leading-normal", "leading-relaxed"]
+  }
+  ```
+
+  ### 3. Spacing Tokens
+  ```json
+  {
+    "container_padding": "px-6 lg:px-8",
+    "section_padding": "py-16 lg:py-24",
+    "component_gap": "gap-4 lg:gap-6",
+    "card_padding": "p-4 lg:p-6",
+    "input_padding": "px-4 py-2"
+  }
+  ```
+
+  ### 4. Border Tokens
+  ```json
+  {
+    "radius_none": "rounded-none",
+    "radius_sm": "rounded",
+    "radius_md": "rounded-md",
+    "radius_lg": "rounded-lg",
+    "radius_xl": "rounded-xl",
+    "radius_full": "rounded-full",
+    "width_default": "border",
+    "width_thick": "border-2"
+  }
+  ```
+
+  ### 5. Shadow Tokens
+  ```json
+  {
+    "shadow_none": "shadow-none",
+    "shadow_sm": "shadow-sm",
+    "shadow_md": "shadow",
+    "shadow_lg": "shadow-lg",
+    "shadow_xl": "shadow-xl",
+    "shadow_colored": "shadow-lg shadow-blue-500/20"
+  }
+  ```
+
+  ### 6. Transition Tokens
+  ```json
+  {
+    "duration_fast": "duration-100",
+    "duration_normal": "duration-200",
+    "duration_slow": "duration-300",
+    "easing_default": "ease-out",
+    "easing_smooth": "ease-in-out"
+  }
+  ```
+
+  ### 7. Opacity Tokens
+  ```json
+  {
+    "opacity_muted": "opacity-60",
+    "opacity_disabled": "opacity-50",
+    "opacity_hover": "opacity-80",
+    "opacity_overlay": "opacity-75"
+  }
+  ```
+
+  ### 8. Z-Index Tokens
+  ```json
+  {
+    "z_base": "z-0",
+    "z_dropdown": "z-10",
+    "z_sticky": "z-20",
+    "z_modal": "z-50",
+    "z_toast": "z-[100]"
+  }
+  ```
+
+  ### 9. Breakpoint Tokens
+  ```json
+  {
+    "mobile_first": true,
+    "breakpoints_used": ["sm", "md", "lg", "xl"],
+    "max_width": "max-w-7xl"
+  }
+  ```
+
+  ---
+
+  ## INTERACTIVE ELEMENT DETECTION
+
+  Identify clickable/interactive elements for Physicist agent handoff.
+
+  ### Detection Heuristics
+
+  | Element Type | Visual Indicators |
+  |--------------|-------------------|
+  | **Button** | Solid bg, padding, centered text, possibly icon |
+  | **Link** | Underline or color different from body text |
+  | **Input** | Border, placeholder text hint, label above |
+  | **Dropdown** | Chevron icon, border, select-like appearance |
+  | **Toggle** | Pill shape, on/off indicator |
+  | **Checkbox** | Square, checkmark when selected |
+  | **Radio** | Circle, dot when selected |
+  | **Slider** | Track + handle |
+  | **Tab** | Row of options, one highlighted |
+  | **Accordion** | Expandable sections, chevron indicators |
+
+  ### Output for Physicist
+
+  ```json
+  {
+    "interactive_elements": [
+      {
+        "type": "button",
+        "id_suggestion": "cta-btn",
+        "interaction_type": "click",
+        "animation_suggestion": "magnetic hover, scale on active"
+      },
+      {
+        "type": "nav_link",
+        "id_suggestion": "nav-{item}",
+        "interaction_type": "hover",
+        "animation_suggestion": "underline slide-in"
+      },
+      {
+        "type": "card",
+        "id_suggestion": "feature-card-{n}",
+        "interaction_type": "hover",
+        "animation_suggestion": "lift shadow, scale 1.02"
+      }
+    ]
+  }
+  ```
+
+  ---
+
+  ## EXTENDED OUTPUT FORMAT
+
+  Add these fields to standard Visionary output:
+
+  ```json
+  {
+    "state_analysis": {
+      "detected_states": { },
+      "state_styles": { }
+    },
+    "boundary_analysis": {
+      "component_count": 12,
+      "nesting_depth": 3,
+      "overlap_detected": false
+    },
+    "layout_analysis": {
+      "primary_layout": "string",
+      "grid_columns": 0,
+      "responsive_hints": [],
+      "zone_map": []
+    },
+    "enterprise_patterns": {
+      "has_kpi_strip": true,
+      "has_data_table": true,
+      "has_filter_bar": false,
+      "has_sidebar": true
+    },
+    "design_tokens_full": {
+      "colors": { },
+      "typography": { },
+      "spacing": { },
+      "borders": { },
+      "shadows": { },
+      "transitions": { },
+      "opacity": { },
+      "z_index": { },
+      "breakpoints": { }
+    },
+    "interactive_map": {
+      "elements": [],
+      "physicist_handoff": { }
+    }
+  }
+  ```
+
+  ---
+
+  ## ANIMATION DETECTION
+
+  Identify animation hints from static images.
+
+  ### Visual Animation Indicators
+
+  | Visual Clue | Suggested Animation |
+  |-------------|---------------------|
+  | Motion blur on element | Translate/slide animation |
+  | Multiple frames shown | Transition between states |
+  | Floating/elevated elements | Floating bob animation |
+  | Gradient streaks | Gradient shift animation |
+  | Particle dots | Particle system |
+  | Wave patterns | Wave animation |
+  | Pulse rings | Pulse/ripple animation |
+
+  ### Animation Suggestion Output
+
+  ```json
+  {
+    "animation_hints": [
+      {
+        "element": "hero-background",
+        "suggested_animation": "gradient-shift",
+        "duration": "15s",
+        "type": "ambient"
+      },
+      {
+        "element": "cta-button",
+        "suggested_animation": "magnetic-hover",
+        "duration": "200ms",
+        "type": "interaction"
+      }
+    ]
+  }
+  ```
+

@@ -140,9 +140,10 @@ class ComplexityConfig:
     """
 
     # Agent thinking levels (Gemini 3 API)
+    # MAXIMUM RICHNESS: All agents use high thinking by default
     architect_thinking_level: str = "high"
-    alchemist_thinking_level: str = "low"
-    physicist_thinking_level: str = "low"
+    alchemist_thinking_level: str = "high"
+    physicist_thinking_level: str = "high"
 
     # Token budgets per agent
     max_html_tokens: int = 16384
@@ -187,10 +188,10 @@ class ComplexityConfig:
 # Predefined configurations for each complexity level
 COMPLEXITY_CONFIGS: dict[ComplexityLevel, ComplexityConfig] = {
     ComplexityLevel.SIMPLE: ComplexityConfig(
-        # Fast generation for simple components
-        architect_thinking_level="low",
-        alchemist_thinking_level="low",
-        physicist_thinking_level="low",
+        # MAXIMUM RICHNESS: All agents use high thinking for dense output
+        architect_thinking_level="high",
+        alchemist_thinking_level="high",
+        physicist_thinking_level="high",
         max_html_tokens=4096,
         max_css_tokens=2048,
         max_js_tokens=2048,
@@ -200,10 +201,10 @@ COMPLEXITY_CONFIGS: dict[ComplexityLevel, ComplexityConfig] = {
         enable_parallel_styling=True,
     ),
     ComplexityLevel.MEDIUM: ComplexityConfig(
-        # Balanced for medium complexity
+        # MAXIMUM RICHNESS: All agents use high thinking for dense output
         architect_thinking_level="high",
-        alchemist_thinking_level="low",
-        physicist_thinking_level="low",
+        alchemist_thinking_level="high",
+        physicist_thinking_level="high",
         max_html_tokens=8192,
         max_css_tokens=4096,
         max_js_tokens=4096,
@@ -213,10 +214,10 @@ COMPLEXITY_CONFIGS: dict[ComplexityLevel, ComplexityConfig] = {
         enable_parallel_styling=True,
     ),
     ComplexityLevel.COMPLEX: ComplexityConfig(
-        # Deep reasoning for complex components
+        # MAXIMUM RICHNESS: All agents use high thinking for dense output
         architect_thinking_level="high",
-        alchemist_thinking_level="high",  # Premium CSS needs thinking
-        physicist_thinking_level="low",
+        alchemist_thinking_level="high",
+        physicist_thinking_level="high",
         max_html_tokens=16384,
         max_css_tokens=8192,
         max_js_tokens=8192,
@@ -370,9 +371,10 @@ def get_config_for_quality_target(
     # Adjust based on quality target
     if quality_target == "draft":
         return ComplexityConfig(
-            architect_thinking_level=base_config.architect_thinking_level,
-            alchemist_thinking_level="low",
-            physicist_thinking_level="low",
+            # MAXIMUM RICHNESS: Even drafts use high thinking for quality
+            architect_thinking_level="high",
+            alchemist_thinking_level="high",
+            physicist_thinking_level="high",
             max_html_tokens=base_config.max_html_tokens,
             max_css_tokens=base_config.max_css_tokens,
             max_js_tokens=base_config.max_js_tokens,

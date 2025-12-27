@@ -6,6 +6,7 @@
 
 MAESTRO asks smart questions to understand design intent, then automatically selects the optimal design mode and parameters. It's built for the Gemini MCP server and integrates with all design tools.
 
+### v1 Flow (Static Questions)
 ```
 User Intent  -->  Interview  -->  Decision  -->  Execution
     |               |               |               |
@@ -13,6 +14,127 @@ User Intent  -->  Interview  -->  Decision  -->  Execution
 "I need a     "Landing page   design_page    Complete
  landing       or component?"  mode with      HTML output
  page"         "Theme?"        parameters
+```
+
+### v2 Flow (Soul-Aware Interview)
+```
+Design Brief  -->  Soul Extraction  -->  Dynamic Interview  -->  Execution
+    |                    |                      |                    |
+    v                    v                      v                    v
+"B2B SaaS       ProjectSoul with        Context-aware         Design with
+ dashboard      brand personality,       gap-filling           brand DNA
+ for fintech"   audience, visual lang    questions             integrated
+```
+
+## MAESTRO v2: Soul-Aware Interview System
+
+Version 2 introduces **intelligent brief analysis** powered by Gemini. Instead of static questions, MAESTRO v2:
+
+1. **Extracts ProjectSoul** from design briefs using Gemini
+2. **Identifies gaps** in the brief automatically
+3. **Generates dynamic questions** to fill only missing information
+4. **Maintains brand consistency** through the entire design process
+
+### Key v2 Components
+
+| Component | Purpose |
+|-----------|---------|
+| `ProjectSoul` | Core model capturing project essence |
+| `SoulExtractor` | Gemini-powered brief analyzer |
+| `GapDetector` | Identifies missing information |
+| `DynamicQuestionGenerator` | Creates targeted questions |
+| `SoulAwareSession` | Session with soul integration |
+| `MAESTROv2Wrapper` | Backward-compatible wrapper |
+
+### ProjectSoul Model
+
+```python
+class ProjectSoul:
+    """The 'soul' of a project - drives all design decisions"""
+
+    # Metadata
+    metadata: ProjectMetadata  # name, tagline, type, industry
+
+    # Brand Personality (Aaker Framework)
+    brand_personality: BrandPersonality
+    # - sincerity, excitement, competence, sophistication, ruggedness
+    # - dominant_trait, archetype ("The Hero", "The Sage", etc.)
+
+    # Target Audience
+    target_audience: AudienceProfile
+    # - age_range, tech_level, industry, needs
+
+    # Visual Language
+    visual_language: VisualLanguage
+    # - theme, colors, typography, density
+
+    # Emotional Framework
+    emotional_framework: EmotionalFramework
+    # - primary_emotion, secondary_emotion, avoid_emotions
+
+    # Confidence Scores
+    confidence_scores: ConfidenceScores
+    # - brand, audience, visual, emotion, overall
+
+    # Gap Analysis
+    gap_analysis: GapAnalysis
+    # - gaps list with priority and suggested questions
+```
+
+### v2 Quick Start
+
+```python
+from gemini_mcp.maestro import MAESTROv2Wrapper
+
+# Initialize with v2 wrapper
+wrapper = MAESTROv2Wrapper(client=gemini_client)
+
+# Start with design brief (NEW in v2)
+session_id, result = await wrapper.start_session(
+    design_brief="""
+    B2B SaaS dashboard için yönetim paneli.
+    Hedef kitle: Fintech şirketlerinin IT yöneticileri.
+    Profesyonel ve güvenilir bir görünüm istiyoruz.
+    """
+)
+
+# v2 returns soul extraction result first
+if result.soul:
+    print(f"Project: {result.soul.metadata.project_name}")
+    print(f"Confidence: {result.soul.confidence_scores.overall:.0%}")
+
+# Continue with dynamic questions...
+```
+
+### InterviewPhase State Machine
+
+v2 uses a sophisticated state machine for interview flow:
+
+```python
+class InterviewPhase(Enum):
+    INITIAL = "initial"              # Session created
+    SOUL_EXTRACTION = "extraction"    # Analyzing design brief
+    CONTEXT_GATHERING = "gathering"   # Filling gaps from soul
+    DEEP_DIVE = "deep_dive"          # Detailed exploration
+    VISUAL_EXPLORATION = "visual"     # Visual preferences
+    VALIDATION = "validation"         # Confirming decisions
+    SYNTHESIS = "synthesis"           # Final preparation
+    EXECUTION = "execution"           # Design generation
+    COMPLETE = "complete"             # Session finished
+```
+
+State transitions are managed by `InterviewStateMachine`:
+
+```python
+# Valid transitions
+INITIAL → SOUL_EXTRACTION
+SOUL_EXTRACTION → CONTEXT_GATHERING
+CONTEXT_GATHERING → DEEP_DIVE | VALIDATION
+DEEP_DIVE → VISUAL_EXPLORATION | VALIDATION
+VISUAL_EXPLORATION → VALIDATION
+VALIDATION → SYNTHESIS | DEEP_DIVE (backtrack)
+SYNTHESIS → EXECUTION
+EXECUTION → COMPLETE
 ```
 
 ## Quick Start
@@ -102,12 +224,45 @@ MAESTRO is exposed via 4 MCP tools:
 maestro/
 ├── core.py              # Main Maestro class & MCP integration
 ├── models.py            # All data models (Question, Answer, Decision)
+│
+├── v2/                  # NEW: MAESTRO v2 Soul-Aware System
+│   ├── wrapper.py       # MAESTROv2Wrapper - backward compatible
+│   ├── session.py       # SoulAwareSession - soul integration
+│   └── fallback.py      # Graceful degradation to v1
+│
+├── models/              # NEW: v2 Data Models
+│   ├── soul.py          # ProjectSoul - core model
+│   ├── brand.py         # BrandPersonality (Aaker Framework)
+│   ├── audience.py      # AudienceProfile
+│   ├── visual.py        # VisualLanguage
+│   ├── emotion.py       # EmotionalFramework, EmotionalTone
+│   └── gap.py           # GapInfo, GapAnalysis
+│
+├── soul/                # NEW: Soul Extraction Engine
+│   ├── extractor.py     # SoulExtractor - Gemini-powered
+│   ├── aaker.py         # AakerAnalyzer - brand personality
+│   ├── confidence.py    # ConfidenceCalculator
+│   └── gaps.py          # GapDetector
+│
+├── prompts/             # NEW: Turkish Prompt Library
+│   └── tr/
+│       ├── extraction.py    # Soul extraction prompts
+│       ├── feedback.py      # Validation/error messages
+│       ├── interview.py     # Interview question templates
+│       └── synthesis.py     # Final synthesis prompts
+│
 ├── questions/
 │   ├── bank.py          # QuestionBank - 24 questions across 10 categories
-│   └── validators.py    # Answer validation
+│   ├── validators.py    # Answer validation
+│   └── generator.py     # NEW: DynamicQuestionGenerator
+│
 ├── interview/
 │   ├── engine.py        # InterviewEngine - question flow orchestration
-│   └── flow_controller.py  # Skip rules, show_when, follow-ups
+│   ├── flow_controller.py  # Skip rules, show_when, follow-ups
+│   ├── state_machine.py # NEW: InterviewStateMachine
+│   ├── transitions.py   # NEW: StateTransitionManager
+│   └── progress.py      # NEW: ProgressTracker with analytics
+│
 ├── decision/
 │   └── tree.py          # DecisionTree - 6-dimension scoring, mode selection
 ├── execution/

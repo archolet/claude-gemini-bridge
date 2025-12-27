@@ -18,7 +18,8 @@ class GeminiConfig:
     default_image_model: str = field(default_factory=lambda: os.getenv("GEMINI_IMAGE_MODEL", "gemini-3-pro-image-preview"))
 
     # Generation defaults
-    default_temperature: float = 0.7
+    # IMPORTANT: Gemini 3 requires temperature=1.0 for optimal reasoning
+    default_temperature: float = 1.0
     default_max_tokens: int = 8192
 
     # Image output settings

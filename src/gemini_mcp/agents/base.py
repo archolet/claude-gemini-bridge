@@ -170,14 +170,22 @@ class BaseAgent(ABC):
         return self._execution_id
 
     @abstractmethod
-    def get_system_prompt(self) -> str:
+    def get_system_prompt(self, variables: dict[str, Any] | None = None) -> str:
         """
         Return the system prompt that defines this agent's behavior.
+
+        Args:
+            variables: Optional dict of template variables for YAML substitution.
+                      Common variables: theme, component_type, content_language
 
         The prompt should:
         1. Clearly define the agent's role and boundaries
         2. List what the agent CAN and CANNOT do
         3. Specify the expected output format
+
+        Implementation note:
+            Agents using YAML templates should call:
+                get_prompt(agent_name=self.role.value, variables=variables)
         """
         pass
 
@@ -214,7 +222,13 @@ class BaseAgent(ABC):
 
         Can be overridden by subclasses for custom prompt construction.
         """
-        system = self.get_system_prompt()
+        # Extract variables from context for YAML template substitution
+        variables = {
+            "theme": context.theme or "modern-minimal",
+            "component_type": context.component_type or "",
+            "content_language": getattr(context, "content_language", "Turkish"),
+        }
+        system = self.get_system_prompt(variables)
 
         # Build context section
         context_parts = []

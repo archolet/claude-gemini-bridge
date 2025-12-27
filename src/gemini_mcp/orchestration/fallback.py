@@ -68,10 +68,11 @@ class FallbackStrategy:
     max_retries: int = 2
     retry_delay_seconds: float = 1.0
 
-    # Level 2: Lower thinking level (high → low)
+    # Level 2: Retry with same thinking level (MAXIMUM RICHNESS mode)
     # NOTE: Gemini 3 Pro doesn't support disabling thinking entirely
+    # MAXIMUM RICHNESS: Keep high thinking even in fallback for quality
     retry_lower_thinking: bool = True
-    lower_thinking_level: str = "low"
+    lower_thinking_level: str = "high"  # Keep high for maximum output quality
 
     # Level 3: Use cached template
     use_cached_template: bool = True

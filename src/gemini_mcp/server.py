@@ -40,6 +40,18 @@ from .frontend_presets import (
 )
 
 # =============================================================================
+# TIER SYSTEM IMPORTS - Component Complexity Routing
+# =============================================================================
+from .constants.tier_mapping import (
+    get_component_tier,
+    get_tier_features,
+    get_tier_quality_threshold,
+    get_tier_name,
+    TIER_MAPPING,
+    TIER_FEATURES,
+)
+
+# =============================================================================
 # THEME FACTORY IMPORTS - Advanced Theme Customization
 # =============================================================================
 from .theme_factories import (
@@ -859,6 +871,10 @@ async def design_frontend(
     context: str = "",
     content_structure: str = "{}",
     theme: str = "modern-minimal",
+    # =================================================================
+    # TIER SYSTEM - Component Complexity Level
+    # =================================================================
+    tier: int = 0,  # 0=auto-detect, 1=basic, 2=standard, 3=complex, 4=enterprise
     dark_mode: bool = True,
     border_radius: str = "",
     responsive_breakpoints: str = "sm,md,lg",
@@ -928,6 +944,10 @@ async def design_frontend(
     # =================================================================
     corporate_preset: str = "",  # One-click: "enterprise_bank", "saas_enterprise", etc.
     quality_target: str = "production",  # "draft", "production", "high", "premium", "enterprise"
+    # =================================================================
+    # OPTIONAL JS FALLBACKS - Comprehensive vanilla JS for interactivity
+    # =================================================================
+    inject_js_fallbacks: bool = False,  # Inject Modal/Dropdown/Carousel/etc. JS
 ) -> dict:
     """Design a frontend UI component using Gemini 3 Pro.
 
@@ -1175,7 +1195,39 @@ async def design_frontend(
             f"quality_target={quality_target}, vibe={vibe}"
         )
 
-    logger.info(f"Designing {component_type} with theme {theme} (Vibe: {vibe})")
+    # =========================================================================
+    # TIER SYSTEM - Component Complexity Resolution
+    # tier=0 means auto-detect, 1-4 means manual override
+    # =========================================================================
+    resolved_tier = get_component_tier(component_type, tier if tier > 0 else None)
+    tier_features = get_tier_features(resolved_tier)
+    tier_quality_threshold = get_tier_quality_threshold(resolved_tier)
+    tier_name = get_tier_name(resolved_tier)
+
+    logger.info(
+        f"[Tier] Component '{component_type}' → Tier {resolved_tier} ({tier_name}): "
+        f"ARIA={tier_features['aria_level']}, Quality≥{tier_quality_threshold}"
+    )
+
+    # Upgrade quality_target if tier demands higher threshold
+    quality_target_thresholds = {
+        "draft": 6.0,
+        "production": 7.0,
+        "standard": 7.0,
+        "high": 8.0,
+        "premium": 8.5,
+        "enterprise": 9.0,
+    }
+    current_threshold = quality_target_thresholds.get(quality_target, 7.0)
+    if tier_quality_threshold > current_threshold:
+        # Find the quality_target that matches tier requirement
+        for qt, thresh in sorted(quality_target_thresholds.items(), key=lambda x: x[1]):
+            if thresh >= tier_quality_threshold:
+                quality_target = qt
+                logger.info(f"[Tier] Upgraded quality_target to '{quality_target}' for Tier {resolved_tier}")
+                break
+
+    logger.info(f"Designing {component_type} with theme {theme} (Vibe: {vibe}, Tier: {resolved_tier})")
 
     # Project Context Management
     project_name = "default"
@@ -1228,34 +1280,6 @@ async def design_frontend(
             industry=industry,
             formality=formality,
         )
-        
-        # SAVE DRAFT AUTOMATICALLY
-        if "html" in result:
-             # Save primary HTML
-             path = draft_manager.save_artifact(
-                 content=result["html"],
-                 extension="html",
-                 project_name=project_name,
-                 component_type=component_type,
-                 metadata={
-                     "tool": "design_frontend", 
-                     "params": str(input_params),
-                     "model_used": result.get("model_used", "gemini-3-pro")
-                 }
-             )
-             result["_saved_draft_path"] = path
-             
-             # Save sidecar CSS/JS if present
-             if result.get("css_output"):
-                 draft_manager.save_artifact(
-                     content=result["css_output"], extension="css", 
-                     project_name=project_name, component_type=component_type
-                 )
-             if result.get("js_output"):
-                 draft_manager.save_artifact(
-                     content=result["js_output"], extension="js", 
-                     project_name=project_name, component_type=component_type
-                 )
 
         # === Vibe Recommendations (Enhancement) ===
         result["recommended_vibes"] = get_recommended_vibes(theme)
@@ -1270,6 +1294,21 @@ async def design_frontend(
                 "quality_target": quality_target,
             }
         result["quality_target"] = quality_target
+
+        # === Tier System Metadata ===
+        result["tier"] = resolved_tier
+        result["tier_name"] = tier_name
+        result["tier_features"] = tier_features
+
+        # === Inject comprehensive JS fallbacks if requested ===
+        if inject_js_fallbacks and "html" in result:
+            try:
+                from gemini_mcp.js_fallbacks import inject_js_fallbacks as inject_fn
+                result["html"] = inject_fn(result["html"], modules=None, detect_needed=True)
+                result["js_fallbacks_injected"] = True
+                logger.info("Injected comprehensive JS fallbacks (Trifecta path)")
+            except Exception as e:
+                logger.warning(f"JS fallback injection failed: {e}")
 
         return result
 
@@ -1315,30 +1354,27 @@ async def design_frontend(
         except Exception as e:
             logger.warning(f"Auto-fix failed: {e}")
 
-    # SAVE DRAFT AUTOMATICALLY (Middleware)
-    if "html" in result:
-         path = draft_manager.save_artifact(
-             content=result["html"],
-             extension="html",
-             project_name=project_name,
-             component_type=component_type,
-             metadata={
-                 "tool": "design_frontend", 
-                 "params": str(input_params),
-                 "model_used": result.get("model_used", "gemini-1.5-pro")
-             }
-         )
-         # Verify saving metadata JSON as well (handled by save_artifact)
-         if "design_tokens" in result and result["design_tokens"]:
-             draft_manager.save_artifact(
-                 content=result["design_tokens"],
-                 extension="json",
-                 project_name=project_name,
-                 component_type=f"{component_type}_tokens"
-             )
-             
-         result["_saved_draft_path"] = path
-         logger.info(f"Auto-saved draft to {path}")
+    # Inject comprehensive JS fallbacks if requested
+    if inject_js_fallbacks and "html" in result:
+        try:
+            from gemini_mcp.js_fallbacks import inject_js_fallbacks as inject_fn
+            result["html"] = inject_fn(result["html"], modules=None, detect_needed=True)
+            result["js_fallbacks_injected"] = True
+            logger.info("Injected comprehensive JS fallbacks (standard path)")
+        except Exception as e:
+            logger.warning(f"JS fallback injection failed: {e}")
+
+    # =================================================================
+    # AUTO-SAVE using unified function (consistent with other tools)
+    # =================================================================
+    metadata = {"component_type": component_type, "theme": theme}
+    if vibe:
+        metadata["vibe"] = vibe
+    if tier:
+        metadata["tier"] = resolved_tier
+    result = _auto_save_design_output(
+        result, "design_frontend", f"component_{component_type}", metadata
+    )
 
     # =================================================================
     # AUTO PREVIEW - Open HTML in browser automatically
@@ -1396,6 +1432,11 @@ async def design_frontend(
     # === Vibe Recommendations (Enhancement) ===
     result["recommended_vibes"] = get_recommended_vibes(theme)
     result["vibe_compatibility"] = get_vibe_compatibility(theme, vibe) if vibe else None
+
+    # === Tier System Metadata (Standard Path) ===
+    result["tier"] = resolved_tier
+    result["tier_name"] = tier_name
+    result["tier_features"] = tier_features
 
     return result
 
@@ -1913,6 +1954,8 @@ async def refine_frontend(
     auto_fix: bool = True,
     # TRIFECTA ENGINE
     use_trifecta: bool = False,
+    # OPTIONAL JS FALLBACKS
+    inject_js_fallbacks: bool = False,
 ) -> dict:
     """Refine an existing component design based on feedback.
 
@@ -1980,6 +2023,16 @@ async def refine_frontend(
                 result["js_fixes_applied"] = fixes
                 logger.info(f"Applied {len(fixes)} JS fallback fixes")
 
+        # Inject comprehensive JS fallbacks if requested
+        if inject_js_fallbacks and "html" in result:
+            try:
+                from gemini_mcp.js_fallbacks import inject_js_fallbacks as inject_fn
+                result["html"] = inject_fn(result["html"], modules=None, detect_needed=True)
+                result["js_fallbacks_injected"] = True
+                logger.info("Injected comprehensive JS fallbacks")
+            except Exception as e:
+                logger.warning(f"JS fallback injection failed: {e}")
+
         # Auto-save design output
         result = _auto_save_design_output(
             result, "refine_frontend", f"refined_{result.get('component_id', 'component')}",
@@ -2006,11 +2059,14 @@ async def design_section(
     design_tokens: str = "{}",
     content_structure: str = "{}",
     theme: str = "modern-minimal",
+    vibe: str = "",
     project_context: str = "",
     auto_fix: bool = True,
     content_language: str = "tr",
     # TRIFECTA ENGINE
     use_trifecta: bool = False,
+    # OPTIONAL JS FALLBACKS
+    inject_js_fallbacks: bool = False,
 ) -> dict:
     """Design a single page section that matches previous sections.
 
@@ -2057,6 +2113,11 @@ async def design_section(
         content_structure: JSON string with section content. Example:
                           '{"headline": "Başlık", "subheadline": "Alt başlık", "cta": "Başla"}'
         theme: Visual style preset (modern-minimal, brutalist, etc.)
+        vibe: Optional design spirit / persona. Options:
+               - elite_corporate: Precise, luxury corporate
+               - playful_funny: High energy, bouncy, witty
+               - cyberpunk_edge: High contrast, neon, industrial
+               - luxury_editorial: Elegant, spacious, serif-heavy
         project_context: Project-specific context for design consistency.
         content_language: Language code for content generation (default: "tr").
                          Supported: "tr" (Turkish), "en" (English), "de" (German).
@@ -2110,6 +2171,25 @@ async def design_section(
         except json.JSONDecodeError:
             content = {"raw": content_structure}
 
+        # Build style_guide with vibe if provided
+        style_guide = {}
+        if vibe:
+            from .theme_factories import (
+                get_vibe_specs,
+                get_vibe_animation_config,
+                get_vibe_css_variables,
+            )
+            vibe_specs = get_vibe_specs(vibe)
+            vibe_animation = get_vibe_animation_config(vibe)
+            style_guide["vibe_specs"] = vibe_specs
+            style_guide["vibe_animation"] = vibe_animation
+            style_guide["vibe"] = vibe
+
+            # Inject comprehensive vibe CSS variables
+            if "css_variables" not in style_guide:
+                style_guide["css_variables"] = {}
+            style_guide["css_variables"].update(get_vibe_css_variables(vibe))
+
         # =================================================================
         # TRIFECTA ENGINE - Multi-Agent Pipeline Mode
         # =================================================================
@@ -2119,6 +2199,7 @@ async def design_section(
                 pipeline_type=PipelineType.SECTION,
                 component_type=section_type,
                 theme=theme,
+                style_guide=style_guide if style_guide else None,
                 content_structure=content,
                 context=context,
                 previous_html=previous_html,
@@ -2150,20 +2231,39 @@ async def design_section(
                 result["js_fixes_applied"] = fixes
                 logger.info(f"Applied {len(fixes)} JS fallback fixes")
 
+        # Inject comprehensive JS fallbacks if requested
+        if inject_js_fallbacks and "html" in result:
+            try:
+                from gemini_mcp.js_fallbacks import inject_js_fallbacks as inject_fn
+                result["html"] = inject_fn(result["html"], modules=None, detect_needed=True)
+                result["js_fallbacks_injected"] = True
+                logger.info("Injected comprehensive JS fallbacks")
+            except Exception as e:
+                logger.warning(f"JS fallback injection failed: {e}")
+
         # GAP 2: Ensure section markers are present for iterative replacement
         if "html" in result:
             result["html"] = ensure_section_markers(result["html"], section_type)
             result["section_markers"] = True
 
         # Auto-save design output
+        metadata = {"section_type": section_type, "theme": theme}
+        if vibe:
+            metadata["vibe"] = vibe
         result = _auto_save_design_output(
             result, "design_section", f"section_{section_type}",
-            {"section_type": section_type, "theme": theme}
+            metadata
         )
+
+        # Add vibe info to result if used
+        if vibe:
+            result["vibe"] = vibe
+            result["vibe_applied"] = True
 
         logger.info(
             f"design_section completed: {section_type} "
-            f"(chain_mode={'yes' if previous_html else 'no'}, markers=enforced)"
+            f"(chain_mode={'yes' if previous_html else 'no'}, "
+            f"vibe={'yes' if vibe else 'no'}, markers=enforced)"
         )
         return result
 
@@ -2188,6 +2288,8 @@ async def design_from_reference(
     content_language: str = "tr",
     # TRIFECTA ENGINE
     use_trifecta: bool = False,
+    # OPTIONAL JS FALLBACKS
+    inject_js_fallbacks: bool = False,
 ) -> dict:
     """Design a component based on a reference image using Gemini Vision.
 
@@ -2324,6 +2426,16 @@ async def design_from_reference(
             if fixes:
                 result["js_fixes_applied"] = fixes
                 logger.info(f"Applied {len(fixes)} JS fallback fixes")
+
+        # Inject comprehensive JS fallbacks if requested
+        if inject_js_fallbacks and "html" in result:
+            try:
+                from gemini_mcp.js_fallbacks import inject_js_fallbacks as inject_fn
+                result["html"] = inject_fn(result["html"], modules=None, detect_needed=True)
+                result["js_fallbacks_injected"] = True
+                logger.info("Injected comprehensive JS fallbacks")
+            except Exception as e:
+                logger.warning(f"JS fallback injection failed: {e}")
 
         # Auto-save design output (only if not extract_only mode)
         if not extract_only:
@@ -2664,10 +2776,32 @@ def get_maestro():
     return _maestro_instance
 
 
+# MAESTRO v2 Wrapper singleton for soul-aware interview
+_maestro_v2_instance = None
+
+
+def get_maestro_v2():
+    """Get or create MAESTRO v2 Wrapper singleton instance.
+
+    Uses lazy initialization. MAESTROv2Wrapper provides soul-aware
+    interview capabilities with design brief analysis.
+    """
+    global _maestro_v2_instance
+    if _maestro_v2_instance is None:
+        from gemini_mcp.maestro import MAESTROv2Wrapper
+        _maestro_v2_instance = MAESTROv2Wrapper(
+            gemini_client=get_gemini_client(),
+            legacy_maestro=get_maestro(),
+        )
+        logger.info("[MAESTRO v2] Soul-aware wrapper initialized")
+    return _maestro_v2_instance
+
+
 @mcp.tool()
 async def maestro_start_session(
     project_context: str = "",
     existing_html: str = "",
+    design_brief: str = "",
 ) -> dict:
     """Start a new MAESTRO design wizard session.
 
@@ -2678,6 +2812,10 @@ async def maestro_start_session(
     ask a series of questions about your intent, scope, theme preferences,
     and then generate a design decision.
 
+    NEW in v2: If a design_brief is provided, MAESTRO uses AI to extract
+    the project's "soul" (brand personality, target audience, visual language)
+    and generates dynamic, context-aware questions to fill gaps.
+
     Args:
         project_context: Project description for context (e.g., "B2B SaaS dashboard
                         for Turkish fintech startup"). Helps MAESTRO make better
@@ -2685,6 +2823,12 @@ async def maestro_start_session(
         existing_html: Optional existing HTML for refinement or style matching.
                       If provided, MAESTRO may suggest refine_frontend or
                       design_section modes.
+        design_brief: Optional design brief for soul extraction (v2 feature).
+                     When provided, MAESTRO analyzes the brief to understand
+                     brand personality, target audience, and visual preferences,
+                     then asks only the questions needed to fill gaps.
+                     Example: "Modern fintech app for millennials. Professional
+                     but approachable. Blue/purple gradient theme preferred."
 
     Returns:
         Dict containing:
@@ -2692,16 +2836,56 @@ async def maestro_start_session(
         - question: First interview question with id, text, category, options
         - progress: Interview progress (0.0 to 1.0)
         - status: "interviewing" | "decided" | "failed"
+        - v2_enabled: Whether soul-aware v2 mode is active (only if design_brief provided)
+        - soul_confidence: Confidence score of soul extraction (0.0-1.0, only in v2)
 
     Example:
-        # Start a new design session
+        # Start a new design session with design brief (v2)
         result = await maestro_start_session(
-            project_context="E-commerce product page for Turkish market"
+            design_brief="E-commerce product page for Turkish market. "
+                        "Target: young professionals. Tone: modern, trustworthy.",
+            project_context="E-commerce product page"
         )
         session_id = result["session_id"]
         # Answer the first question using maestro_answer
     """
     try:
+        # Use v2 wrapper if design_brief is provided
+        if design_brief:
+            logger.info("[MAESTRO v2] Starting soul-aware session with design brief")
+            maestro_v2 = get_maestro_v2()
+            session, question = await maestro_v2.start_session(
+                design_brief=design_brief,
+                project_context=project_context,
+                existing_html=existing_html or None,
+            )
+
+            # Calculate initial progress based on soul confidence
+            soul_confidence = 0.0
+            if session.soul:
+                confidence_scores = session.soul.confidence_scores
+                soul_confidence = confidence_scores.get("overall", 0.0)
+
+            return {
+                "session_id": session.session_id,
+                "question": {
+                    "id": question.id,
+                    "text": question.text,
+                    "category": question.category.value,
+                    "options": [
+                        {"id": opt.id, "label": opt.label, "description": opt.description}
+                        for opt in question.options
+                    ],
+                    "question_type": question.question_type.value,
+                },
+                "progress": soul_confidence * 0.3,  # Soul extraction = 30% progress
+                "status": "interviewing",
+                "v2_enabled": True,
+                "soul_confidence": soul_confidence,
+                "gaps_detected": len(session.soul.identified_gaps) if session.soul else 0,
+            }
+
+        # Fall back to legacy v1 for sessions without design brief
         maestro = get_maestro()
         session_id, question = await maestro.start_session(
             project_context=project_context,
@@ -2722,6 +2906,7 @@ async def maestro_start_session(
             },
             "progress": 0.0,
             "status": "interviewing",
+            "v2_enabled": False,
         }
     except Exception as e:
         logger.error(f"[MAESTRO] start_session failed: {e}")
@@ -3153,6 +3338,14 @@ def main():
     except ValueError as e:
         logger.warning(f"Configuration incomplete: {e}")
         logger.warning("Server will start but tools may fail until GOOGLE_CLOUD_PROJECT is set")
+
+    # Development mode'da hot-reload aktifleştir
+    import os
+    if os.getenv("GEMINI_DEV_MODE", "").lower() in ("1", "true"):
+        from gemini_mcp.prompts import get_prompt_loader
+        loader = get_prompt_loader()  # watch=True is already default
+        loader.start_watching()
+        logger.info("🔥 Hot-reload enabled for prompt templates")
 
     # Run the MCP server
     mcp.run()

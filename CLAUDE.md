@@ -26,6 +26,7 @@ gcloud auth application-default login
 # Optional
 export GOOGLE_CLOUD_LOCATION="global"
 export GEMINI_DRAFT_DIR="./temp_designs"
+export GEMINI_DEV_MODE="1"  # Enable hot-reload for prompt templates
 ```
 
 ## Gemini 3 API Configuration
@@ -88,10 +89,24 @@ Located in `src/gemini_mcp/orchestration/`:
 
 ### Validation
 Located in `src/gemini_mcp/validation/`:
-- `html_validator.py` - HTML structure validation
-- `css_validator.py` - CSS validation
-- `js_validator.py` - JavaScript validation
-- `id_validator.py` - ID conflict detection
+
+| Validator | File | Purpose |
+|-----------|------|---------|
+| HTMLValidator | `html_validator.py` | HTML structure validation |
+| CSSValidator | `css_validator.py` | CSS syntax & best practices |
+| JSValidator | `js_validator.py` | JavaScript safety & performance |
+| IDValidator | `id_validator.py` | Cross-layer ID conflict detection |
+| ProfessionalValidator | `professional_validator.py` | Corporate/professional standards |
+| DensityValidator | `density_validator.py` | Anti-laziness element density |
+| ContrastChecker | `contrast_checker.py` | WCAG contrast compliance |
+| AnimationValidator | `animation_validator.py` | Animation timing UX |
+| **AntiPatternValidator** | `anti_pattern_validator.py` | Enterprise anti-patterns with auto-fix |
+
+**Anti-Pattern Categories** (21 patterns):
+- `ACCESSIBILITY_ANTIPATTERNS` - 7 patterns (focus removal, tabindex abuse, etc.)
+- `PERFORMANCE_ANTIPATTERNS` - 4 patterns (scroll handlers, layout thrashing)
+- `STYLING_ANTIPATTERNS` - 5 patterns (arbitrary z-index, !important abuse)
+- `ALPINE_ANTIPATTERNS` - 5 patterns (missing x-cloak, template in x-for)
 
 ### State Management
 - `src/gemini_mcp/state.py` - DraftManager for auto-save to `temp_designs/`
@@ -123,12 +138,43 @@ Alchemist → Critic (score) → if < 8.0 → Alchemist (with feedback) → Crit
 ```
 - `QUALITY_THRESHOLD = 8.0` - Minimum acceptable score
 - `MAX_REFINER_ITERATIONS = 3` - Maximum retry attempts
-- **5-dimension scoring**:
-  - Layout (25%) - Visual hierarchy, spacing, alignment
-  - Typography (15%) - Font choices, readability
-  - Color (20%) - Palette harmony, contrast
-  - Interaction (15%) - Hover states, animations
-  - Accessibility (25%) - WCAG compliance, focus states
+- **9-dimension scoring matrix**:
+
+  | Dimension | Weight | Agent | Description |
+  |-----------|--------|-------|-------------|
+  | Accessibility | 15% | Architect | WCAG AA/AAA, ARIA, focus states |
+  | Layout | 13% | Architect | Visual hierarchy, spacing, alignment |
+  | Color | 13% | Alchemist | Palette harmony, contrast |
+  | Visual Density | 13% | Alchemist | Tailwind class richness, detail depth |
+  | Code Quality | 9% | Architect | Semantic HTML, clean structure |
+  | Animation Quality | 9% | Alchemist | Meaningful transitions, timing |
+  | Typography | 9% | Alchemist | Font choices, readability |
+  | Interaction | 9% | Physicist | Hover feedback, micro-interactions |
+  | State Management | 10% | Physicist | Alpine.js reactivity, data flow |
+
+### 5. Component Tier System
+Component complexity routing for enterprise UI:
+
+| Tier | Level | Components | Quality Threshold |
+|------|-------|------------|------------------|
+| 1 | Basic | button, badge, avatar, toggle | 7.0 |
+| 2 | Standard | dropdown, modal, tabs, card | 7.5 |
+| 3 | Complex | data_table, calendar, kanban_board | 8.0 |
+| 4 | Enterprise | pivot_table, dashboard_builder | 8.5 |
+
+**Usage**: `design_frontend(component_type="data_table", tier=3)` (or `tier=0` for auto-detect)
+
+### 6. Enterprise Prompt Segments
+Modular YAML segments for agent specialization:
+
+| Segment | Agent | Content |
+|---------|-------|---------|
+| `enterprise_aria_patterns.yaml` | Architect | ARIA patterns, live regions, keyboard nav |
+| `tailwind_state_variants.yaml` | Alchemist | aria-* variants, z-index scale, skeleton loaders |
+| `alpine_enterprise_patterns.yaml` | Physicist | Virtual scroll, global stores, focus trap |
+| `anti_ai_cliches.yaml` | All | Enterprise color/layout patterns |
+| `kpi_card_enterprise.yaml` | Architect | KPI card anatomy |
+| `data_table_enterprise.yaml` | Physicist | Keyboard nav, selection |
 
 ## Testing
 

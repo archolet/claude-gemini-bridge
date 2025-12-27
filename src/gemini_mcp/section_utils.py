@@ -11,7 +11,7 @@ Section Marker Format:
 
 import functools
 import re
-from typing import Dict, List, Optional, Pattern, Tuple
+from typing import Dict, List, Optional, Tuple
 
 # Pattern to match section markers (precompiled for extract_all_sections)
 SECTION_PATTERN = re.compile(r'<!-- SECTION: (\w+) -->(.*?)<!-- /SECTION: \1 -->', re.DOTALL)
@@ -24,7 +24,7 @@ _CLASS_PATTERN = re.compile(r'class="([^"]*)"')
 # =============================================================================
 
 @functools.lru_cache(maxsize=64)
-def _get_section_pattern(section_name: str) -> Pattern[str]:
+def _get_section_pattern(section_name: str) -> re.Pattern[str]:
     """Get compiled regex pattern for extracting a specific section's content."""
     return re.compile(
         rf'<!-- SECTION: {re.escape(section_name)} -->(.*?)<!-- /SECTION: {re.escape(section_name)} -->',
@@ -32,7 +32,7 @@ def _get_section_pattern(section_name: str) -> Pattern[str]:
     )
 
 @functools.lru_cache(maxsize=64)
-def _get_section_with_groups_pattern(section_name: str) -> Pattern[str]:
+def _get_section_with_groups_pattern(section_name: str) -> re.Pattern[str]:
     """Get compiled pattern with groups for replace operations."""
     return re.compile(
         rf'(<!-- SECTION: {re.escape(section_name)} -->)(.*?)(<!-- /SECTION: {re.escape(section_name)} -->)',
@@ -40,7 +40,7 @@ def _get_section_with_groups_pattern(section_name: str) -> Pattern[str]:
     )
 
 @functools.lru_cache(maxsize=64)
-def _get_section_boundaries_pattern(section_name: str) -> Pattern[str]:
+def _get_section_boundaries_pattern(section_name: str) -> re.Pattern[str]:
     """Get compiled pattern for section boundary detection."""
     return re.compile(
         rf'<!-- SECTION: {re.escape(section_name)} -->.*?<!-- /SECTION: {re.escape(section_name)} -->',
@@ -49,23 +49,16 @@ def _get_section_boundaries_pattern(section_name: str) -> Pattern[str]:
 
 # =============================================================================
 # Performance Fix: Prefix Tuples for O(1) Matching (Issue 2)
+# Centralized in constants/colors.py
 # =============================================================================
 
-# Tailwind class prefix tuples for efficient startswith() matching
-_COLOR_PREFIXES = ('bg-', 'border-', 'ring-', 'outline-', 'divide-', 'from-', 'via-', 'to-')
-_TEXT_COLOR_PREFIXES = ('text-gray-', 'text-slate-', 'text-zinc-', 'text-neutral-', 'text-stone-',
-                        'text-red-', 'text-orange-', 'text-amber-', 'text-yellow-', 'text-lime-',
-                        'text-green-', 'text-emerald-', 'text-teal-', 'text-cyan-', 'text-sky-',
-                        'text-blue-', 'text-indigo-', 'text-violet-', 'text-purple-', 'text-fuchsia-',
-                        'text-pink-', 'text-rose-', 'text-white', 'text-black', 'text-transparent')
-_TYPOGRAPHY_PREFIXES = ('font-', 'tracking-', 'leading-', 'text-xs', 'text-sm', 'text-base',
-                        'text-lg', 'text-xl', 'text-2xl', 'text-3xl', 'text-4xl', 'text-5xl',
-                        'text-6xl', 'text-7xl', 'text-8xl', 'text-9xl')
-_SPACING_PREFIXES = ('p-', 'px-', 'py-', 'pt-', 'pb-', 'pl-', 'pr-', 'ps-', 'pe-',
-                     'm-', 'mx-', 'my-', 'mt-', 'mb-', 'ml-', 'mr-', 'ms-', 'me-',
-                     'gap-', 'gap-x-', 'gap-y-', 'space-x-', 'space-y-')
-_EFFECTS_PREFIXES = ('shadow-', 'rounded-', 'blur-', 'opacity-', 'transition-',
-                     'backdrop-', 'drop-shadow-', 'ring-offset-')
+from gemini_mcp.constants.colors import (
+    COLOR_PREFIXES as _COLOR_PREFIXES,
+    TEXT_COLOR_PREFIXES as _TEXT_COLOR_PREFIXES,
+    TYPOGRAPHY_PREFIXES as _TYPOGRAPHY_PREFIXES,
+    SPACING_PREFIXES as _SPACING_PREFIXES,
+    EFFECTS_PREFIXES as _EFFECTS_PREFIXES,
+)
 
 # Valid section types (for validation)
 VALID_SECTION_TYPES = {

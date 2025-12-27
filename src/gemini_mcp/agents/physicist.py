@@ -24,10 +24,10 @@ from __future__ import annotations
 
 import logging
 import re
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING, Any, Optional
 
 from gemini_mcp.agents.base import AgentConfig, AgentResult, AgentRole, BaseAgent
-from gemini_mcp.prompts import PHYSICIST_SYSTEM_PROMPT
+from gemini_mcp.prompts.prompt_loader import get_prompt
 from gemini_mcp.validation import JSValidator
 
 if TYPE_CHECKING:
@@ -69,16 +69,19 @@ class PhysicistAgent(BaseAgent):
         """Physicist-specific default configuration."""
         return AgentConfig(
             model="gemini-3-pro-preview",
-            thinking_level="low",  # JS generation - focused output
+            thinking_level="high",  # Maximum reasoning for rich JS interactions
             temperature=1.0,  # Gemini 3 optimized
             max_output_tokens=8192,
             strict_mode=True,
             auto_fix=True,
         )
 
-    def get_system_prompt(self) -> str:
-        """Return The Physicist's system prompt."""
-        return PHYSICIST_SYSTEM_PROMPT
+    def get_system_prompt(self, variables: dict[str, Any] | None = None) -> str:
+        """Return The Physicist's system prompt from YAML template."""
+        return get_prompt(
+            agent_name="physicist",
+            variables=variables or {},
+        )
 
     async def execute(self, context: "AgentContext") -> AgentResult:
         """

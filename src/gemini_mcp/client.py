@@ -32,6 +32,7 @@ from .schemas import (
     validate_design_response,
     validate_design_tokens,
     get_language_config,
+    get_response_schema,
 )
 from .cache import DesignCache, get_design_cache
 from .error_recovery import (
@@ -40,6 +41,8 @@ from .error_recovery import (
     extract_html_fallback,
     create_fallback_response,
     ResponseValidator,
+    with_retry,
+    is_auth_error,
 )
 from .few_shot_examples import get_few_shot_examples_for_prompt
 
@@ -53,18 +56,6 @@ class GeminiClient:
 
     Includes automatic token refresh on authentication errors (401/403).
     """
-
-    # Error messages that indicate token expiration
-    AUTH_ERROR_PATTERNS = [
-        "401",
-        "403",
-        "unauthorized",
-        "unauthenticated",
-        "token",
-        "expired",
-        "invalid_grant",
-        "credentials",
-    ]
 
     def __init__(self, config: Optional[GeminiConfig] = None):
         """Initialize the Gemini client.
@@ -85,18 +76,6 @@ class GeminiClient:
             base_delay_seconds=1.0,
             exponential_backoff=True,
         )
-
-    def _is_auth_error(self, error: Exception) -> bool:
-        """Check if an error is related to authentication/token issues.
-
-        Args:
-            error: The exception to check.
-
-        Returns:
-            True if this appears to be an authentication error.
-        """
-        error_str = str(error).lower()
-        return any(pattern in error_str for pattern in self.AUTH_ERROR_PATTERNS)
 
     def _refresh_credentials_and_client(self) -> None:
         """Refresh credentials and recreate the client.
@@ -175,20 +154,14 @@ class GeminiClient:
         """
         model = model or "gemini-3-pro-preview"
 
-        # Map thinking level to budget
-        thinking_budgets = {
-            "high": 32768,
-            "low": 8192,
-            "minimal": 1024,
-        }
-        thinking_budget = thinking_budgets.get(thinking_level, 32768)
-
         # Build config with Gemini 3 optimizations
+        # IMPORTANT: Gemini 3 uses thinking_level (not thinking_budget)
+        # Valid values: "high", "low", "minimal" (minimal only for Flash)
         gen_config = types.GenerateContentConfig(
             temperature=temperature,  # Should be 1.0 for Gemini 3
             max_output_tokens=max_output_tokens,
             thinking_config=types.ThinkingConfig(
-                thinking_budget=thinking_budget,
+                thinking_level=thinking_level,
             ),
         )
 
@@ -196,68 +169,59 @@ class GeminiClient:
         if system_instruction:
             gen_config.system_instruction = system_instruction
 
-        # Retry logic for authentication errors
-        max_retries = 2
-        last_error = None
+        async def _call_api():
+            """Inner async function for retry wrapper."""
+            response = await self.client.aio.models.generate_content(
+                model=model,
+                contents=prompt,
+                config=gen_config,
+            )
 
-        for attempt in range(max_retries):
-            try:
-                response = await self.client.aio.models.generate_content(
-                    model=model,
-                    contents=prompt,
-                    config=gen_config,
-                )
+            # Extract text from response
+            response_text = response.text.strip() if response.text else ""
 
-                # Extract text from response
-                response_text = response.text.strip() if response.text else ""
+            # Build result
+            result: Dict[str, Any] = {
+                "text": response_text,
+                "model_used": model,
+                "thinking_level": thinking_level,
+            }
 
-                # Build result
-                result: Dict[str, Any] = {
-                    "text": response_text,
-                    "model_used": model,
-                    "thinking_level": thinking_level,
-                }
+            # === GEMINI 3 THOUGHT SIGNATURE EXTRACTION ===
+            # Thought signatures maintain reasoning continuity across API calls.
+            # They are REQUIRED for multi-turn conversations with Gemini 3.
+            thought_signature = None
 
-                # === GEMINI 3 THOUGHT SIGNATURE EXTRACTION ===
-                # Thought signatures maintain reasoning continuity across API calls.
-                # They are REQUIRED for multi-turn conversations with Gemini 3.
-                thought_signature = None
+            # Try to extract from response metadata
+            if hasattr(response, "thought_signature"):
+                thought_signature = response.thought_signature
+            elif hasattr(response, "candidates") and response.candidates:
+                candidate = response.candidates[0]
+                # Check candidate for thought signature
+                if hasattr(candidate, "thought_signature"):
+                    thought_signature = candidate.thought_signature
+                elif hasattr(candidate, "grounding_metadata"):
+                    # Some responses store it in grounding metadata
+                    metadata = candidate.grounding_metadata
+                    if hasattr(metadata, "thought_signature"):
+                        thought_signature = metadata.thought_signature
 
-                # Try to extract from response metadata
-                if hasattr(response, "thought_signature"):
-                    thought_signature = response.thought_signature
-                elif hasattr(response, "candidates") and response.candidates:
-                    candidate = response.candidates[0]
-                    # Check candidate for thought signature
-                    if hasattr(candidate, "thought_signature"):
-                        thought_signature = candidate.thought_signature
-                    elif hasattr(candidate, "grounding_metadata"):
-                        # Some responses store it in grounding metadata
-                        metadata = candidate.grounding_metadata
-                        if hasattr(metadata, "thought_signature"):
-                            thought_signature = metadata.thought_signature
+            if thought_signature:
+                result["thought_signature"] = thought_signature
+                logger.debug(f"Extracted thought signature: {thought_signature[:50]}...")
 
-                if thought_signature:
-                    result["thought_signature"] = thought_signature
-                    logger.debug(f"Extracted thought signature: {thought_signature[:50]}...")
+            logger.info(
+                f"generate_text completed: {len(response_text)} chars, "
+                f"thinking_level={thinking_level}"
+            )
+            return result
 
-                logger.info(
-                    f"generate_text completed: {len(response_text)} chars, "
-                    f"thinking_level={thinking_level}"
-                )
-                return result
-
-            except Exception as e:
-                last_error = e
-                if self._is_auth_error(e) and attempt < max_retries - 1:
-                    logger.warning(f"Text gen auth error (attempt {attempt + 1}): {e}")
-                    self._refresh_credentials_and_client()
-                    continue
-                else:
-                    logger.error(f"Text generation failed: {e}")
-                    break
-
-        raise RuntimeError(f"Failed to generate text: {last_error}")
+        # Use centralized retry with auth error handling
+        return await with_retry(
+            _call_api,
+            strategy=self._recovery_strategy,
+            on_auth_error=self._refresh_credentials_and_client,
+        )
 
     # =========================================================================
     # Image Generation
@@ -290,34 +254,25 @@ class GeminiClient:
         model = model or self.config.default_image_model
         output_dir = output_dir or self.config.default_image_output_dir
 
-        # Retry logic for authentication errors
-        max_retries = 2
-        last_error = None
+        async def _call_api():
+            """Inner async function for retry wrapper."""
+            # Check if using Imagen standalone or Gemini with image capability
+            if model.startswith("imagen"):
+                return await self._generate_with_imagen(
+                    prompt, model, aspect_ratio, output_format, output_dir,
+                    number_of_images, output_resolution
+                )
+            else:
+                return await self._generate_with_gemini_image(
+                    prompt, model, aspect_ratio, output_format, output_dir
+                )
 
-        for attempt in range(max_retries):
-            try:
-                # Check if using Imagen standalone or Gemini with image capability
-                if model.startswith("imagen"):
-                    return await self._generate_with_imagen(
-                        prompt, model, aspect_ratio, output_format, output_dir,
-                        number_of_images, output_resolution
-                    )
-                else:
-                    return await self._generate_with_gemini_image(
-                        prompt, model, aspect_ratio, output_format, output_dir
-                    )
-
-            except Exception as e:
-                last_error = e
-                if self._is_auth_error(e) and attempt < max_retries - 1:
-                    logger.warning(f"Image gen auth error detected (attempt {attempt + 1}): {e}")
-                    self._refresh_credentials_and_client()
-                    continue
-                else:
-                    logger.error(f"Image generation failed: {e}")
-                    break
-
-        raise RuntimeError(f"Failed to generate image: {last_error}")
+        # Use centralized retry with auth error handling
+        return await with_retry(
+            _call_api,
+            strategy=self._recovery_strategy,
+            on_auth_error=self._refresh_credentials_and_client,
+        )
 
     async def _generate_with_gemini_image(
         self,
@@ -664,88 +619,42 @@ Respond ONLY with valid JSON."""
         # Build system prompt with project context
         system_prompt = build_system_prompt(project_context)
 
-        # High thinking budget for design quality
+        # Gemini 3 optimized config
         # max_output_tokens increased to 65536 (Gemini 3 max)
         gen_config = types.GenerateContentConfig(
-            temperature=0.7,
+            temperature=1.0,  # Gemini 3 requires 1.0 for optimal reasoning
             max_output_tokens=65536,
             thinking_config=types.ThinkingConfig(
-                thinking_budget=32768,  # Max thinking for best design quality
+                thinking_level="high",  # Max thinking for best design quality
             ),
             system_instruction=system_prompt,
             response_mime_type="application/json",
+            response_schema=get_response_schema("design_component"),
         )
 
-        # Retry logic for authentication errors
-        max_retries = 2
-        last_error = None
+        async def _call_api():
+            """Inner async function for retry wrapper."""
+            response = await self.client.aio.models.generate_content(
+                model=model,
+                contents=prompt,
+                config=gen_config,
+            )
 
-        for attempt in range(max_retries):
+            # Parse JSON response
+            response_text = response.text.strip()
+
+            # Handle potential markdown code blocks
+            if response_text.startswith("```"):
+                # Remove markdown code block markers
+                lines = response_text.split("\n")
+                if lines[0].startswith("```"):
+                    lines = lines[1:]
+                if lines[-1].strip() == "```":
+                    lines = lines[:-1]
+                response_text = "\n".join(lines)
+
             try:
-                response = await self.client.aio.models.generate_content(
-                    model=model,
-                    contents=prompt,
-                    config=gen_config,
-                )
-
-                # Parse JSON response
-                response_text = response.text.strip()
-
-                # Handle potential markdown code blocks
-                if response_text.startswith("```"):
-                    # Remove markdown code block markers
-                    lines = response_text.split("\n")
-                    if lines[0].startswith("```"):
-                        lines = lines[1:]
-                    if lines[-1].strip() == "```":
-                        lines = lines[:-1]
-                    response_text = "\n".join(lines)
-
                 result = json.loads(response_text)
-
-                # BUG-003 FIX: Handle case where Gemini returns html as list/tuple
-                if "html" in result and isinstance(result["html"], (list, tuple)):
-                    # Extract first non-empty string from list
-                    html_list = result["html"]
-                    html_str = ""
-                    for item in html_list:
-                        if isinstance(item, str) and item.strip():
-                            html_str = item
-                            break
-                    result["html"] = html_str
-                    logger.warning("BUG-003: Converted html from list to string")
-
-                # Add model info and language to result
-                result["model_used"] = model
-                result["content_language"] = content_language
-
-                # Validate response (logs warnings, doesn't block)
-                self._validate_and_log_response(result, "design")
-
-                # Register with design system if provided
-                if design_system and result.get("component_id"):
-                    design_tokens = None
-                    if result.get("design_tokens"):
-                        try:
-                            design_tokens = DesignTokens(**result["design_tokens"])
-                        except Exception:
-                            pass
-                    design_system.register_component(
-                        component_id=result["component_id"],
-                        component_type=component_type,
-                        atomic_level=result.get("atomic_level", "molecule"),
-                        html=result.get("html", ""),
-                        design_tokens=design_tokens,
-                    )
-
-                # Cache successful result
-                self._cache.set(result, **cache_params)
-
-                logger.info(
-                    f"design_component completed: {component_type} -> {result.get('component_id', 'unknown')}"
-                )
-                return result
-
             except json.JSONDecodeError as e:
                 logger.warning(f"JSON parse failed, attempting repair: {e}")
 
@@ -780,17 +689,55 @@ Respond ONLY with valid JSON."""
                 logger.error(f"Failed to parse or repair design response: {e}")
                 return create_fallback_response(component_type, e)
 
-            except Exception as e:
-                last_error = e
-                if self._is_auth_error(e) and attempt < max_retries - 1:
-                    logger.warning(f"Design auth error detected (attempt {attempt + 1}): {e}")
-                    self._refresh_credentials_and_client()
-                    continue
-                else:
-                    logger.error(f"Design component failed: {e}")
-                    break
+            # BUG-003 FIX: Handle case where Gemini returns html as list/tuple
+            if "html" in result and isinstance(result["html"], (list, tuple)):
+                # Extract first non-empty string from list
+                html_list = result["html"]
+                html_str = ""
+                for item in html_list:
+                    if isinstance(item, str) and item.strip():
+                        html_str = item
+                        break
+                result["html"] = html_str
+                logger.warning("BUG-003: Converted html from list to string")
 
-        raise RuntimeError(f"Failed to design component: {last_error}")
+            # Add model info and language to result
+            result["model_used"] = model
+            result["content_language"] = content_language
+
+            # Validate response (logs warnings, doesn't block)
+            self._validate_and_log_response(result, "design")
+
+            # Register with design system if provided
+            if design_system and result.get("component_id"):
+                design_tokens = None
+                if result.get("design_tokens"):
+                    try:
+                        design_tokens = DesignTokens(**result["design_tokens"])
+                    except Exception:
+                        pass
+                design_system.register_component(
+                    component_id=result["component_id"],
+                    component_type=component_type,
+                    atomic_level=result.get("atomic_level", "molecule"),
+                    html=result.get("html", ""),
+                    design_tokens=design_tokens,
+                )
+
+            # Cache successful result
+            self._cache.set(result, **cache_params)
+
+            logger.info(
+                f"design_component completed: {component_type} -> {result.get('component_id', 'unknown')}"
+            )
+            return result
+
+        # Use centralized retry with auth error handling
+        return await with_retry(
+            _call_api,
+            strategy=self._recovery_strategy,
+            on_auth_error=self._refresh_credentials_and_client,
+        )
 
     async def refine_component(
         self,
@@ -850,51 +797,40 @@ Respond with valid JSON containing:
 - modifications_applied: List of changes made
 - design_notes: Brief explanation of refinement decisions"""
 
-        # High thinking budget for quality refinement
+        # Gemini 3 optimized config for quality refinement
         gen_config = types.GenerateContentConfig(
-            temperature=0.7,
+            temperature=1.0,  # Gemini 3 requires 1.0 for optimal reasoning
             max_output_tokens=65536,
             thinking_config=types.ThinkingConfig(
-                thinking_budget=32768,
+                thinking_level="high",
             ),
             system_instruction=system_prompt,
             response_mime_type="application/json",
+            response_schema=get_response_schema("refine_component"),
         )
 
-        # Retry logic for authentication errors
-        max_retries = 2
-        last_error = None
+        async def _call_api():
+            """Inner async function for retry wrapper."""
+            response = await self.client.aio.models.generate_content(
+                model=model,
+                contents=prompt,
+                config=gen_config,
+            )
 
-        for attempt in range(max_retries):
+            # Parse JSON response
+            response_text = response.text.strip()
+
+            # Handle potential markdown code blocks
+            if response_text.startswith("```"):
+                lines = response_text.split("\n")
+                if lines[0].startswith("```"):
+                    lines = lines[1:]
+                if lines[-1].strip() == "```":
+                    lines = lines[:-1]
+                response_text = "\n".join(lines)
+
             try:
-                response = await self.client.aio.models.generate_content(
-                    model=model,
-                    contents=prompt,
-                    config=gen_config,
-                )
-
-                # Parse JSON response
-                response_text = response.text.strip()
-
-                # Handle potential markdown code blocks
-                if response_text.startswith("```"):
-                    lines = response_text.split("\n")
-                    if lines[0].startswith("```"):
-                        lines = lines[1:]
-                    if lines[-1].strip() == "```":
-                        lines = lines[:-1]
-                    response_text = "\n".join(lines)
-
                 result = json.loads(response_text)
-
-                # Add model info to result
-                result["model_used"] = model
-
-                logger.info(
-                    f"refine_component completed: {len(modifications)} char modifications applied"
-                )
-                return result
-
             except json.JSONDecodeError as e:
                 logger.error(f"Failed to parse refinement response as JSON: {e}")
                 logger.debug(f"Raw response: {response_text[:500]}...")
@@ -904,17 +840,20 @@ Respond with valid JSON containing:
                     "model_used": model,
                 }
 
-            except Exception as e:
-                last_error = e
-                if self._is_auth_error(e) and attempt < max_retries - 1:
-                    logger.warning(f"Refinement auth error detected (attempt {attempt + 1}): {e}")
-                    self._refresh_credentials_and_client()
-                    continue
-                else:
-                    logger.error(f"Refine component failed: {e}")
-                    break
+            # Add model info to result
+            result["model_used"] = model
 
-        raise RuntimeError(f"Failed to refine component: {last_error}")
+            logger.info(
+                f"refine_component completed: {len(modifications)} char modifications applied"
+            )
+            return result
+
+        # Use centralized retry with auth error handling
+        return await with_retry(
+            _call_api,
+            strategy=self._recovery_strategy,
+            on_auth_error=self._refresh_credentials_and_client,
+        )
 
     async def analyze_reference_image(
         self,
@@ -1054,61 +993,54 @@ Also include a "design_description" field with a 2-3 sentence description of the
             temperature=0.3,  # Lower temperature for more accurate analysis
             max_output_tokens=8192,
             thinking_config=types.ThinkingConfig(
-                thinking_budget=16384,  # Medium thinking for analysis
+                thinking_level="high",  # MAXIMUM RICHNESS: High thinking for detailed analysis
             ),
             response_mime_type="application/json",
+            response_schema=get_response_schema("analyze_reference"),
         )
 
-        # Retry logic
-        max_retries = 2
-        last_error = None
+        async def _call_api():
+            """Inner async function for retry wrapper."""
+            response = await self.client.aio.models.generate_content(
+                model=model,
+                contents=contents,
+                config=gen_config,
+            )
 
-        for attempt in range(max_retries):
+            # Parse JSON response
+            response_text = response.text.strip()
+
+            # Handle markdown code blocks
+            if response_text.startswith("```"):
+                lines = response_text.split("\n")
+                if lines[0].startswith("```"):
+                    lines = lines[1:]
+                if lines[-1].strip() == "```":
+                    lines = lines[:-1]
+                response_text = "\n".join(lines)
+
             try:
-                response = await self.client.aio.models.generate_content(
-                    model=model,
-                    contents=contents,
-                    config=gen_config,
-                )
-
-                # Parse JSON response
-                response_text = response.text.strip()
-
-                # Handle markdown code blocks
-                if response_text.startswith("```"):
-                    lines = response_text.split("\n")
-                    if lines[0].startswith("```"):
-                        lines = lines[1:]
-                    if lines[-1].strip() == "```":
-                        lines = lines[:-1]
-                    response_text = "\n".join(lines)
-
                 result = json.loads(response_text)
-                result["model_used"] = model
-                result["image_analyzed"] = image_path
-
-                logger.info(f"analyze_reference_image completed: {image_path}")
-                return result
-
             except json.JSONDecodeError as e:
                 logger.error(f"Failed to parse vision analysis as JSON: {e}")
                 return {
                     "error": f"Invalid JSON response: {e}",
-                    "raw_response": response_text[:1000] if 'response_text' in locals() else None,
+                    "raw_response": response_text[:1000],
                     "model_used": model,
                 }
 
-            except Exception as e:
-                last_error = e
-                if self._is_auth_error(e) and attempt < max_retries - 1:
-                    logger.warning(f"Vision auth error (attempt {attempt + 1}): {e}")
-                    self._refresh_credentials_and_client()
-                    continue
-                else:
-                    logger.error(f"Vision analysis failed: {e}")
-                    break
+            result["model_used"] = model
+            result["image_analyzed"] = image_path
 
-        raise RuntimeError(f"Failed to analyze reference image: {last_error}")
+            logger.info(f"analyze_reference_image completed: {image_path}")
+            return result
+
+        # Use centralized retry with auth error handling
+        return await with_retry(
+            _call_api,
+            strategy=self._recovery_strategy,
+            on_auth_error=self._refresh_credentials_and_client,
+        )
 
     async def design_from_reference(
         self,
@@ -1217,76 +1149,69 @@ Respond ONLY with valid JSON containing:
 - accessibility_features: Array of a11y features
 - dark_mode_support: Boolean"""
 
-        # High thinking budget for reference matching
+        # Gemini 3 optimized config for reference matching
         gen_config = types.GenerateContentConfig(
-            temperature=0.7,
+            temperature=1.0,  # Gemini 3 requires 1.0 for optimal reasoning
             max_output_tokens=65536,
             thinking_config=types.ThinkingConfig(
-                thinking_budget=32768,
+                thinking_level="high",
             ),
             system_instruction=system_prompt,
             response_mime_type="application/json",
+            response_schema=get_response_schema("design_from_reference"),
         )
 
-        # Retry logic
-        max_retries = 2
-        last_error = None
+        async def _call_api() -> Dict[str, Any]:
+            """Inner async function for retry wrapper."""
+            response = await self.client.aio.models.generate_content(
+                model=model,
+                contents=prompt,
+                config=gen_config,
+            )
 
-        for attempt in range(max_retries):
+            # Parse JSON response
+            response_text = response.text.strip()
+
+            # Handle markdown code blocks
+            if response_text.startswith("```"):
+                lines = response_text.split("\n")
+                if lines[0].startswith("```"):
+                    lines = lines[1:]
+                if lines[-1].strip() == "```":
+                    lines = lines[:-1]
+                response_text = "\n".join(lines)
+
             try:
-                response = await self.client.aio.models.generate_content(
-                    model=model,
-                    contents=prompt,
-                    config=gen_config,
-                )
-
-                # Parse JSON response
-                response_text = response.text.strip()
-
-                # Handle markdown code blocks
-                if response_text.startswith("```"):
-                    lines = response_text.split("\n")
-                    if lines[0].startswith("```"):
-                        lines = lines[1:]
-                    if lines[-1].strip() == "```":
-                        lines = lines[:-1]
-                    response_text = "\n".join(lines)
-
                 result = json.loads(response_text)
-
-                # Add metadata
-                result["model_used"] = model
-                result["extracted_tokens"] = design_tokens
-                result["reference_aesthetic"] = aesthetic
-                result["reference_image"] = image_path
-                result["content_language"] = content_language
-
-                # Validate response
-                self._validate_and_log_response(result, "reference_design")
-
-                logger.info(f"design_from_reference completed: {component_type} from {image_path}")
-                return result
-
             except json.JSONDecodeError as e:
                 logger.error(f"Failed to parse design response as JSON: {e}")
+                # Return error dict (no retry for JSON parse errors)
                 return {
                     "error": f"Invalid JSON response: {e}",
-                    "raw_response": response_text[:1000] if 'response_text' in locals() else None,
+                    "raw_response": response_text[:1000] if response_text else None,
                     "model_used": model,
                     "extracted_tokens": design_tokens,
                 }
 
-            except Exception as e:
-                last_error = e
-                if self._is_auth_error(e) and attempt < max_retries - 1:
-                    logger.warning(f"Reference design auth error (attempt {attempt + 1}): {e}")
-                    self._refresh_credentials_and_client()
-                    continue
-                else:
-                    logger.error(f"Design from reference failed: {e}")
-                    break
+            # Add metadata
+            result["model_used"] = model
+            result["extracted_tokens"] = design_tokens
+            result["reference_aesthetic"] = aesthetic
+            result["reference_image"] = image_path
+            result["content_language"] = content_language
 
-        raise RuntimeError(f"Failed to design from reference: {last_error}")
+            # Validate response
+            self._validate_and_log_response(result, "reference_design")
+
+            logger.info(f"design_from_reference completed: {component_type} from {image_path}")
+            return result
+
+        # Use centralized retry with auth error handling
+        return await with_retry(
+            _call_api,
+            strategy=self._recovery_strategy,
+            on_auth_error=self._refresh_credentials_and_client,
+        )
 
     async def design_section(
         self,
@@ -1438,82 +1363,75 @@ Respond ONLY with valid JSON containing:
 - dark_mode_support: Boolean
 - micro_interactions: Array of animation/transition classes used"""
 
-        # High thinking budget for design quality
+        # Gemini 3 optimized config for design quality
         gen_config = types.GenerateContentConfig(
-            temperature=0.7,
+            temperature=1.0,  # Gemini 3 requires 1.0 for optimal reasoning
             max_output_tokens=65536,
             thinking_config=types.ThinkingConfig(
-                thinking_budget=32768,
+                thinking_level="high",
             ),
             system_instruction=system_prompt,
             response_mime_type="application/json",
+            response_schema=get_response_schema("design_section"),
         )
 
-        # Retry logic for authentication errors
-        max_retries = 2
-        last_error = None
+        async def _call_api() -> Dict[str, Any]:
+            """Inner async function for retry wrapper."""
+            response = await self.client.aio.models.generate_content(
+                model=model,
+                contents=prompt,
+                config=gen_config,
+            )
 
-        for attempt in range(max_retries):
+            # Parse JSON response
+            response_text = response.text.strip()
+
+            # Handle potential markdown code blocks
+            if response_text.startswith("```"):
+                lines = response_text.split("\n")
+                if lines[0].startswith("```"):
+                    lines = lines[1:]
+                if lines[-1].strip() == "```":
+                    lines = lines[:-1]
+                response_text = "\n".join(lines)
+
             try:
-                response = await self.client.aio.models.generate_content(
-                    model=model,
-                    contents=prompt,
-                    config=gen_config,
-                )
-
-                # Parse JSON response
-                response_text = response.text.strip()
-
-                # Handle potential markdown code blocks
-                if response_text.startswith("```"):
-                    lines = response_text.split("\n")
-                    if lines[0].startswith("```"):
-                        lines = lines[1:]
-                    if lines[-1].strip() == "```":
-                        lines = lines[:-1]
-                    response_text = "\n".join(lines)
-
                 result = json.loads(response_text)
-
-                # Extract design tokens from generated HTML for chain continuity
-                if result.get("html"):
-                    result["design_tokens"] = extract_design_tokens(result["html"])
-
-                # Add metadata
-                result["section_type"] = section_type
-                result["model_used"] = model
-                result["content_language"] = content_language
-
-                # Validate response (logs warnings, doesn't block)
-                self._validate_and_log_response(result, "design")
-
-                logger.info(
-                    f"design_section completed: {section_type} "
-                    f"(chain_mode={'yes' if previous_html else 'no'})"
-                )
-                return result
-
             except json.JSONDecodeError as e:
                 logger.error(f"Failed to parse section response as JSON: {e}")
                 logger.debug(f"Raw response: {response_text[:500]}...")
+                # Return error dict (no retry for JSON parse errors)
                 return {
                     "error": f"Invalid JSON response: {e}",
-                    "raw_response": response_text[:1000],
+                    "raw_response": response_text[:1000] if response_text else None,
                     "model_used": model,
                     "section_type": section_type,
                 }
 
-            except Exception as e:
-                last_error = e
-                if self._is_auth_error(e) and attempt < max_retries - 1:
-                    logger.warning(f"Section design auth error (attempt {attempt + 1}): {e}")
-                    self._refresh_credentials_and_client()
-                    continue
-                else:
-                    logger.error(f"Design section failed: {e}")
-                    break
+            # Extract design tokens from generated HTML for chain continuity
+            if result.get("html"):
+                result["design_tokens"] = extract_design_tokens(result["html"])
 
-        raise RuntimeError(f"Failed to design section: {last_error}")
+            # Add metadata
+            result["section_type"] = section_type
+            result["model_used"] = model
+            result["content_language"] = content_language
+
+            # Validate response (logs warnings, doesn't block)
+            self._validate_and_log_response(result, "design")
+
+            logger.info(
+                f"design_section completed: {section_type} "
+                f"(chain_mode={'yes' if previous_html else 'no'})"
+            )
+            return result
+
+        # Use centralized retry with auth error handling
+        return await with_retry(
+            _call_api,
+            strategy=self._recovery_strategy,
+            on_auth_error=self._refresh_credentials_and_client,
+        )
 
 
 def fix_js_fallbacks(html: str) -> tuple[str, list[str]]:

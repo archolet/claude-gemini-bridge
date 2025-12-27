@@ -16,10 +16,10 @@ import json
 import logging
 import re
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING, Any, Optional
 
 from gemini_mcp.agents.base import AgentConfig, AgentResult, AgentRole, BaseAgent
-from gemini_mcp.prompts import CRITIC_SYSTEM_PROMPT
+from gemini_mcp.prompts.prompt_loader import get_prompt
 
 if TYPE_CHECKING:
     from gemini_mcp.client import GeminiClient
@@ -37,52 +37,65 @@ class DesignAnalysis:
     user_intent: str = ""
 
 
-# === PHASE 3: Quality Scoring Dataclass (8-Dimension) ===
+# === PHASE 3+: Quality Scoring Dataclass (9-Dimension) ===
 @dataclass
 class CriticScores:
     """
     Quality scores for design evaluation (1-10 scale).
 
-    8-Dimension Scoring System:
-    - Original 5 dimensions (layout, typography, color, interaction, accessibility)
-    - 3 New dimensions for enhanced quality control:
-        - visual_density: Tailwind class richness per element
-        - animation_quality: Timing, easing, purposeful motion
-        - code_quality: Semantic HTML, clean structure, BEM-like naming
+    9-Dimension Scoring System (Enterprise-Grade):
+    - Core UX (45%): accessibility, layout, color
+    - Anti-Laziness (20%): visual_density, code_quality
+    - Polish (25%): animation_quality, typography, interaction
+    - Enterprise (10%): state_management
 
-    Weights are calibrated for production-grade frontend output:
-    - accessibility + layout + color = 45% (core UX)
-    - visual_density + code_quality = 25% (anti-laziness)
-    - animation_quality + typography + interaction = 30% (polish)
+    Dimensions:
+    1. layout: Visual hierarchy, spacing, alignment (13%)
+    2. typography: Font choices, readability, hierarchy (9%)
+    3. color: Color harmony, contrast, consistency (13%)
+    4. interaction: Hover states, transitions, feedback (9%)
+    5. accessibility: WCAG compliance, ARIA, focus states (15%)
+    6. visual_density: Tailwind class richness per element (13%)
+    7. animation_quality: Timing functions, easing, motion design (9%)
+    8. code_quality: Semantic HTML, clean structure (9%)
+    9. state_management: Alpine.js state, reactivity patterns (10%) [NEW]
+
+    Reference: component.md - Enterprise UI Component Direktifleri
     """
 
-    # Original dimensions
-    layout: float = 5.0           # 15% - Visual hierarchy, spacing, alignment
-    typography: float = 5.0       # 10% - Font choices, readability, hierarchy
-    color: float = 5.0            # 15% - Color harmony, contrast, consistency
-    interaction: float = 5.0      # 10% - Hover states, transitions, feedback
+    # Core dimensions
+    layout: float = 5.0           # 13% - Visual hierarchy, spacing, alignment
+    typography: float = 5.0       # 9%  - Font choices, readability, hierarchy
+    color: float = 5.0            # 13% - Color harmony, contrast, consistency
+    interaction: float = 5.0      # 9%  - Hover states, transitions, feedback
     accessibility: float = 5.0    # 15% - WCAG compliance, ARIA, focus states
 
-    # New dimensions (Phase 3 Enhancement)
-    visual_density: float = 5.0   # 15% - Tailwind class count per element
-    animation_quality: float = 5.0  # 10% - Timing functions, easing, motion design
-    code_quality: float = 5.0     # 10% - Semantic HTML, clean structure
+    # Anti-laziness dimensions
+    visual_density: float = 5.0   # 13% - Tailwind class count per element
+    code_quality: float = 5.0     # 9%  - Semantic HTML, clean structure
+
+    # Polish dimensions
+    animation_quality: float = 5.0  # 9% - Timing functions, easing, motion design
+
+    # Enterprise dimension (NEW - Phase component.md integration)
+    state_management: float = 5.0   # 10% - Alpine.js state patterns, reactivity
 
     # Dimension weights (must sum to 1.0)
     WEIGHTS: dict = field(default_factory=lambda: {
-        "layout": 0.15,
-        "typography": 0.10,
-        "color": 0.15,
-        "interaction": 0.10,
+        "layout": 0.13,
+        "typography": 0.09,
+        "color": 0.13,
+        "interaction": 0.09,
         "accessibility": 0.15,
-        "visual_density": 0.15,
-        "animation_quality": 0.10,
-        "code_quality": 0.10,
+        "visual_density": 0.13,
+        "animation_quality": 0.09,
+        "code_quality": 0.09,
+        "state_management": 0.10,  # NEW: Enterprise patterns
     }, repr=False)
 
     @property
     def overall(self) -> float:
-        """Calculate weighted average score across all 8 dimensions."""
+        """Calculate weighted average score across all 9 dimensions."""
         return (
             self.layout * self.WEIGHTS["layout"]
             + self.typography * self.WEIGHTS["typography"]
@@ -92,10 +105,11 @@ class CriticScores:
             + self.visual_density * self.WEIGHTS["visual_density"]
             + self.animation_quality * self.WEIGHTS["animation_quality"]
             + self.code_quality * self.WEIGHTS["code_quality"]
+            + self.state_management * self.WEIGHTS["state_management"]
         )
 
     def get_dimension_scores(self) -> dict[str, float]:
-        """Get all dimension scores as a dictionary."""
+        """Get all 9 dimension scores as a dictionary."""
         return {
             "layout": self.layout,
             "typography": self.typography,
@@ -105,6 +119,7 @@ class CriticScores:
             "visual_density": self.visual_density,
             "animation_quality": self.animation_quality,
             "code_quality": self.code_quality,
+            "state_management": self.state_management,
         }
 
     def get_lowest_dimensions(self, count: int = 3) -> list[tuple[str, float]]:
@@ -134,21 +149,23 @@ class CriticScores:
             Agent name responsible for improving this dimension
         """
         dimension_agent_map = {
-            # Architect-owned dimensions
+            # Architect-owned dimensions (37%)
             "layout": "architect",
             "code_quality": "architect",
             "accessibility": "architect",  # Semantic HTML, ARIA
-            # Alchemist-owned dimensions
+            # Alchemist-owned dimensions (44%)
             "color": "alchemist",
             "animation_quality": "alchemist",
             "visual_density": "alchemist",  # Tailwind class richness
             "typography": "alchemist",
-            # Physicist-owned dimensions
+            # Physicist-owned dimensions (19%)
             "interaction": "physicist",
+            "state_management": "physicist",  # Alpine.js reactivity, stores
         }
         return dimension_agent_map.get(dimension, "architect")
 
     def to_dict(self) -> dict:
+        """Serialize all 9 dimensions + overall score."""
         return {
             "layout": self.layout,
             "typography": self.typography,
@@ -158,11 +175,13 @@ class CriticScores:
             "visual_density": self.visual_density,
             "animation_quality": self.animation_quality,
             "code_quality": self.code_quality,
+            "state_management": self.state_management,
             "overall": round(self.overall, 2),
         }
 
     @classmethod
     def from_dict(cls, data: dict) -> "CriticScores":
+        """Deserialize all 9 dimensions from dict."""
         return cls(
             layout=data.get("layout", 5.0),
             typography=data.get("typography", 5.0),
@@ -172,6 +191,7 @@ class CriticScores:
             visual_density=data.get("visual_density", 5.0),
             animation_quality=data.get("animation_quality", 5.0),
             code_quality=data.get("code_quality", 5.0),
+            state_management=data.get("state_management", 5.0),
         )
 
 
@@ -306,9 +326,12 @@ class CriticAgent(BaseAgent):
             auto_fix=False,
         )
 
-    def get_system_prompt(self) -> str:
-        """Return The Critic's system prompt."""
-        return CRITIC_SYSTEM_PROMPT
+    def get_system_prompt(self, variables: dict[str, Any] | None = None) -> str:
+        """Return The Critic's system prompt from YAML template."""
+        return get_prompt(
+            agent_name="critic",
+            variables=variables or {},
+        )
 
     async def execute(self, context: "AgentContext") -> AgentResult:
         """
@@ -658,19 +681,30 @@ Output JSON format as specified in your system prompt.
             js_preview = js[:2000] if len(js) > 2000 else js
             parts.append(f"### JavaScript\n```javascript\n{js_preview}\n```")
 
-        # Scoring criteria
+        # Scoring criteria (9-Dimension System)
         parts.append("""
-### Evaluation Criteria (1-10 scale)
+### Evaluation Criteria (1-10 scale, 9 Dimensions)
 
-1. **Layout (25%)**: Visual hierarchy, spacing consistency, alignment, responsive design
-2. **Typography (15%)**: Font choices, readability, text hierarchy, line heights
-3. **Color (20%)**: Color harmony, contrast ratios, palette consistency, dark mode
-4. **Interaction (15%)**: Hover states, transitions, animations, feedback cues
-5. **Accessibility (25%)**: WCAG compliance, semantic HTML, ARIA labels, focus states
+**Core UX (45%)**:
+1. **Accessibility (15%)**: WCAG AA/AAA compliance, semantic HTML, ARIA labels, focus states, keyboard navigation
+2. **Layout (13%)**: Visual hierarchy, spacing consistency, alignment, grid structure, responsive design
+3. **Color (13%)**: Color harmony, contrast ratios (WCAG), palette consistency, dark mode support
+
+**Anti-Laziness (22%)**:
+4. **Visual Density (13%)**: Tailwind class richness, avoidance of inline styles, proper utility usage
+5. **Code Quality (9%)**: Clean HTML structure, no redundant wrappers, proper nesting, semantic elements
+
+**Polish (23%)**:
+6. **Animation Quality (9%)**: Meaningful transitions, hover states, micro-interactions, motion-reduce support
+7. **Typography (9%)**: Font choices, readability, text hierarchy, line heights, responsive typography
+8. **Interaction (9%)**: Hover feedback, click states, loading indicators, user feedback cues
+
+**Enterprise (10%)**:
+9. **State Management (10%)**: Alpine.js reactivity patterns, x-data organization, store usage, event handling
 
 ### Output Format
 
-Return JSON with scores and specific improvements:
+Return JSON with all 9 dimension scores and specific improvements:
 ```json
 {
     "scores": {
@@ -678,17 +712,21 @@ Return JSON with scores and specific improvements:
         "typography": 7.0,
         "color": 9.0,
         "interaction": 6.5,
-        "accessibility": 8.0
+        "accessibility": 8.0,
+        "visual_density": 7.5,
+        "animation_quality": 6.0,
+        "code_quality": 8.0,
+        "state_management": 7.0
     },
     "improvements": [
-        "Add more spacing between sections (gap-8 → gap-12)",
-        "Improve contrast on secondary text (#9ca3af → #6b7280)",
-        "Add hover:scale-105 to CTA buttons for better feedback"
+        "Add aria-live='polite' to dynamic content regions",
+        "Replace inline gap-8 with consistent gap-12 across sections",
+        "Add motion-reduce:transition-none for animation accessibility"
     ]
 }
 ```
 
-Be specific in improvements - include exact Tailwind classes or CSS values to change.
+Be specific in improvements - include exact Tailwind classes, ARIA attributes, or Alpine.js directives.
 """)
 
         return "\n".join(parts)
@@ -737,15 +775,23 @@ IMPORTANT: Output ONLY valid JSON. No markdown, no explanation, just the JSON ob
             except json.JSONDecodeError:
                 pass
 
-        # Parse or use defaults
+        # Parse or use defaults (9-Dimension System)
         if parsed_data:
             scores_data = parsed_data.get("scores", {})
             scores = CriticScores(
-                layout=float(scores_data.get("layout", 5.0)),
-                typography=float(scores_data.get("typography", 5.0)),
-                color=float(scores_data.get("color", 5.0)),
-                interaction=float(scores_data.get("interaction", 5.0)),
+                # Core UX (45%)
                 accessibility=float(scores_data.get("accessibility", 5.0)),
+                layout=float(scores_data.get("layout", 5.0)),
+                color=float(scores_data.get("color", 5.0)),
+                # Anti-Laziness (22%)
+                visual_density=float(scores_data.get("visual_density", 5.0)),
+                code_quality=float(scores_data.get("code_quality", 5.0)),
+                # Polish (23%)
+                animation_quality=float(scores_data.get("animation_quality", 5.0)),
+                typography=float(scores_data.get("typography", 5.0)),
+                interaction=float(scores_data.get("interaction", 5.0)),
+                # Enterprise (10%)
+                state_management=float(scores_data.get("state_management", 5.0)),
             )
             improvements = parsed_data.get("improvements", [])
         else:
@@ -1011,6 +1057,43 @@ IMPORTANT: Output ONLY valid JSON. No markdown, no explanation."""
         if any(tag in html for tag in semantic_tags):
             scores.accessibility += 1.5
 
+        # Visual Density scoring (Anti-Laziness)
+        class_count = html.count('class="')
+        if class_count > 10:
+            scores.visual_density += 1.0
+        if class_count > 20:
+            scores.visual_density += 0.5
+        if 'style="' not in html:  # No inline styles = good
+            scores.visual_density += 1.0
+
+        # Animation Quality scoring
+        if "transition-" in html:
+            scores.animation_quality += 0.5
+        if "duration-" in html:
+            scores.animation_quality += 0.5
+        if "motion-reduce:" in html:
+            scores.animation_quality += 1.5  # Accessibility-aware animations
+        if "animate-" in html or "@keyframes" in css:
+            scores.animation_quality += 0.5
+
+        # Code Quality scoring
+        if '<div class="wrapper">' not in html:  # No redundant wrappers
+            scores.code_quality += 0.5
+        if html.count('<div') < 15:  # Not too nested
+            scores.code_quality += 1.0
+        if "<!--" in html:  # Has comments
+            scores.code_quality += 0.5
+
+        # State Management scoring (Enterprise)
+        if "x-data" in html:
+            scores.state_management += 1.0
+        if "$store" in html or "Alpine.store" in html:
+            scores.state_management += 1.5  # Global store usage
+        if "@click" in html or "@keydown" in html:
+            scores.state_management += 0.5
+        if "x-init" in html:
+            scores.state_management += 0.5
+
         return scores
 
     # === CORPORATE QUALITY ENHANCEMENT ===
@@ -1038,7 +1121,7 @@ IMPORTANT: Output ONLY valid JSON. No markdown, no explanation."""
 
         Returns:
             Tuple of:
-            - CriticScores: Standard 5-dimension scores
+            - CriticScores: Standard 9-dimension scores
             - list[str]: Improvement suggestions
             - dict: Corporate-specific metrics including:
                 - brand_consistency: 0-10 score

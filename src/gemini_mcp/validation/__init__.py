@@ -10,7 +10,34 @@ Key Validators:
 - JSValidator: Validates JavaScript safety and performance
 - IDValidator: Cross-layer validation (HTML IDs vs JS selectors)
 - ProfessionalValidator: Validates against corporate/professional standards
+- AntiPatternValidator: Enterprise anti-pattern detection with auto-fix
+
+Shared Types:
+- ValidationSeverity: ERROR, WARNING, INFO
+- ValidationIssue: Single validation issue
+- ValidationResult: Collection of issues with validity status
 """
+
+# Shared types (import first to avoid circular imports)
+from gemini_mcp.validation.types import (
+    ValidationSeverity,
+    ValidationIssue,
+    ValidationResult,
+    AnimationSeverity,  # Backward compat alias
+)
+
+# Shared utilities
+from gemini_mcp.validation.utils import (
+    hex_to_rgb,
+    rgb_to_hex,
+    hex_to_hsl,
+    hsl_to_hex,
+    relative_luminance,
+    contrast_ratio as utils_contrast_ratio,  # Avoid name collision
+    extract_classes_from_html,
+    extract_tailwind_colors,
+    extract_color_pairs,
+)
 
 from gemini_mcp.validation.html_validator import HTMLValidator
 from gemini_mcp.validation.css_validator import CSSValidator
@@ -51,8 +78,26 @@ from gemini_mcp.validation.animation_validator import (
     AnimationSeverity,
     validate_animation_timing,
 )
+from gemini_mcp.validation.anti_pattern_validator import (
+    AntiPatternValidator,
+    AntiPatternCategory,
+    AntiPattern,
+    validate_antipatterns,
+    fix_antipatterns,
+    get_antipattern_report,
+    ALL_ANTIPATTERNS,
+    ACCESSIBILITY_ANTIPATTERNS,
+    PERFORMANCE_ANTIPATTERNS,
+    STYLING_ANTIPATTERNS,
+    ALPINE_ANTIPATTERNS,
+)
 
 __all__ = [
+    # Shared Types
+    "ValidationSeverity",
+    "ValidationIssue",
+    "ValidationResult",
+    # Core Validators
     "HTMLValidator",
     "CSSValidator",
     "JSValidator",
@@ -88,4 +133,16 @@ __all__ = [
     "AnimationIssue",
     "AnimationSeverity",
     "validate_animation_timing",
+    # Anti-Pattern Validator (Enterprise)
+    "AntiPatternValidator",
+    "AntiPatternCategory",
+    "AntiPattern",
+    "validate_antipatterns",
+    "fix_antipatterns",
+    "get_antipattern_report",
+    "ALL_ANTIPATTERNS",
+    "ACCESSIBILITY_ANTIPATTERNS",
+    "PERFORMANCE_ANTIPATTERNS",
+    "STYLING_ANTIPATTERNS",
+    "ALPINE_ANTIPATTERNS",
 ]

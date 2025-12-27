@@ -21,7 +21,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, Optional
 
 from gemini_mcp.agents.base import AgentConfig, AgentResult, AgentRole, BaseAgent
-from gemini_mcp.prompts import VISIONARY_SYSTEM_PROMPT
+from gemini_mcp.prompts.prompt_loader import get_prompt
 
 if TYPE_CHECKING:
     from gemini_mcp.client import GeminiClient
@@ -103,9 +103,12 @@ class VisionaryAgent(BaseAgent):
             auto_fix=False,
         )
 
-    def get_system_prompt(self) -> str:
-        """Return The Visionary's system prompt."""
-        return VISIONARY_SYSTEM_PROMPT
+    def get_system_prompt(self, variables: dict[str, Any] | None = None) -> str:
+        """Return The Visionary's system prompt from YAML template."""
+        return get_prompt(
+            agent_name="visionary",
+            variables=variables or {},
+        )
 
     async def execute(self, context: "AgentContext") -> AgentResult:
         """

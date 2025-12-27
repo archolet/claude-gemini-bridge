@@ -192,6 +192,205 @@ def get_vibe_compatibility(theme: str, vibe) -> tuple:
 
 
 # =============================================================================
+# VIBE SPECIFICATION FUNCTIONS
+# =============================================================================
+
+
+def get_vibe_specs(vibe_name: str) -> Dict[str, Any]:
+    """
+    Get design specifications for a vibe.
+
+    Extracts typography, spacing, colors, radius, shadows, and behavioral
+    characteristics from a vibe configuration.
+
+    Args:
+        vibe_name: Name of the vibe (e.g., "elite_corporate", "swiss_precision")
+
+    Returns:
+        Dictionary with vibe design specifications
+
+    Example:
+        >>> specs = get_vibe_specs("elite_corporate")
+        >>> print(specs["typography"]["primary"])
+        "Inter, SF Pro Display, system-ui"
+    """
+    from .themes.vibes import get_vibe
+
+    vibe = get_vibe(vibe_name)
+    return {
+        "name": vibe.get("name", vibe_name),
+        "description": vibe.get("description", ""),
+        "philosophy": vibe.get("philosophy", ""),
+        "typography": vibe.get("typography", {}),
+        "spacing": vibe.get("spacing", {}),
+        "colors": vibe.get("colors", {}),
+        "radius": vibe.get("radius", {}),
+        "shadows": vibe.get("shadows", {}),
+        "grid": vibe.get("grid", {}),
+        "data_density": vibe.get("data_density", {}),
+        "characteristics": vibe.get("characteristics", []),
+        "anti_patterns": vibe.get("anti_patterns", []),
+        "suitable_for": vibe.get("suitable_for", []),
+    }
+
+
+def get_vibe_animation_config(vibe_name: str) -> Dict[str, Any]:
+    """
+    Get animation/motion configuration for a vibe.
+
+    Extracts motion settings including timing, easing, hover effects,
+    and transition styles from a vibe configuration.
+
+    Args:
+        vibe_name: Name of the vibe
+
+    Returns:
+        Dictionary with motion/animation configuration
+
+    Example:
+        >>> motion = get_vibe_animation_config("elite_corporate")
+        >>> print(motion["timing"])
+        "150ms ease-in-out"
+    """
+    from .themes.vibes import get_vibe
+
+    vibe = get_vibe(vibe_name)
+    motion = vibe.get("motion", {})
+
+    # Handle enterprise vibes with nested motion structure (ibm_carbon)
+    if isinstance(motion, dict) and "productive" in motion:
+        # IBM Carbon has productive/expressive motion modes
+        return {
+            "productive": motion.get("productive", {}),
+            "expressive": motion.get("expressive", {}),
+            "timing": motion.get("productive", {}).get("duration", "150ms"),
+            "easing": motion.get("productive", {}).get("easing", "ease-out"),
+            "hover": "opacity: 0.8",
+            "transition": "functional",
+        }
+
+    # Standard motion structure
+    return {
+        "timing": motion.get("timing", "200ms ease"),
+        "hover": motion.get("hover", "opacity: 0.8"),
+        "transition": motion.get("transition", "smooth"),
+        "max_duration": motion.get("max_duration", "400ms"),
+    }
+
+
+def get_vibe_css_variables(vibe_name: str) -> Dict[str, str]:
+    """
+    Generate CSS custom properties from vibe configuration.
+
+    Creates a dictionary of CSS variables (--vibe-*) that can be injected
+    into stylesheets for consistent vibe-based styling.
+
+    Args:
+        vibe_name: Name of the vibe
+
+    Returns:
+        Dictionary mapping CSS variable names to values
+
+    Example:
+        >>> css_vars = get_vibe_css_variables("elite_corporate")
+        >>> print(css_vars["--vibe-font-family"])
+        "Inter, SF Pro Display, system-ui"
+    """
+    from .themes.vibes import get_vibe
+
+    vibe = get_vibe(vibe_name)
+    css_vars: Dict[str, str] = {}
+
+    # Vibe identity
+    css_vars["--vibe-name"] = vibe.get("name", vibe_name)
+
+    # Typography
+    typo = vibe.get("typography", {})
+    if "primary" in typo:
+        css_vars["--vibe-font-family"] = typo["primary"]
+    if "heading_weight" in typo:
+        css_vars["--vibe-heading-weight"] = str(typo["heading_weight"])
+    if "body_weight" in typo:
+        css_vars["--vibe-body-weight"] = str(typo["body_weight"])
+    if "letter_spacing" in typo:
+        css_vars["--vibe-letter-spacing"] = typo["letter_spacing"]
+    if "base_size" in typo:
+        css_vars["--vibe-font-size-base"] = typo["base_size"]
+    if "number_format" in typo:
+        css_vars["--vibe-number-format"] = typo["number_format"]
+
+    # Spacing
+    spacing = vibe.get("spacing", {})
+    if "base_unit" in spacing:
+        css_vars["--vibe-spacing-unit"] = spacing["base_unit"]
+    if "density" in spacing:
+        css_vars["--vibe-density"] = spacing["density"]
+    if "gutter" in spacing:
+        css_vars["--vibe-gutter"] = spacing["gutter"]
+
+    # Radius
+    radius = vibe.get("radius", {})
+    if "default" in radius:
+        css_vars["--vibe-radius-default"] = radius["default"]
+    if "card" in radius:
+        css_vars["--vibe-radius-card"] = radius["card"]
+    if "button" in radius:
+        css_vars["--vibe-radius-button"] = radius["button"]
+    if "input" in radius:
+        css_vars["--vibe-radius-input"] = radius["input"]
+
+    # Shadows
+    shadows = vibe.get("shadows", {})
+    if "intensity" in shadows:
+        css_vars["--vibe-shadow-intensity"] = shadows["intensity"]
+    if "blur" in shadows:
+        css_vars["--vibe-shadow-blur"] = shadows["blur"]
+
+    # Motion/Animation
+    motion = vibe.get("motion", {})
+    if isinstance(motion, dict):
+        if "timing" in motion:
+            css_vars["--vibe-transition-timing"] = motion["timing"]
+        if "max_duration" in motion:
+            css_vars["--vibe-transition-max"] = motion["max_duration"]
+        # Handle IBM Carbon's productive motion
+        if "productive" in motion and isinstance(motion["productive"], dict):
+            css_vars["--vibe-transition-timing"] = motion["productive"].get(
+                "duration", "150ms"
+            )
+
+    # Grid
+    grid = vibe.get("grid", {})
+    if "columns" in grid:
+        css_vars["--vibe-grid-columns"] = str(grid["columns"])
+    if "max_width" in grid:
+        css_vars["--vibe-max-width"] = grid["max_width"]
+    if "gutter" in grid:
+        css_vars["--vibe-grid-gutter"] = grid["gutter"]
+
+    # Colors (semantic)
+    colors = vibe.get("colors", {})
+    if isinstance(colors, dict):
+        if "primary" in colors and isinstance(colors["primary"], str):
+            css_vars["--vibe-color-primary"] = colors["primary"]
+        if "secondary" in colors and isinstance(colors["secondary"], str):
+            css_vars["--vibe-color-secondary"] = colors["secondary"]
+        if "interactive" in colors:
+            css_vars["--vibe-color-interactive"] = colors["interactive"]
+        if "background" in colors:
+            css_vars["--vibe-color-background"] = colors["background"]
+
+    # Data density (enterprise vibes)
+    data_density = vibe.get("data_density", {})
+    if "row_height" in data_density:
+        css_vars["--vibe-row-height"] = data_density["row_height"]
+    if "cell_padding" in data_density:
+        css_vars["--vibe-cell-padding"] = data_density["cell_padding"]
+
+    return css_vars
+
+
+# =============================================================================
 # CORPORATE PRESET FUNCTIONS
 # =============================================================================
 
@@ -280,6 +479,10 @@ __all__ = [
     # Vibe compatibility functions
     "get_recommended_vibes",
     "get_vibe_compatibility",
+    # Vibe specification functions
+    "get_vibe_specs",
+    "get_vibe_animation_config",
+    "get_vibe_css_variables",
     # Corporate preset functions
     "get_corporate_preset",
     "list_corporate_presets",

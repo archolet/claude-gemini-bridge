@@ -19,8 +19,9 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Optional
 
 from gemini_mcp.agents.base import AgentConfig, AgentResult, AgentRole, BaseAgent
-from gemini_mcp.prompts import QUALITY_GUARD_SYSTEM_PROMPT
+from gemini_mcp.prompts.prompt_loader import get_prompt
 from gemini_mcp.validation import HTMLValidator, CSSValidator, JSValidator, IDValidator
+from gemini_mcp.validation.anti_pattern_validator import AntiPatternValidator
 
 if TYPE_CHECKING:
     from gemini_mcp.client import GeminiClient
@@ -41,10 +42,18 @@ class QAReport:
     def to_dict(self) -> dict:
         return {
             "validation_passed": self.validation_passed,
+            "critical_count": self.critical_count,
+            "error_count": self.error_count,
+            "warning_count": self.warning_count,
             "issues": self.issues,
             "auto_fixes_applied": self.auto_fixes_applied,
             "corrected_output": self.corrected_output,
         }
+
+    @property
+    def critical_count(self) -> int:
+        """Count of CRITICAL severity issues (deployment blockers)."""
+        return sum(1 for i in self.issues if i.get("severity") == "critical")
 
     @property
     def error_count(self) -> int:
@@ -53,6 +62,11 @@ class QAReport:
     @property
     def warning_count(self) -> int:
         return sum(1 for i in self.issues if i.get("severity") == "warning")
+
+    @property
+    def has_blockers(self) -> bool:
+        """Check if there are critical issues that block deployment."""
+        return self.critical_count > 0
 
 
 class QualityGuardAgent(BaseAgent):
@@ -85,21 +99,27 @@ class QualityGuardAgent(BaseAgent):
         self.js_validator = JSValidator(strict_mode=False)
         self.id_validator = IDValidator(strict_mode=True)
 
+        # Enterprise anti-pattern validator (27 patterns across 4 categories)
+        self.anti_pattern_validator = AntiPatternValidator()
+
     @classmethod
     def _default_config(cls) -> AgentConfig:
         """Quality Guard-specific default configuration."""
         return AgentConfig(
             model="gemini-3-pro-preview",
-            thinking_level="low",  # Validation - minimal reasoning needed
+            thinking_level="high",  # Maximum reasoning for thorough quality validation
             temperature=1.0,  # Gemini 3 optimized
             max_output_tokens=8192,
             strict_mode=True,
             auto_fix=True,
         )
 
-    def get_system_prompt(self) -> str:
-        """Return The Quality Guard's system prompt."""
-        return QUALITY_GUARD_SYSTEM_PROMPT
+    def get_system_prompt(self, variables: dict[str, Any] | None = None) -> str:
+        """Return The Quality Guard's system prompt from YAML template."""
+        return get_prompt(
+            agent_name="quality_guard",
+            variables=variables or {},
+        )
 
     async def execute(self, context: "AgentContext") -> AgentResult:
         """
@@ -133,15 +153,21 @@ class QualityGuardAgent(BaseAgent):
             if html and js:
                 qa_report = self._validate_cross_layer(html, js, qa_report)
 
+            # Enterprise anti-pattern validation (27 patterns)
+            # This runs BEFORE auto-fixes to detect patterns, then applies fixes
+            qa_report, html, css, js = self._validate_antipatterns(
+                html, css, js, qa_report
+            )
+
             # Apply auto-fixes if enabled
             corrected_html = html
             corrected_css = css
             corrected_js = js
 
-            if self.config.auto_fix and qa_report.error_count > 0:
-                corrected_html, fixes_html = self._auto_fix_html(html)
-                corrected_css, fixes_css = self._auto_fix_css(css)
-                corrected_js, fixes_js = self._auto_fix_js(js)
+            if self.config.auto_fix and (qa_report.error_count > 0 or qa_report.critical_count > 0):
+                corrected_html, fixes_html = self._auto_fix_html(corrected_html)
+                corrected_css, fixes_css = self._auto_fix_css(corrected_css)
+                corrected_js, fixes_js = self._auto_fix_js(corrected_js)
 
                 qa_report.auto_fixes_applied.extend(fixes_html)
                 qa_report.auto_fixes_applied.extend(fixes_css)
@@ -154,8 +180,10 @@ class QualityGuardAgent(BaseAgent):
                 "js": corrected_js,
             }
 
-            # Update validation status after fixes
-            qa_report.validation_passed = qa_report.error_count == 0
+            # Update validation status after fixes (critical and error block deployment)
+            qa_report.validation_passed = (
+                qa_report.critical_count == 0 and qa_report.error_count == 0
+            )
 
             # Create result
             result = AgentResult(
@@ -179,8 +207,8 @@ class QualityGuardAgent(BaseAgent):
 
             logger.info(
                 f"[Quality Guard] Validation: {qa_report.validation_passed}, "
-                f"Errors: {qa_report.error_count}, Warnings: {qa_report.warning_count}, "
-                f"Fixes: {len(qa_report.auto_fixes_applied)}"
+                f"Critical: {qa_report.critical_count}, Errors: {qa_report.error_count}, "
+                f"Warnings: {qa_report.warning_count}, Fixes: {len(qa_report.auto_fixes_applied)}"
             )
 
             return result
@@ -272,10 +300,82 @@ class QualityGuardAgent(BaseAgent):
 
         return report
 
+    def _validate_antipatterns(
+        self, html: str, css: str, js: str, report: QAReport
+    ) -> tuple[QAReport, str, str, str]:
+        """
+        Validate for enterprise anti-patterns and apply auto-fixes.
+
+        This method uses AntiPatternValidator to detect:
+        - Accessibility anti-patterns (no-skip-link, heading-skip, etc.)
+        - Performance anti-patterns (layout-thrash-loop, sync-xhr, etc.)
+        - Styling anti-patterns (fixed-width, no-dark-mode, etc.)
+        - Alpine.js anti-patterns (sync-init, x-show without x-cloak, etc.)
+
+        Returns:
+            Tuple of (updated_report, fixed_html, fixed_css, fixed_js)
+        """
+        fixed_html = html
+        fixed_css = css
+        fixed_js = js
+
+        # Combine all content for comprehensive anti-pattern detection
+        combined_content = f"{html}\n{css}\n{js}"
+
+        # First pass: detect and report all anti-patterns
+        result = self.anti_pattern_validator.validate(combined_content)
+
+        for issue in result.issues:
+            report.issues.append({
+                "severity": issue.severity.value,
+                "layer": issue.rule.split("/")[0] if issue.rule else "antipattern",
+                "message": issue.message,
+                "fix": issue.suggestion,
+                "rule": issue.rule,
+                "auto_fixable": issue.auto_fixable,
+            })
+
+        # Second pass: apply auto-fixes if enabled
+        if self.config.auto_fix:
+            # Auto-fix HTML anti-patterns
+            if html:
+                fixed_html, html_result = self.anti_pattern_validator.validate_and_fix(html)
+                for fix_issue in html_result.issues:
+                    if fix_issue.message.startswith("Auto-fixed:"):
+                        report.auto_fixes_applied.append(
+                            fix_issue.message.replace("Auto-fixed: ", "")
+                        )
+
+            # Auto-fix CSS anti-patterns (if any fixable patterns apply)
+            if css:
+                fixed_css, css_result = self.anti_pattern_validator.validate_and_fix(css)
+                for fix_issue in css_result.issues:
+                    if fix_issue.message.startswith("Auto-fixed:"):
+                        report.auto_fixes_applied.append(
+                            fix_issue.message.replace("Auto-fixed: ", "")
+                        )
+
+            # Auto-fix JS anti-patterns (if any fixable patterns apply)
+            if js:
+                fixed_js, js_result = self.anti_pattern_validator.validate_and_fix(js)
+                for fix_issue in js_result.issues:
+                    if fix_issue.message.startswith("Auto-fixed:"):
+                        report.auto_fixes_applied.append(
+                            fix_issue.message.replace("Auto-fixed: ", "")
+                        )
+
+        # Update validation status if critical or error issues found
+        if result.has_blockers or not result.valid:
+            report.validation_passed = False
+
+        return report, fixed_html, fixed_css, fixed_js
+
     def _auto_fix_html(self, html: str) -> tuple[str, list[str]]:
         """Apply auto-fixes to HTML."""
         fixes = []
         fixed = html
+
+        # === BASIC CLEANUP ===
 
         # Fix 1: Remove inline styles
         if re.search(r'style=["\'][^"\']+["\']', fixed):
@@ -299,6 +399,58 @@ class QualityGuardAgent(BaseAgent):
         if re.search(r'<script[^>]*>[\s\S]*?</script>', fixed, re.IGNORECASE):
             fixed = re.sub(r'<script[^>]*>[\s\S]*?</script>', '', fixed, flags=re.IGNORECASE)
             fixes.append("Removed <script> tags")
+
+        # === ENTERPRISE ACCESSIBILITY FIXES ===
+
+        # Fix 5: Add x-cloak to x-show elements (prevents FOUC)
+        if re.search(r'x-show\s*=\s*["\'][^"\']+["\'](?![^>]*x-cloak)', fixed):
+            fixed = re.sub(
+                r'(x-show\s*=\s*["\'][^"\']+["\'])(?![^>]*x-cloak)([^>]*>)',
+                r'\1 x-cloak\2',
+                fixed
+            )
+            fixes.append("Added x-cloak to x-show elements")
+
+        # Fix 6: Add type="button" to buttons without type
+        if re.search(r'<button(?![^>]*type\s*=)[^>]*>', fixed):
+            fixed = re.sub(
+                r'<button(?![^>]*type\s*=)([^>]*)>',
+                r'<button type="button"\1>',
+                fixed
+            )
+            fixes.append("Added type='button' to buttons")
+
+        # Fix 7: Add role="alert" to error messages (text-red without role)
+        # Only fix simple error patterns, not complex ones
+        if re.search(r'class\s*=\s*["\'][^"\']*text-red-[0-9]+[^"\']*["\'][^>]*>(?![^<]*role)', fixed):
+            fixed = re.sub(
+                r'(class\s*=\s*["\'][^"\']*text-red-[0-9]+[^"\']*["\'])([^>]*>)(?![^<]*role)',
+                r'\1 role="alert"\2',
+                fixed,
+                count=5  # Limit to first 5 to avoid over-fixing
+            )
+            fixes.append("Added role='alert' to error messages")
+
+        # Fix 8: Add aria-live="polite" to x-text dynamic content
+        if re.search(r'x-text\s*=\s*["\'][^"\']+["\'](?![^>]*aria-live)', fixed):
+            # Only fix status/feedback areas, not all x-text
+            fixed = re.sub(
+                r'(<(?:span|div|p)[^>]*)(x-text\s*=\s*["\'][^"\']*(?:status|message|count|total)[^"\']*["\'])(?![^>]*aria-live)([^>]*>)',
+                r'\1\2 aria-live="polite"\3',
+                fixed,
+                flags=re.IGNORECASE
+            )
+            fixes.append("Added aria-live='polite' to dynamic status text")
+
+        # Fix 9: Add motion-reduce to animated elements
+        if re.search(r'animate-(?:spin|bounce|pulse|ping)', fixed):
+            if 'motion-reduce:' not in fixed:
+                fixed = re.sub(
+                    r'(class\s*=\s*["\'][^"\']*)(animate-(?:spin|bounce|pulse|ping))([^"\']*["\'])',
+                    r'\1\2 motion-reduce:animate-none\3',
+                    fixed
+                )
+                fixes.append("Added motion-reduce variant to animations")
 
         return fixed.strip(), fixes
 
@@ -333,6 +485,50 @@ class QualityGuardAgent(BaseAgent):
 
             fixed = re.sub(r'[^;]*!important', replace_important, fixed)
             fixes.append(f"Reduced !important usage from {important_count} to 3")
+
+        # ═══════════════════════════════════════════════════════════════════
+        # Enterprise CSS Fixes (Phase 7)
+        # ═══════════════════════════════════════════════════════════════════
+
+        # Fix 4: Convert arbitrary z-index to semantic scale
+        # z-[9999] → z-50, z-[1000] → z-40, etc.
+        arbitrary_z_pattern = r'z-\[(\d+)\]'
+        arbitrary_z_matches = re.findall(arbitrary_z_pattern, fixed)
+        if arbitrary_z_matches:
+            def convert_z_index(match):
+                value = int(match.group(1))
+                if value >= 100:
+                    return "z-50"  # Modal backdrop level
+                elif value >= 50:
+                    return "z-40"  # Fixed elements
+                elif value >= 30:
+                    return "z-30"  # Sticky headers
+                elif value >= 20:
+                    return "z-20"  # Dropdowns
+                elif value >= 10:
+                    return "z-10"  # Raised cards
+                else:
+                    return "z-0"   # Base level
+
+            fixed = re.sub(arbitrary_z_pattern, convert_z_index, fixed)
+            fixes.append(f"Converted {len(arbitrary_z_matches)} arbitrary z-index values to semantic scale")
+
+        # Fix 5: Add prefers-reduced-motion wrapper for animations
+        # Only if @keyframes exists but no prefers-reduced-motion check
+        if '@keyframes' in fixed and '@media (prefers-reduced-motion' not in fixed:
+            # Find all animation-related properties and wrap in media query
+            reduced_motion_block = """
+/* Reduced motion preference */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+"""
+            fixed = fixed.rstrip() + "\n" + reduced_motion_block
+            fixes.append("Added prefers-reduced-motion media query for accessibility")
 
         return fixed.strip(), fixes
 
@@ -369,6 +565,63 @@ class QualityGuardAgent(BaseAgent):
 }})();"""
             fixes.append("Wrapped code in IIFE with error handling")
 
+        # ═══════════════════════════════════════════════════════════════════
+        # Enterprise JS Fixes (Phase 7)
+        # ═══════════════════════════════════════════════════════════════════
+
+        # Fix 4: Add debounce utility if scroll/resize handlers without debounce
+        has_scroll_resize = re.search(r"addEventListener\s*\(\s*['\"](?:scroll|resize)['\"]", fixed)
+        has_debounce = 'debounce' in fixed or 'throttle' in fixed
+        if has_scroll_resize and not has_debounce:
+            debounce_utility = """
+  // Enterprise debounce utility for performance
+  const debounce = (fn, delay = 100) => {
+    let timeoutId;
+    return (...args) => {
+      clearTimeout(timeoutId);
+      timeoutId = setTimeout(() => fn.apply(this, args), delay);
+    };
+  };
+"""
+            # Insert after 'use strict' or at the beginning
+            if "'use strict'" in fixed:
+                fixed = fixed.replace("'use strict';", "'use strict';" + debounce_utility, 1)
+            else:
+                fixed = debounce_utility + fixed
+            fixes.append("Added debounce utility for scroll/resize handlers")
+
+        # Fix 5: Add passive: true to scroll/wheel/touch listeners for performance
+        passive_pattern = r"addEventListener\s*\(\s*['\"](?:scroll|wheel|touchstart|touchmove)['\"],\s*([^,]+)\s*\)"
+        if re.search(passive_pattern, fixed) and 'passive' not in fixed:
+            fixed = re.sub(
+                passive_pattern,
+                r"addEventListener('\1', \2, { passive: true })",
+                fixed
+            )
+            # More precise pattern
+            fixed = re.sub(
+                r"addEventListener\s*\(\s*['\"](?P<event>scroll|wheel|touchstart|touchmove)['\"],\s*(?P<handler>[^,)]+)\s*\)",
+                r"addEventListener('\g<event>', \g<handler>, { passive: true })",
+                fixed
+            )
+            fixes.append("Added passive: true to scroll/touch listeners for performance")
+
+        # Fix 6: Replace inline console.log with conditional logging
+        console_log_count = len(re.findall(r'console\.log\s*\(', fixed))
+        if console_log_count > 3:
+            # Add debug flag pattern
+            debug_utility = """
+  // Debug logging (set window.DEBUG = true to enable)
+  const log = (...args) => window.DEBUG && console.log('[DEBUG]', ...args);
+"""
+            # Replace console.log with log
+            fixed = re.sub(r'\bconsole\.log\s*\(', 'log(', fixed)
+            if "'use strict'" in fixed:
+                fixed = fixed.replace("'use strict';", "'use strict';" + debug_utility, 1)
+            else:
+                fixed = debug_utility + fixed
+            fixes.append(f"Replaced {console_log_count} console.log calls with conditional debug logging")
+
         return fixed.strip(), fixes
 
     def _indent(self, text: str, spaces: int) -> str:
@@ -403,7 +656,7 @@ class QualityGuardAgent(BaseAgent):
         """
         Generate a quick validation report without API call.
 
-        Returns a summary dictionary.
+        Returns a summary dictionary including anti-pattern detection.
         """
         html_result = self.html_validator.validate(html) if html else None
         css_result = self.css_validator.validate(css) if css else None
@@ -413,8 +666,13 @@ class QualityGuardAgent(BaseAgent):
         if html and js:
             cross_result = self.id_validator.validate(html, js)
 
-        total_errors = 0
-        total_warnings = 0
+        # Anti-pattern validation (runs on all content)
+        combined_content = f"{html or ''}\n{css or ''}\n{js or ''}"
+        antipattern_result = self.anti_pattern_validator.validate(combined_content)
+
+        total_critical = antipattern_result.critical_count
+        total_errors = antipattern_result.error_count
+        total_warnings = antipattern_result.warning_count
 
         if html_result:
             total_errors += html_result.error_count
@@ -430,11 +688,14 @@ class QualityGuardAgent(BaseAgent):
             total_warnings += cross_result.warning_count
 
         return {
-            "valid": total_errors == 0,
+            "valid": total_critical == 0 and total_errors == 0,
+            "critical": total_critical,
             "errors": total_errors,
             "warnings": total_warnings,
             "html_valid": html_result.valid if html_result else True,
             "css_valid": css_result.valid if css_result else True,
             "js_valid": js_result.valid if js_result else True,
             "cross_layer_valid": cross_result.valid if cross_result else True,
+            "antipattern_valid": antipattern_result.valid,
+            "antipattern_count": len(antipattern_result.issues),
         }

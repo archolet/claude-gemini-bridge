@@ -1,0 +1,201 @@
+---
+metadata:
+  name: typography_data_dense
+  version: "1.0.0"
+  description: "Enterprise typography system for high-density data interfaces"
+  author: "Gemini MCP Team"
+  tags:
+    - segment
+    - enterprise
+    - typography
+    - data-dense
+
+applies_to:
+  - architect
+  - alchemist
+
+priority: medium
+
+content: |
+  ## ENTERPRISE TYPOGRAPHY SYSTEM
+
+  Typography for data-dense enterprise interfaces prioritizes readability,
+  scannability, and information hierarchy over decorative aesthetics.
+
+  ### FONT STACK
+
+  ```css
+  /* Display & UI */
+  --font-display: "Inter var", "SF Pro Display", system-ui, -apple-system, sans-serif;
+
+  /* Data & Monospace */
+  --font-data: "JetBrains Mono", "SF Mono", "Roboto Mono", monospace;
+
+  /* Fallback for Turkish characters */
+  --font-body: "Inter", "Segoe UI", "Roboto", sans-serif;
+  ```
+
+  ### TYPE SCALE (Enterprise)
+
+  | Element | Size | Weight | Line Height | Use Case |
+  |---------|------|--------|-------------|----------|
+  | Page Title | 24px | 600 | 1.2 | Dashboard name |
+  | Section Header | 18px | 600 | 1.3 | Card groups |
+  | Card Title | 14px | 600 | 1.4 | Individual cards |
+  | Body | 13px | 400 | 1.5 | Descriptions |
+  | Data Label | 12px | 500 | 1.4 | KPI labels, table headers |
+  | Data Value | 13px | 500 | 1.2 | KPI values, tabular-nums |
+  | Micro | 11px | 400 | 1.3 | Timestamps, secondary info |
+
+  ### TAILWIND CLASSES
+
+  ```html
+  <!-- Page Title -->
+  <h1 class="text-2xl font-semibold text-slate-900 tracking-tight">
+    Dashboard
+  </h1>
+
+  <!-- Section Header -->
+  <h2 class="text-lg font-semibold text-slate-800">
+    Revenue Overview
+  </h2>
+
+  <!-- Card Title -->
+  <h3 class="text-sm font-semibold text-slate-700">
+    Monthly Sales
+  </h3>
+
+  <!-- Data Label -->
+  <span class="text-xs font-medium text-slate-500 uppercase tracking-wide">
+    Total Revenue
+  </span>
+
+  <!-- Data Value (Numbers) -->
+  <span class="text-xl font-semibold text-slate-900 tabular-nums">
+    $1,234,567
+  </span>
+
+  <!-- Body Text -->
+  <p class="text-sm text-slate-600 leading-relaxed">
+    Description text here with optimal line height.
+  </p>
+
+  <!-- Micro/Secondary -->
+  <span class="text-xs text-slate-400">
+    Last updated 5 min ago
+  </span>
+  ```
+
+  ### NUMERIC TYPOGRAPHY
+
+  **CRITICAL**: All numeric data MUST use `tabular-nums` for proper alignment.
+
+  ```html
+  <!-- Currency -->
+  <span class="font-mono tabular-nums">$1,234.56</span>
+
+  <!-- Percentages -->
+  <span class="tabular-nums">+12.5%</span>
+
+  <!-- Large Numbers -->
+  <span class="tabular-nums lining-nums">1,234,567</span>
+
+  <!-- Table Cells -->
+  <td class="text-right font-mono tabular-nums text-sm">
+    42,567
+  </td>
+  ```
+
+  ### LINE LENGTH GUIDELINES
+
+  | Context | Characters | Tailwind Class |
+  |---------|------------|----------------|
+  | Body text | 75-80 | max-w-prose |
+  | Card descriptions | 60-70 | max-w-md |
+  | Table cells | 20-30 | truncate |
+  | KPI labels | 15-25 | - |
+
+  ### TEXT COLORS (Enterprise Palette)
+
+  | Purpose | Color | Tailwind |
+  |---------|-------|----------|
+  | Primary text | #0f172a | text-slate-900 |
+  | Secondary text | #475569 | text-slate-600 |
+  | Tertiary/Helper | #64748b | text-slate-500 |
+  | Disabled | #94a3b8 | text-slate-400 |
+  | Success | #059669 | text-emerald-600 |
+  | Error | #dc2626 | text-red-600 |
+  | Warning | #d97706 | text-amber-600 |
+  | Link | #2563eb | text-blue-600 |
+
+  ### HIERARCHY EXAMPLE
+
+  ```html
+  <section class="space-y-4">
+    <!-- Level 1: Page Title -->
+    <h1 class="text-2xl font-semibold text-slate-900">
+      Sales Dashboard
+    </h1>
+
+    <!-- Level 2: Section -->
+    <div class="space-y-3">
+      <h2 class="text-lg font-semibold text-slate-800">
+        Revenue Metrics
+      </h2>
+
+      <!-- Level 3: Card -->
+      <div class="bg-white border border-slate-200 rounded-lg p-4">
+        <h3 class="text-sm font-semibold text-slate-700 mb-2">
+          Monthly Revenue
+        </h3>
+
+        <!-- Level 4: Data -->
+        <div class="space-y-1">
+          <span class="text-xs font-medium text-slate-500 uppercase tracking-wide">
+            Total
+          </span>
+          <div class="text-2xl font-semibold text-slate-900 tabular-nums">
+            $4,234,567
+          </div>
+          <span class="text-xs text-slate-400">
+            vs $3,987,234 last month
+          </span>
+        </div>
+      </div>
+    </div>
+  </section>
+  ```
+
+  ### ANTI-PATTERNS (FORBIDDEN)
+
+  - ❌ Font sizes below 11px
+  - ❌ Light font weights (300) on data
+  - ❌ Centered paragraph text
+  - ❌ Line heights below 1.2
+  - ❌ Decorative fonts (script, display)
+  - ❌ Numbers without tabular-nums
+  - ❌ All caps for body text (only labels)
+  - ❌ Letter-spacing > 0.1em (except uppercase labels)
+
+  ### RESPONSIVE TYPOGRAPHY
+
+  ```html
+  <!-- Responsive page title -->
+  <h1 class="text-xl md:text-2xl lg:text-3xl font-semibold">
+    Dashboard
+  </h1>
+
+  <!-- Responsive data value -->
+  <span class="text-lg md:text-xl lg:text-2xl font-semibold tabular-nums">
+    $1,234,567
+  </span>
+  ```
+
+  ### DARK MODE CONSIDERATIONS
+
+  ```html
+  <!-- Text colors in dark mode -->
+  <span class="text-slate-900 dark:text-slate-100">Primary</span>
+  <span class="text-slate-600 dark:text-slate-400">Secondary</span>
+  <span class="text-slate-500 dark:text-slate-500">Tertiary</span>
+  ```

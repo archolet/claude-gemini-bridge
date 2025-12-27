@@ -24,10 +24,10 @@ from __future__ import annotations
 
 import logging
 import re
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING, Any, Optional
 
 from gemini_mcp.agents.base import AgentConfig, AgentResult, AgentRole, BaseAgent
-from gemini_mcp.prompts import ALCHEMIST_SYSTEM_PROMPT
+from gemini_mcp.prompts.prompt_loader import get_prompt
 from gemini_mcp.validation import CSSValidator
 
 if TYPE_CHECKING:
@@ -69,16 +69,19 @@ class AlchemistAgent(BaseAgent):
         """Alchemist-specific default configuration."""
         return AgentConfig(
             model="gemini-3-pro-preview",
-            thinking_level="low",  # CSS generation - latency optimized
+            thinking_level="high",  # Maximum reasoning for premium CSS effects
             temperature=1.0,  # Gemini 3 optimized
             max_output_tokens=8192,
             strict_mode=True,
             auto_fix=True,
         )
 
-    def get_system_prompt(self) -> str:
-        """Return The Alchemist's system prompt."""
-        return ALCHEMIST_SYSTEM_PROMPT
+    def get_system_prompt(self, variables: dict[str, Any] | None = None) -> str:
+        """Return The Alchemist's system prompt from YAML template."""
+        return get_prompt(
+            agent_name="alchemist",
+            variables=variables or {},
+        )
 
     async def execute(self, context: "AgentContext") -> AgentResult:
         """

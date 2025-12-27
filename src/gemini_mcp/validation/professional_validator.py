@@ -13,10 +13,19 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass, field
-from enum import Enum
 from typing import Any, Dict, List, Optional, Literal
 
-from gemini_mcp.validation.html_validator import ValidationSeverity, ValidationIssue
+# Import from centralized locations
+from gemini_mcp.validation.types import ValidationSeverity, ValidationIssue
+from gemini_mcp.validation.utils import (
+    extract_tailwind_colors,
+    extract_color_pairs,
+    TAILWIND_COLOR_CLASS_PATTERN,
+)
+from gemini_mcp.validation.contrast_checker import (
+    check_contrast,
+    check_wcag_compliance,
+)
 
 
 # =============================================================================
@@ -298,9 +307,8 @@ class ProfessionalValidator:
                 issues.append(f"Prohibited pattern found: '{pattern}'")
                 score -= 15
 
-        # Count unique colors (Tailwind color classes)
-        color_pattern = r'(?:bg|text|border|ring)-(?:slate|gray|zinc|neutral|stone|red|orange|amber|yellow|lime|green|emerald|teal|cyan|sky|blue|indigo|violet|purple|fuchsia|pink|rose)-\d{2,3}'
-        colors = set(re.findall(color_pattern, combined))
+        # Count unique colors using shared utility
+        colors = extract_tailwind_colors(combined)
 
         max_colors = self.rules.get("max_colors", 5)
         if len(colors) > max_colors:
@@ -417,35 +425,78 @@ class ProfessionalValidator:
         css: str,
         level: str = "AA",
     ) -> ProfessionalDimensionScore:
-        """Validate accessibility compliance."""
+        """Validate accessibility compliance including WCAG contrast ratios."""
         issues = []
         recommendations = []
         score = 100.0
 
-        # Check for ARIA attributes
+        combined = html + " " + css
+
+        # ============================================================
+        # WCAG COLOR CONTRAST VALIDATION (The actual check!)
+        # ============================================================
+        min_contrast = self.rules.get("min_contrast_ratio", 4.5)
+        wcag_level = "AAA" if min_contrast >= 7.0 else "AA"
+
+        # Use contrast_checker for actual WCAG validation
+        contrast_report = check_wcag_compliance(html, level=wcag_level)
+
+        if not contrast_report.passes:
+            for issue in contrast_report.issues:
+                issues.append(
+                    f"WCAG {wcag_level} contrast fail: {issue.foreground} on {issue.background} "
+                    f"(ratio: {issue.ratio}:1, required: {issue.required_ratio}:1)"
+                )
+                score -= 10  # 10 points per contrast failure
+
+            if contrast_report.issues:
+                recommendations.append(
+                    f"Fix {len(contrast_report.issues)} contrast issues for WCAG {wcag_level} compliance"
+                )
+
+        # ============================================================
+        # ARIA ATTRIBUTES
+        # ============================================================
         if "aria-" not in html:
             issues.append("Missing ARIA attributes for accessibility")
             score -= 10
             recommendations.append("Add aria-label, aria-describedby, or role attributes")
 
-        # Check for focus states
+        # ============================================================
+        # FOCUS STATES
+        # ============================================================
         focus_patterns = ["focus:", "focus-visible:", "focus-within:"]
-        has_focus = any(p in html or p in css for p in focus_patterns)
+        has_focus = any(p in combined for p in focus_patterns)
         if not has_focus:
             issues.append("Missing focus state indicators")
             score -= 15
             recommendations.append("Add focus:ring or focus:outline classes for keyboard navigation")
 
-        # Check for screen reader content
+        # ============================================================
+        # SCREEN READER SUPPORT
+        # ============================================================
         sr_patterns = ["sr-only", "not-sr-only", "aria-hidden"]
         has_sr = any(p in html for p in sr_patterns)
         if not has_sr:
             recommendations.append("Consider adding sr-only content for screen readers")
 
-        # Formal/AAA level requires stricter checks
+        # ============================================================
+        # FORMAL/AAA LEVEL REQUIREMENTS
+        # ============================================================
         if level == "AAA" or self.formality == "formal":
-            # Check for high contrast classes
-            if "contrast-" not in (html + css):
+            # Formal mode: stricter contrast requirements
+            if contrast_report.score < 100:
+                issues.append(
+                    f"Formal design requires 100% WCAG {wcag_level} compliance (current: {contrast_report.score}%)"
+                )
+                score -= 5
+
+            # Check for prefers-reduced-motion support
+            if "prefers-reduced-motion" not in combined:
+                recommendations.append("Add prefers-reduced-motion support for motion sensitivity")
+
+            # Check for high contrast mode support
+            if "contrast-" not in combined:
                 recommendations.append("Consider adding high contrast mode support for AAA compliance")
 
         # Ensure minimum score

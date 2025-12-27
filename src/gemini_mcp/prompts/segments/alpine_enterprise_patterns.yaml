@@ -1,0 +1,1453 @@
+---
+metadata:
+  name: alpine_enterprise_patterns
+  version: "1.0.0"
+  description: "Enterprise Alpine.js patterns for complex interactivity (Tier 3-4 components)"
+  author: "Gemini MCP Team"
+  tags:
+    - segment
+    - enterprise
+    - alpine
+    - javascript
+    - interactivity
+
+applies_to:
+  - physicist
+
+priority: high
+
+variables:
+  tier: "3"
+
+content: |
+  ## ALPINE.JS ENTERPRISE PATTERNS (TIER {{tier}}+)
+
+  Advanced Alpine.js patterns for complex components requiring virtual scrolling,
+  global state management, keyboard navigation, and focus trapping.
+
+  ### VIRTUAL SCROLLING PATTERN
+
+  For data grids/lists with 100+ items. Only render visible rows + buffer:
+
+  ```javascript
+  Alpine.data('virtualList', () => ({
+    // Data
+    allItems: [],
+
+    // Scroll state
+    scrollTop: 0,
+    containerHeight: 400,
+    itemHeight: 40,
+    overscan: 5, // Extra items above/below viewport
+
+    // Computed visible range
+    get startIndex() {
+      return Math.max(0, Math.floor(this.scrollTop / this.itemHeight) - this.overscan);
+    },
+
+    get endIndex() {
+      const visibleCount = Math.ceil(this.containerHeight / this.itemHeight);
+      return Math.min(
+        this.allItems.length,
+        this.startIndex + visibleCount + (this.overscan * 2)
+      );
+    },
+
+    get visibleItems() {
+      return this.allItems.slice(this.startIndex, this.endIndex).map((item, i) => ({
+        ...item,
+        _virtualIndex: this.startIndex + i
+      }));
+    },
+
+    get totalHeight() {
+      return this.allItems.length * this.itemHeight;
+    },
+
+    get offsetY() {
+      return this.startIndex * this.itemHeight;
+    },
+
+    // Scroll handler (throttled)
+    handleScroll(e) {
+      this.scrollTop = e.target.scrollTop;
+    },
+
+    // Ensure item is visible (for keyboard nav)
+    scrollToIndex(index) {
+      const targetTop = index * this.itemHeight;
+      const container = this.$refs.scrollContainer;
+
+      if (targetTop < this.scrollTop) {
+        container.scrollTop = targetTop;
+      } else if (targetTop + this.itemHeight > this.scrollTop + this.containerHeight) {
+        container.scrollTop = targetTop - this.containerHeight + this.itemHeight;
+      }
+    }
+  }));
+  ```
+
+  **HTML Template:**
+  ```html
+  <div x-data="virtualList()"
+       x-ref="scrollContainer"
+       @scroll.throttle.50ms="handleScroll"
+       class="h-[400px] overflow-y-auto">
+
+    <!-- Spacer for total scroll height -->
+    <div :style="`height: ${totalHeight}px; position: relative;`">
+
+      <!-- Visible items container -->
+      <div :style="`transform: translateY(${offsetY}px);`">
+        <template x-for="item in visibleItems" :key="item.id">
+          <div class="h-10 px-4 flex items-center border-b border-slate-100"
+               :aria-rowindex="item._virtualIndex + 1">
+            <span x-text="item.name"></span>
+          </div>
+        </template>
+      </div>
+    </div>
+  </div>
+  ```
+
+  ### GLOBAL STORE PATTERNS
+
+  Use Alpine stores for cross-component state:
+
+  ```javascript
+  document.addEventListener('alpine:init', () => {
+
+    // ═══════════════════════════════════════════════════════════════
+    // TOAST NOTIFICATIONS STORE
+    // ═══════════════════════════════════════════════════════════════
+    Alpine.store('toasts', {
+      items: [],
+      _counter: 0,
+
+      add(message, type = 'info', duration = 5000) {
+        const id = ++this._counter;
+        this.items.push({
+          id,
+          message,
+          type, // info, success, warning, error
+          visible: true,
+          progress: 100
+        });
+
+        if (duration > 0) {
+          // Animate progress bar
+          const interval = setInterval(() => {
+            const toast = this.items.find(t => t.id === id);
+            if (toast) {
+              toast.progress -= 100 / (duration / 100);
+              if (toast.progress <= 0) {
+                clearInterval(interval);
+                this.remove(id);
+              }
+            }
+          }, 100);
+        }
+
+        return id;
+      },
+
+      remove(id) {
+        const item = this.items.find(t => t.id === id);
+        if (item) {
+          item.visible = false;
+          setTimeout(() => {
+            this.items = this.items.filter(t => t.id !== id);
+          }, 300); // Match leave transition
+        }
+      },
+
+      success(message, duration) { return this.add(message, 'success', duration); },
+      error(message, duration) { return this.add(message, 'error', duration); },
+      warning(message, duration) { return this.add(message, 'warning', duration); },
+      info(message, duration) { return this.add(message, 'info', duration); }
+    });
+
+    // ═══════════════════════════════════════════════════════════════
+    // MODAL STACK STORE
+    // ═══════════════════════════════════════════════════════════════
+    Alpine.store('modals', {
+      stack: [],
+
+      open(modalId) {
+        this.stack.push(modalId);
+        document.body.style.overflow = 'hidden';
+      },
+
+      close(modalId) {
+        this.stack = this.stack.filter(id => id !== modalId);
+        if (this.stack.length === 0) {
+          document.body.style.overflow = '';
+        }
+      },
+
+      closeAll() {
+        this.stack = [];
+        document.body.style.overflow = '';
+      },
+
+      get activeModal() {
+        return this.stack[this.stack.length - 1] || null;
+      },
+
+      isOpen(modalId) {
+        return this.stack.includes(modalId);
+      }
+    });
+
+    // ═══════════════════════════════════════════════════════════════
+    // THEME STORE (with persistence)
+    // ═══════════════════════════════════════════════════════════════
+    Alpine.store('theme', {
+      current: localStorage.getItem('theme') || 'system',
+
+      init() {
+        this.apply();
+        // Listen for system preference changes
+        window.matchMedia('(prefers-color-scheme: dark)')
+          .addEventListener('change', () => this.apply());
+      },
+
+      set(theme) {
+        this.current = theme;
+        localStorage.setItem('theme', theme);
+        this.apply();
+      },
+
+      toggle() {
+        const isDark = document.documentElement.classList.contains('dark');
+        this.set(isDark ? 'light' : 'dark');
+      },
+
+      apply() {
+        const isDark = this.current === 'dark' ||
+          (this.current === 'system' &&
+           window.matchMedia('(prefers-color-scheme: dark)').matches);
+        document.documentElement.classList.toggle('dark', isDark);
+      },
+
+      get isDark() {
+        return document.documentElement.classList.contains('dark');
+      }
+    });
+
+    // ═══════════════════════════════════════════════════════════════
+    // CONFIRMATION DIALOG STORE
+    // ═══════════════════════════════════════════════════════════════
+    Alpine.store('confirm', {
+      isOpen: false,
+      title: '',
+      message: '',
+      confirmText: 'Confirm',
+      cancelText: 'Cancel',
+      variant: 'danger', // danger, warning, info
+      _resolve: null,
+
+      async show(options) {
+        this.title = options.title || 'Confirm';
+        this.message = options.message || 'Are you sure?';
+        this.confirmText = options.confirmText || 'Confirm';
+        this.cancelText = options.cancelText || 'Cancel';
+        this.variant = options.variant || 'danger';
+        this.isOpen = true;
+
+        return new Promise(resolve => {
+          this._resolve = resolve;
+        });
+      },
+
+      confirm() {
+        this.isOpen = false;
+        this._resolve?.(true);
+      },
+
+      cancel() {
+        this.isOpen = false;
+        this._resolve?.(false);
+      }
+    });
+  });
+  ```
+
+  **Usage:**
+  ```javascript
+  // Show toast
+  $store.toasts.success('Item saved successfully!');
+  $store.toasts.error('Failed to save item.');
+
+  // Open modal
+  $store.modals.open('delete-modal');
+
+  // Toggle theme
+  $store.theme.toggle();
+
+  // Show confirmation
+  const confirmed = await $store.confirm.show({
+    title: 'Delete Item',
+    message: 'This action cannot be undone.',
+    confirmText: 'Delete',
+    variant: 'danger'
+  });
+  if (confirmed) {
+    // Proceed with deletion
+  }
+  ```
+
+  ### KEYBOARD NAVIGATION PATTERN (W3C APG)
+
+  Grid keyboard navigation following W3C Authoring Practices Guide:
+
+  ```javascript
+  Alpine.data('gridNavigation', () => ({
+    activeCell: { row: 0, col: 0 },
+    editing: false,
+
+    get rows() { return this.filteredData.length; },
+    get cols() { return this.columns.length; },
+
+    handleKeydown(e) {
+      if (this.editing) {
+        if (e.key === 'Escape') {
+          this.cancelEdit();
+          e.preventDefault();
+        } else if (e.key === 'Enter') {
+          this.commitEdit();
+          e.preventDefault();
+        }
+        return;
+      }
+
+      const { row, col } = this.activeCell;
+      const lastRow = this.rows - 1;
+      const lastCol = this.cols - 1;
+
+      const actions = {
+        'ArrowRight': () => this.moveTo(row, Math.min(col + 1, lastCol)),
+        'ArrowLeft': () => this.moveTo(row, Math.max(col - 1, 0)),
+        'ArrowDown': () => this.moveTo(Math.min(row + 1, lastRow), col),
+        'ArrowUp': () => this.moveTo(Math.max(row - 1, 0), col),
+        'Home': () => e.ctrlKey
+          ? this.moveTo(0, 0)
+          : this.moveTo(row, 0),
+        'End': () => e.ctrlKey
+          ? this.moveTo(lastRow, lastCol)
+          : this.moveTo(row, lastCol),
+        'PageDown': () => this.moveTo(Math.min(row + 10, lastRow), col),
+        'PageUp': () => this.moveTo(Math.max(row - 10, 0), col),
+        'Enter': () => this.startEdit(),
+        'F2': () => this.startEdit(),
+        ' ': () => this.toggleSelection(row)
+      };
+
+      if (actions[e.key]) {
+        e.preventDefault();
+        actions[e.key]();
+      }
+    },
+
+    moveTo(row, col) {
+      this.activeCell = { row, col };
+      this.ensureVisible(row);
+      this.announcePosition();
+    },
+
+    ensureVisible(row) {
+      // Scroll to make active row visible
+      this.scrollToIndex?.(row);
+    },
+
+    announcePosition() {
+      // Update live region for screen readers
+      const statusRegion = document.getElementById('grid-status');
+      if (statusRegion) {
+        const { row, col } = this.activeCell;
+        statusRegion.textContent = `Row ${row + 1}, Column ${col + 1}`;
+      }
+    },
+
+    startEdit() {
+      this.editing = true;
+      this.$nextTick(() => {
+        const input = this.$refs.editInput;
+        input?.focus();
+        input?.select();
+      });
+    },
+
+    commitEdit() {
+      // Save value and exit edit mode
+      this.editing = false;
+    },
+
+    cancelEdit() {
+      // Discard changes and exit edit mode
+      this.editing = false;
+    }
+  }));
+  ```
+
+  ### FOCUS TRAP IMPLEMENTATION
+
+  For modals and dialogs:
+
+  ```javascript
+  Alpine.directive('trap-focus', (el, { modifiers }) => {
+    const FOCUSABLE_SELECTOR = [
+      'button:not([disabled])',
+      'a[href]',
+      'input:not([disabled]):not([type="hidden"])',
+      'select:not([disabled])',
+      'textarea:not([disabled])',
+      '[tabindex]:not([tabindex="-1"])',
+    ].join(', ');
+
+    let previouslyFocused = null;
+
+    const getFocusableElements = () => {
+      return [...el.querySelectorAll(FOCUSABLE_SELECTOR)]
+        .filter(el => el.offsetParent !== null); // Visible only
+    };
+
+    const handleKeydown = (e) => {
+      if (e.key !== 'Tab') return;
+
+      const focusable = getFocusableElements();
+      if (focusable.length === 0) return;
+
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+
+      if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault();
+        first.focus();
+      }
+    };
+
+    // Initialize
+    previouslyFocused = document.activeElement;
+    el.addEventListener('keydown', handleKeydown);
+
+    // Auto-focus first element
+    if (!modifiers.includes('nofocus')) {
+      const focusable = getFocusableElements();
+      focusable[0]?.focus();
+    }
+
+    // Cleanup on element removal
+    Alpine.effect(() => {
+      return () => {
+        el.removeEventListener('keydown', handleKeydown);
+        previouslyFocused?.focus();
+      };
+    });
+  });
+  ```
+
+  **Usage:**
+  ```html
+  <div x-show="open" x-trap-focus class="modal">
+    <button>First focusable</button>
+    <input type="text" />
+    <button @click="open = false">Close</button>
+  </div>
+  ```
+
+  ### CLICK OUTSIDE DIRECTIVE
+
+  ```javascript
+  Alpine.directive('click-outside', (el, { expression }, { evaluate }) => {
+    const handler = (e) => {
+      if (!el.contains(e.target)) {
+        evaluate(expression);
+      }
+    };
+
+    // Delay to prevent immediate trigger
+    setTimeout(() => {
+      document.addEventListener('click', handler);
+    }, 0);
+
+    Alpine.effect(() => {
+      return () => document.removeEventListener('click', handler);
+    });
+  });
+  ```
+
+  **Usage:**
+  ```html
+  <div x-show="open" x-click-outside="open = false">
+    Dropdown content
+  </div>
+  ```
+
+  ### DEBOUNCE/THROTTLE UTILITIES
+
+  ```javascript
+  // Native Alpine.js modifiers (preferred)
+  x-model.debounce.300ms="searchQuery"
+  @input.debounce.500ms="validate()"
+  @scroll.throttle.100ms="handleScroll()"
+
+  // Custom magic for complex cases
+  Alpine.magic('debounce', () => (fn, wait = 300) => {
+    let timeout;
+    return (...args) => {
+      clearTimeout(timeout);
+      timeout = setTimeout(() => fn.apply(this, args), wait);
+    };
+  });
+
+  Alpine.magic('throttle', () => (fn, limit = 100) => {
+    let inThrottle = false;
+    return (...args) => {
+      if (!inThrottle) {
+        fn.apply(this, args);
+        inThrottle = true;
+        setTimeout(() => inThrottle = false, limit);
+      }
+    };
+  });
+  ```
+
+  ### INTERSECTION OBSERVER PATTERN
+
+  For lazy loading and infinite scroll:
+
+  ```javascript
+  Alpine.data('infiniteScroll', () => ({
+    items: [],
+    page: 1,
+    loading: false,
+    hasMore: true,
+
+    init() {
+      this.loadMore();
+      this.setupObserver();
+    },
+
+    setupObserver() {
+      const observer = new IntersectionObserver(
+        (entries) => {
+          if (entries[0].isIntersecting && !this.loading && this.hasMore) {
+            this.loadMore();
+          }
+        },
+        { threshold: 0.1 }
+      );
+
+      observer.observe(this.$refs.sentinel);
+    },
+
+    async loadMore() {
+      if (this.loading || !this.hasMore) return;
+
+      this.loading = true;
+
+      try {
+        const newItems = await this.fetchItems(this.page);
+        this.items = [...this.items, ...newItems];
+        this.page++;
+        this.hasMore = newItems.length > 0;
+      } catch (error) {
+        console.error('Failed to load items:', error);
+      } finally {
+        this.loading = false;
+      }
+    },
+
+    async fetchItems(page) {
+      // Implement your data fetching logic
+      const response = await fetch(`/api/items?page=${page}`);
+      return response.json();
+    }
+  }));
+  ```
+
+  **HTML Template:**
+  ```html
+  <div x-data="infiniteScroll()">
+    <template x-for="item in items" :key="item.id">
+      <div x-text="item.name"></div>
+    </template>
+
+    <!-- Loading indicator -->
+    <div x-show="loading" class="animate-pulse p-4">
+      Loading more...
+    </div>
+
+    <!-- Sentinel element (triggers load when visible) -->
+    <div x-ref="sentinel" class="h-4"></div>
+
+    <!-- End of list -->
+    <div x-show="!hasMore && !loading" class="text-center text-slate-400 py-4">
+      No more items
+    </div>
+  </div>
+  ```
+
+  ### FORM VALIDATION PATTERN
+
+  ```javascript
+  Alpine.data('validatedForm', () => ({
+    formData: {},
+    errors: {},
+    touched: {},
+    submitting: false,
+
+    rules: {
+      email: [
+        v => !!v || 'Email is required',
+        v => /.+@.+\..+/.test(v) || 'Invalid email format'
+      ],
+      password: [
+        v => !!v || 'Password is required',
+        v => v.length >= 8 || 'Min 8 characters'
+      ]
+    },
+
+    validate(field) {
+      const value = this.formData[field];
+      const fieldRules = this.rules[field] || [];
+
+      for (const rule of fieldRules) {
+        const result = rule(value);
+        if (result !== true) {
+          this.errors[field] = result;
+          return false;
+        }
+      }
+
+      this.errors[field] = null;
+      return true;
+    },
+
+    validateAll() {
+      let valid = true;
+      for (const field of Object.keys(this.rules)) {
+        if (!this.validate(field)) valid = false;
+      }
+      return valid;
+    },
+
+    async submit() {
+      // Mark all fields as touched
+      for (const field of Object.keys(this.rules)) {
+        this.touched[field] = true;
+      }
+
+      if (!this.validateAll()) return;
+
+      this.submitting = true;
+      try {
+        await this.onSubmit(this.formData);
+        this.$dispatch('form-success');
+      } catch (error) {
+        this.$dispatch('form-error', error);
+      } finally {
+        this.submitting = false;
+      }
+    }
+  }));
+  ```
+
+  ### ADVANCED VIRTUAL SCROLLING (VARIABLE HEIGHT)
+
+  For complex grids with variable row heights:
+
+  ```javascript
+  Alpine.data('variableHeightVirtualList', () => ({
+    items: [],
+    containerHeight: 400,
+    overscan: 3,
+
+    // Cache measured heights
+    measuredHeights: new Map(),
+    defaultHeight: 60, // Estimate for unmeasured items
+
+    scrollTop: 0,
+    visibleRange: { start: 0, end: 10 },
+
+    // Calculate cumulative offsets for positioning
+    get offsets() {
+      const offsets = [0];
+      for (let i = 0; i < this.items.length; i++) {
+        const height = this.measuredHeights.get(this.items[i].id) || this.defaultHeight;
+        offsets.push(offsets[i] + height);
+      }
+      return offsets;
+    },
+
+    get totalHeight() {
+      return this.offsets[this.offsets.length - 1] || 0;
+    },
+
+    // Binary search for start index
+    findStartIndex(scrollTop) {
+      let low = 0;
+      let high = this.offsets.length - 1;
+      while (low < high) {
+        const mid = Math.floor((low + high) / 2);
+        if (this.offsets[mid] < scrollTop) {
+          low = mid + 1;
+        } else {
+          high = mid;
+        }
+      }
+      return Math.max(0, low - 1);
+    },
+
+    updateVisibleRange() {
+      const start = Math.max(0, this.findStartIndex(this.scrollTop) - this.overscan);
+      let end = start;
+      let accHeight = 0;
+      const targetHeight = this.containerHeight + (this.overscan * this.defaultHeight * 2);
+
+      while (end < this.items.length && accHeight < targetHeight) {
+        accHeight += this.measuredHeights.get(this.items[end].id) || this.defaultHeight;
+        end++;
+      }
+
+      this.visibleRange = { start, end: Math.min(end + this.overscan, this.items.length) };
+    },
+
+    get visibleItems() {
+      return this.items.slice(this.visibleRange.start, this.visibleRange.end).map((item, i) => ({
+        ...item,
+        _index: this.visibleRange.start + i,
+        _offset: this.offsets[this.visibleRange.start + i]
+      }));
+    },
+
+    // Called after item renders to measure actual height
+    measureItem(id, el) {
+      const height = el.getBoundingClientRect().height;
+      if (this.measuredHeights.get(id) !== height) {
+        this.measuredHeights.set(id, height);
+        // Debounce recalculation
+        this.$nextTick(() => this.updateVisibleRange());
+      }
+    },
+
+    handleScroll(e) {
+      this.scrollTop = e.target.scrollTop;
+      this.updateVisibleRange();
+    },
+
+    // Cleanup for AbortController
+    controller: null,
+    init() {
+      this.controller = new AbortController();
+      this.updateVisibleRange();
+    },
+    destroy() {
+      this.controller?.abort();
+    }
+  }));
+  ```
+
+  **Variable Height HTML Template:**
+  ```html
+  <div x-data="variableHeightVirtualList()"
+       x-ref="container"
+       @scroll.throttle.16ms="handleScroll"
+       class="h-[400px] overflow-y-auto relative"
+       @unmount="destroy()">
+
+    <div :style="`height: ${totalHeight}px; position: relative;`">
+      <template x-for="item in visibleItems" :key="item.id">
+        <div
+          :style="`position: absolute; top: ${item._offset}px; left: 0; right: 0;`"
+          x-init="$nextTick(() => measureItem(item.id, $el))"
+          class="px-4 py-3 border-b"
+        >
+          <!-- Variable content height -->
+          <h4 x-text="item.title" class="font-medium"></h4>
+          <p x-text="item.description" class="text-sm text-slate-600"></p>
+        </div>
+      </template>
+    </div>
+  </div>
+  ```
+
+  ---
+
+  ### I18N (INTERNATIONALIZATION) STORE
+
+  ```javascript
+  document.addEventListener('alpine:init', () => {
+
+    Alpine.store('i18n', {
+      locale: localStorage.getItem('locale') || 'tr',
+      fallbackLocale: 'en',
+
+      translations: {
+        tr: {
+          common: {
+            save: 'Kaydet',
+            cancel: 'İptal',
+            delete: 'Sil',
+            edit: 'Düzenle',
+            search: 'Ara...',
+            loading: 'Yükleniyor...',
+            noResults: 'Sonuç bulunamadı',
+            confirm: 'Onayla',
+            close: 'Kapat'
+          },
+          validation: {
+            required: '{field} zorunludur',
+            email: 'Geçerli bir email adresi girin',
+            minLength: 'En az {min} karakter olmalıdır',
+            maxLength: 'En fazla {max} karakter olabilir'
+          },
+          errors: {
+            network: 'Bağlantı hatası oluştu',
+            server: 'Sunucu hatası oluştu',
+            unauthorized: 'Oturum süreniz doldu'
+          },
+          nav: {
+            dashboard: 'Kontrol Paneli',
+            users: 'Kullanıcılar',
+            settings: 'Ayarlar',
+            profile: 'Profil',
+            logout: 'Çıkış Yap'
+          }
+        },
+        en: {
+          common: {
+            save: 'Save',
+            cancel: 'Cancel',
+            delete: 'Delete',
+            edit: 'Edit',
+            search: 'Search...',
+            loading: 'Loading...',
+            noResults: 'No results found',
+            confirm: 'Confirm',
+            close: 'Close'
+          },
+          validation: {
+            required: '{field} is required',
+            email: 'Enter a valid email address',
+            minLength: 'Must be at least {min} characters',
+            maxLength: 'Must be at most {max} characters'
+          },
+          errors: {
+            network: 'Network error occurred',
+            server: 'Server error occurred',
+            unauthorized: 'Your session has expired'
+          },
+          nav: {
+            dashboard: 'Dashboard',
+            users: 'Users',
+            settings: 'Settings',
+            profile: 'Profile',
+            logout: 'Logout'
+          }
+        }
+      },
+
+      setLocale(locale) {
+        this.locale = locale;
+        localStorage.setItem('locale', locale);
+        document.documentElement.lang = locale;
+      },
+
+      // Get translation with interpolation
+      t(key, params = {}) {
+        const keys = key.split('.');
+        let value = this.translations[this.locale];
+
+        // Traverse nested keys
+        for (const k of keys) {
+          value = value?.[k];
+          if (!value) break;
+        }
+
+        // Fallback to fallbackLocale
+        if (!value && this.locale !== this.fallbackLocale) {
+          value = this.translations[this.fallbackLocale];
+          for (const k of keys) {
+            value = value?.[k];
+            if (!value) break;
+          }
+        }
+
+        // Return key if not found
+        if (!value) return key;
+
+        // Interpolate {param} placeholders
+        return value.replace(/{(\w+)}/g, (_, name) => params[name] ?? `{${name}}`);
+      },
+
+      // Pluralization helper
+      plural(key, count, params = {}) {
+        const forms = key.split('|');
+        let form = forms[0]; // default
+
+        if (count === 0 && forms.length > 2) {
+          form = forms[0]; // zero
+        } else if (count === 1) {
+          form = forms.length > 2 ? forms[1] : forms[0]; // one
+        } else {
+          form = forms.length > 2 ? forms[2] : forms[1]; // many
+        }
+
+        return form.replace(/{count}/g, count).replace(/{(\w+)}/g, (_, name) => params[name] ?? '');
+      },
+
+      // Date/time formatting
+      formatDate(date, options = {}) {
+        return new Intl.DateTimeFormat(this.locale, options).format(new Date(date));
+      },
+
+      formatNumber(number, options = {}) {
+        return new Intl.NumberFormat(this.locale, options).format(number);
+      },
+
+      formatCurrency(amount, currency = 'TRY') {
+        return new Intl.NumberFormat(this.locale, {
+          style: 'currency',
+          currency
+        }).format(amount);
+      }
+    });
+
+    // Magic helper for templates
+    Alpine.magic('t', () => (key, params) => Alpine.store('i18n').t(key, params));
+
+  });
+  ```
+
+  **i18n Usage in Templates:**
+  ```html
+  <!-- Simple translation -->
+  <button x-text="$t('common.save')"></button>
+
+  <!-- With interpolation -->
+  <p x-text="$t('validation.minLength', { min: 8 })"></p>
+
+  <!-- Currency formatting -->
+  <span x-text="$store.i18n.formatCurrency(1499.99)"></span>
+
+  <!-- Date formatting -->
+  <time x-text="$store.i18n.formatDate('2024-01-15', { dateStyle: 'long' })"></time>
+
+  <!-- Locale switcher -->
+  <select x-model="$store.i18n.locale" @change="$store.i18n.setLocale($event.target.value)">
+    <option value="tr">Türkçe</option>
+    <option value="en">English</option>
+  </select>
+  ```
+
+  ---
+
+  ### COMMAND PALETTE PATTERN (CTRL+K)
+
+  Enterprise search/command interface:
+
+  ```javascript
+  Alpine.data('commandPalette', () => ({
+    open: false,
+    query: '',
+    selectedIndex: 0,
+    recentCommands: JSON.parse(localStorage.getItem('recentCommands') || '[]'),
+
+    commands: [
+      { id: 'nav-dashboard', group: 'Navigation', label: 'Go to Dashboard', icon: 'home', action: () => window.location.href = '/dashboard' },
+      { id: 'nav-users', group: 'Navigation', label: 'Go to Users', icon: 'users', action: () => window.location.href = '/users' },
+      { id: 'nav-settings', group: 'Navigation', label: 'Go to Settings', icon: 'cog', action: () => window.location.href = '/settings' },
+      { id: 'action-new-user', group: 'Actions', label: 'Create New User', icon: 'plus', action: () => this.$dispatch('create-user') },
+      { id: 'action-export', group: 'Actions', label: 'Export Data', icon: 'download', action: () => this.$dispatch('export-data') },
+      { id: 'theme-toggle', group: 'Settings', label: 'Toggle Dark Mode', icon: 'moon', action: () => Alpine.store('theme').toggle() },
+    ],
+
+    get filteredCommands() {
+      if (!this.query) return this.recentCommands.length > 0
+        ? [...this.recentCommands.slice(0, 3), ...this.commands.slice(0, 7)]
+        : this.commands;
+
+      const q = this.query.toLowerCase();
+      return this.commands.filter(cmd =>
+        cmd.label.toLowerCase().includes(q) ||
+        cmd.group.toLowerCase().includes(q)
+      );
+    },
+
+    get groupedCommands() {
+      const groups = {};
+      for (const cmd of this.filteredCommands) {
+        const group = cmd.group || 'Other';
+        if (!groups[group]) groups[group] = [];
+        groups[group].push(cmd);
+      }
+      return groups;
+    },
+
+    init() {
+      // Global keyboard shortcut
+      document.addEventListener('keydown', (e) => {
+        if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+          e.preventDefault();
+          this.toggle();
+        }
+      });
+    },
+
+    toggle() {
+      this.open = !this.open;
+      if (this.open) {
+        this.query = '';
+        this.selectedIndex = 0;
+        this.$nextTick(() => this.$refs.searchInput?.focus());
+      }
+    },
+
+    close() {
+      this.open = false;
+      this.query = '';
+    },
+
+    handleKeydown(e) {
+      const commands = this.filteredCommands;
+      const lastIndex = commands.length - 1;
+
+      switch (e.key) {
+        case 'ArrowDown':
+          e.preventDefault();
+          this.selectedIndex = this.selectedIndex >= lastIndex ? 0 : this.selectedIndex + 1;
+          break;
+        case 'ArrowUp':
+          e.preventDefault();
+          this.selectedIndex = this.selectedIndex <= 0 ? lastIndex : this.selectedIndex - 1;
+          break;
+        case 'Enter':
+          e.preventDefault();
+          this.executeCommand(commands[this.selectedIndex]);
+          break;
+        case 'Escape':
+          this.close();
+          break;
+      }
+    },
+
+    executeCommand(cmd) {
+      if (!cmd) return;
+
+      // Add to recent commands
+      this.recentCommands = [cmd, ...this.recentCommands.filter(c => c.id !== cmd.id)].slice(0, 5);
+      localStorage.setItem('recentCommands', JSON.stringify(this.recentCommands));
+
+      // Execute action
+      cmd.action?.();
+      this.close();
+    }
+  }));
+  ```
+
+  **Command Palette HTML:**
+  ```html
+  <div x-data="commandPalette()" x-cloak>
+    <!-- Trigger hint -->
+    <button @click="toggle()" class="flex items-center gap-2 px-3 py-1.5 text-sm text-slate-500 bg-slate-100 rounded-md">
+      <svg class="w-4 h-4"><!-- search icon --></svg>
+      <span>Search...</span>
+      <kbd class="hidden sm:inline-flex px-1.5 py-0.5 text-xs bg-slate-200 rounded">⌘K</kbd>
+    </button>
+
+    <!-- Modal backdrop -->
+    <div
+      x-show="open"
+      x-transition:enter="transition ease-out duration-200"
+      x-transition:enter-start="opacity-0"
+      x-transition:enter-end="opacity-100"
+      x-transition:leave="transition ease-in duration-150"
+      x-transition:leave-start="opacity-100"
+      x-transition:leave-end="opacity-0"
+      class="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-sm"
+      @click="close()"
+    ></div>
+
+    <!-- Command dialog -->
+    <div
+      x-show="open"
+      x-transition:enter="transition ease-out duration-200"
+      x-transition:enter-start="opacity-0 scale-95"
+      x-transition:enter-end="opacity-100 scale-100"
+      x-transition:leave="transition ease-in duration-150"
+      x-transition:leave-start="opacity-100 scale-100"
+      x-transition:leave-end="opacity-0 scale-95"
+      x-trap-focus
+      class="fixed inset-x-4 top-[20%] z-[60] mx-auto max-w-xl bg-white dark:bg-slate-800 rounded-xl shadow-2xl overflow-hidden"
+      @click.stop
+    >
+      <!-- Search input -->
+      <div class="flex items-center border-b border-slate-200 dark:border-slate-700">
+        <svg class="w-5 h-5 ml-4 text-slate-400"><!-- search icon --></svg>
+        <input
+          x-ref="searchInput"
+          x-model="query"
+          @keydown="handleKeydown"
+          type="text"
+          placeholder="Search commands..."
+          class="flex-1 px-4 py-4 bg-transparent focus:outline-none text-slate-900 dark:text-white placeholder-slate-400"
+        />
+        <kbd class="mr-4 px-2 py-1 text-xs text-slate-400 bg-slate-100 dark:bg-slate-700 rounded">ESC</kbd>
+      </div>
+
+      <!-- Results -->
+      <div class="max-h-80 overflow-y-auto p-2">
+        <template x-for="(commands, group) in groupedCommands" :key="group">
+          <div class="mb-2">
+            <div class="px-2 py-1 text-xs font-semibold text-slate-400 uppercase" x-text="group"></div>
+            <template x-for="(cmd, index) in commands" :key="cmd.id">
+              <button
+                @click="executeCommand(cmd)"
+                @mouseenter="selectedIndex = filteredCommands.indexOf(cmd)"
+                :class="{
+                  'bg-blue-50 dark:bg-blue-900/30': filteredCommands.indexOf(cmd) === selectedIndex
+                }"
+                class="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-left hover:bg-slate-50 dark:hover:bg-slate-700/50"
+              >
+                <svg class="w-5 h-5 text-slate-400"><!-- cmd icon --></svg>
+                <span class="flex-1 text-slate-700 dark:text-slate-200" x-text="cmd.label"></span>
+              </button>
+            </template>
+          </div>
+        </template>
+
+        <!-- No results -->
+        <div x-show="filteredCommands.length === 0" class="px-4 py-8 text-center text-slate-400">
+          No commands found
+        </div>
+      </div>
+    </div>
+  </div>
+  ```
+
+  ---
+
+  ### WEBSOCKET / REAL-TIME UPDATES PATTERN
+
+  ```javascript
+  Alpine.data('realTimeData', () => ({
+    connected: false,
+    data: [],
+    lastUpdate: null,
+    ws: null,
+    reconnectAttempts: 0,
+    maxReconnectAttempts: 5,
+    reconnectDelay: 1000,
+
+    init() {
+      this.connect();
+
+      // Cleanup on unmount
+      this.$watch('$el', () => {
+        this.disconnect();
+      });
+
+      // Reconnect on page visibility change
+      document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible' && !this.connected) {
+          this.connect();
+        }
+      });
+    },
+
+    connect() {
+      const wsUrl = `wss://${window.location.host}/ws/updates`;
+
+      try {
+        this.ws = new WebSocket(wsUrl);
+
+        this.ws.onopen = () => {
+          this.connected = true;
+          this.reconnectAttempts = 0;
+          console.log('WebSocket connected');
+        };
+
+        this.ws.onmessage = (event) => {
+          try {
+            const message = JSON.parse(event.data);
+            this.handleMessage(message);
+          } catch (e) {
+            console.error('Failed to parse message:', e);
+          }
+        };
+
+        this.ws.onclose = (event) => {
+          this.connected = false;
+          console.log('WebSocket closed:', event.code, event.reason);
+
+          // Auto-reconnect with exponential backoff
+          if (this.reconnectAttempts < this.maxReconnectAttempts) {
+            const delay = this.reconnectDelay * Math.pow(2, this.reconnectAttempts);
+            this.reconnectAttempts++;
+            setTimeout(() => this.connect(), delay);
+          }
+        };
+
+        this.ws.onerror = (error) => {
+          console.error('WebSocket error:', error);
+        };
+
+      } catch (error) {
+        console.error('Failed to create WebSocket:', error);
+      }
+    },
+
+    disconnect() {
+      if (this.ws) {
+        this.ws.close(1000, 'Component unmounted');
+        this.ws = null;
+      }
+    },
+
+    handleMessage(message) {
+      this.lastUpdate = new Date();
+
+      switch (message.type) {
+        case 'insert':
+          this.data.unshift(message.data);
+          // Announce for screen readers
+          this.announceUpdate(`New item: ${message.data.title}`);
+          break;
+
+        case 'update':
+          const index = this.data.findIndex(item => item.id === message.data.id);
+          if (index !== -1) {
+            this.data[index] = { ...this.data[index], ...message.data };
+          }
+          break;
+
+        case 'delete':
+          this.data = this.data.filter(item => item.id !== message.data.id);
+          break;
+
+        case 'refresh':
+          this.data = message.data;
+          break;
+      }
+    },
+
+    announceUpdate(message) {
+      const region = document.getElementById('live-announcer');
+      if (region) {
+        region.textContent = message;
+        setTimeout(() => region.textContent = '', 1000);
+      }
+    },
+
+    send(type, data) {
+      if (this.ws && this.connected) {
+        this.ws.send(JSON.stringify({ type, data }));
+      }
+    }
+  }));
+  ```
+
+  **Real-time HTML Template:**
+  ```html
+  <!-- Hidden announcer for screen readers -->
+  <div id="live-announcer" class="sr-only" aria-live="polite" aria-atomic="true"></div>
+
+  <div x-data="realTimeData()">
+    <!-- Connection status -->
+    <div class="flex items-center gap-2 mb-4">
+      <span
+        class="w-2 h-2 rounded-full"
+        :class="connected ? 'bg-green-500' : 'bg-red-500'"
+      ></span>
+      <span class="text-sm text-slate-500" x-text="connected ? 'Connected' : 'Reconnecting...'"></span>
+      <span x-show="lastUpdate" class="text-xs text-slate-400">
+        Last update: <time x-text="lastUpdate?.toLocaleTimeString()"></time>
+      </span>
+    </div>
+
+    <!-- Data list with live updates -->
+    <ul class="space-y-2">
+      <template x-for="item in data" :key="item.id">
+        <li
+          class="p-4 bg-white dark:bg-slate-800 rounded-lg shadow-sm transition-all"
+          x-transition:enter="transition ease-out duration-300"
+          x-transition:enter-start="opacity-0 translate-x-4"
+          x-transition:enter-end="opacity-100 translate-x-0"
+        >
+          <span x-text="item.title"></span>
+        </li>
+      </template>
+    </ul>
+  </div>
+  ```
+
+  ---
+
+  ### ANTI-PATTERNS (FORBIDDEN)
+
+  - `@scroll` without throttle (performance killer)
+  - `x-data` with external dependencies not declared
+  - Direct DOM manipulation instead of Alpine reactivity
+  - `setInterval` without cleanup in `init()`
+  - Nested `x-data` when `$parent` or stores would suffice
+  - `fetch` without error handling
+  - Missing `x-cloak` on `x-show` elements (flash of content)
+  - WebSocket without reconnection logic
+  - Missing `aria-live` for dynamic content updates
+  - Global event listeners without cleanup (use AbortController)
+  - Storing sensitive data in localStorage without encryption
+
+  ### X-CLOAK PATTERN
+
+  Prevent flash of uninitialized content:
+
+  ```html
+  <style>
+    [x-cloak] { display: none !important; }
+  </style>
+
+  <!-- Always add x-cloak to x-show elements -->
+  <div x-show="isOpen" x-cloak>
+    Content that starts hidden
+  </div>
+  ```
+
+  ---
+
+  ### FOCUS TRAP WITH MODAL INTEGRATION
+
+  Complete modal with focus trap, escape handling, and return focus:
+
+  ```javascript
+  Alpine.data('accessibleModal', (modalId) => ({
+    open: false,
+    previouslyFocused: null,
+
+    init() {
+      // Listen to global modal store
+      this.$watch('$store.modals.stack', (stack) => {
+        this.open = stack.includes(modalId);
+      });
+
+      // Handle Escape key
+      document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && this.open) {
+          this.close();
+        }
+      });
+    },
+
+    show() {
+      this.previouslyFocused = document.activeElement;
+      Alpine.store('modals').open(modalId);
+
+      this.$nextTick(() => {
+        // Focus first focusable element
+        const focusable = this.$refs.modal?.querySelector(
+          'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+        );
+        focusable?.focus();
+      });
+    },
+
+    close() {
+      Alpine.store('modals').close(modalId);
+
+      // Return focus to trigger element
+      this.$nextTick(() => {
+        this.previouslyFocused?.focus();
+      });
+    },
+
+    // Focus trap handler
+    handleTab(e) {
+      if (!this.open || e.key !== 'Tab') return;
+
+      const modal = this.$refs.modal;
+      const focusable = modal.querySelectorAll(
+        'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+      );
+
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+
+      if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault();
+        first.focus();
+      }
+    }
+  }));
+  ```
+
+  **Accessible Modal HTML:**
+  ```html
+  <div x-data="accessibleModal('confirm-delete')">
+    <!-- Trigger -->
+    <button @click="show()" class="btn btn-danger">
+      Delete Item
+    </button>
+
+    <!-- Modal (teleported to body) -->
+    <template x-teleport="body">
+      <div
+        x-show="open"
+        x-cloak
+        class="fixed inset-0 z-50"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="modal-title"
+        @keydown="handleTab"
+      >
+        <!-- Backdrop -->
+        <div
+          class="fixed inset-0 bg-slate-900/50"
+          x-transition:enter="transition ease-out duration-200"
+          x-transition:enter-start="opacity-0"
+          x-transition:enter-end="opacity-100"
+          x-transition:leave="transition ease-in duration-150"
+          x-transition:leave-start="opacity-100"
+          x-transition:leave-end="opacity-0"
+          @click="close()"
+        ></div>
+
+        <!-- Modal panel -->
+        <div
+          x-ref="modal"
+          x-transition:enter="transition ease-out duration-200"
+          x-transition:enter-start="opacity-0 scale-95"
+          x-transition:enter-end="opacity-100 scale-100"
+          x-transition:leave="transition ease-in duration-150"
+          x-transition:leave-start="opacity-100 scale-100"
+          x-transition:leave-end="opacity-0 scale-95"
+          class="fixed inset-x-4 top-1/4 mx-auto max-w-md bg-white dark:bg-slate-800 rounded-xl shadow-2xl"
+        >
+          <div class="p-6">
+            <h2 id="modal-title" class="text-lg font-semibold text-slate-900 dark:text-white">
+              Delete Item?
+            </h2>
+            <p class="mt-2 text-slate-600 dark:text-slate-300">
+              Bu işlem geri alınamaz. Devam etmek istiyor musunuz?
+            </p>
+          </div>
+
+          <div class="flex justify-end gap-3 px-6 py-4 bg-slate-50 dark:bg-slate-900/50 rounded-b-xl">
+            <button @click="close()" class="px-4 py-2 text-slate-600 hover:text-slate-900">
+              İptal
+            </button>
+            <button @click="confirmDelete(); close()" class="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:ring-offset-2">
+              Sil
+            </button>
+          </div>
+        </div>
+      </div>
+    </template>
+  </div>
+  ```

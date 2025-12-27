@@ -10,7 +10,7 @@ import logging
 import time
 from collections import OrderedDict
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -289,7 +289,7 @@ class DesignCache:
             "expirations": self._stats["expirations"],
         }
 
-    def list_entries(self, limit: int = 10) -> List[Dict[str, Any]]:
+    def list_entries(self, limit: int = 10) -> list[dict[str, Any]]:
         """List cache entries for debugging.
 
         Args:

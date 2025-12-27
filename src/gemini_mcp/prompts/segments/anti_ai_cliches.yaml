@@ -1,0 +1,121 @@
+---
+metadata:
+  name: anti_ai_cliches
+  version: "1.0.0"
+  description: "Anti-AI cliche rules for enterprise-grade dashboard design"
+  author: "Gemini MCP Team"
+  tags:
+    - segment
+    - enterprise
+    - dashboard
+    - anti-cliche
+
+applies_to:
+  - architect
+  - alchemist
+
+priority: high
+
+content: |
+  ## ANTI-AI CLICHE RULES - ENTERPRISE DASHBOARD DESIGN
+
+  AI-generated designs often fall into predictable patterns that look generic.
+  This segment enforces enterprise-grade aesthetics that avoid these cliches.
+
+  ### COLOR PALETTE RESTRICTIONS
+
+  #### FORBIDDEN Colors (AI Cliche Alert)
+  - purple-to-indigo gradients (most common AI cliche)
+  - neon cyan + magenta combinations
+  - rainbow or multi-hue gradients
+  - ultra-saturated colors (saturation > 80%)
+  - violet/purple as primary accent
+
+  #### APPROVED Colors (Enterprise-Grade)
+  - Slate, Zinc, Stone, Neutral gray families
+  - Blue-600 for primary actions (SAP Fiori standard)
+  - Emerald-500/600 for positive states (not bright green)
+  - Rose-600 for negative states (not bright red)
+  - Amber-500 for warnings (not yellow)
+  - Single-hue subtle gradients only
+
+  ### LAYOUT RESTRICTIONS
+
+  #### FORBIDDEN Layouts (AI Cliche Alert)
+  - Centered-everything layouts (especially for dashboards)
+  - Giant hero sections with minimal content
+  - Card-only layouts (grid of identical cards)
+  - Excessive whitespace (> 40% blank space)
+  - Low information density designs
+
+  #### APPROVED Layouts (Enterprise-Grade)
+  - Left-aligned, F-pattern or Z-pattern layouts
+  - Bento box grid systems
+  - Stratified layouts (KPIs top, charts middle, tables bottom)
+  - High information density (15-20 data points per viewport)
+  - Data-first hierarchy
+
+  ### DECORATION RESTRICTIONS
+
+  #### FORBIDDEN Decorations (AI Cliche Alert)
+  - Blob shapes and organic decorations
+  - Glass/blur effects without functional purpose
+  - border-radius > 16px on data cards
+  - Floating UI elements without context
+  - Decorative gradients behind content
+
+  #### APPROVED Decorations (Enterprise-Grade)
+  - Sharp corners or subtle radius (4-8px maximum)
+  - 1px borders for card definition
+  - Functional shadows only (1-2px blur max)
+  - Minimal iconography (functional only)
+  - Clean dividers and separators
+
+  ### TYPOGRAPHY RESTRICTIONS
+
+  #### FORBIDDEN Typography (AI Cliche Alert)
+  - Giant headings (> 48px) in dashboards
+  - Decorative or display fonts for data
+  - Low contrast text (< 4.5:1 ratio)
+  - Overly spaced letterforms
+
+  #### APPROVED Typography (Enterprise-Grade)
+  - Inter, SF Pro, or system fonts
+  - Monospace for numerical data (JetBrains Mono, SF Mono)
+  - tabular-nums and lining-nums for aligned numbers
+  - Compact line-height for data-dense views
+  - 13-14px base size for readability
+
+  ### COMPONENT REQUIREMENTS
+
+  #### KPI Cards Must Include
+  1. Metric label with optional info tooltip
+  2. Primary value with tabular-nums formatting
+  3. Trend indicator (direction + delta + comparison period)
+  4. Sparkline visualization (12-16 data points)
+  5. Target/actual context bar
+
+  #### Data Tables Must Include
+  1. Bulk actions toolbar
+  2. Column sorting indicators
+  3. Row selection checkboxes
+  4. Keyboard navigation support
+  5. Pagination or virtual scrolling
+
+  ### DESIGN SYSTEM REFERENCES
+
+  Emulate these enterprise design systems:
+  - SAP Fiori: Business-first, modular, grid-based
+  - IBM Carbon: Systematic, accessible, data-focused
+  - Swiss Style: Minimal, typographic, grid-strict
+
+  ### ANTI-PATTERN DETECTION
+
+  Before generating output, verify:
+  - [ ] No purple/indigo gradients used
+  - [ ] No centered dashboard layouts
+  - [ ] No excessive whitespace (< 40%)
+  - [ ] No border-radius > 16px on data components
+  - [ ] No glass/blur effects without function
+  - [ ] Information density is high (15+ data points visible)
+  - [ ] Colors are enterprise-appropriate (slate/zinc/blue)

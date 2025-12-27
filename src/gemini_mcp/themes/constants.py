@@ -111,11 +111,11 @@ CORPORATE_INDUSTRIES: Dict[str, Dict[str, Any]] = {
     },
     "tech": {
         "name": "Corporate Tech",
-        "primary": "indigo-600",
-        "secondary": "violet-500",
+        "primary": "blue-600",
+        "secondary": "slate-500",
         "accent": "cyan-400",
         "personality": "innovative, modern, dynamic",
-        "suggested_fonts": ["Outfit", "Space Grotesk", "Manrope"],
+        "suggested_fonts": ["Inter", "Space Grotesk", "Manrope"],
         "icon_style": "outline",
     },
     "manufacturing": {
@@ -245,19 +245,35 @@ FORMALITY_TYPOGRAPHY: Dict[str, Dict[str, Any]] = {
 # =============================================================================
 
 GRADIENT_LIBRARY: Dict[str, Dict[str, Any]] = {
-    # Signature Gradients
-    "aurora": {
-        "class": "bg-gradient-to-r from-violet-600 via-fuchsia-500 to-pink-500",
-        "text_contrast": "white",
-        "category": "vibrant",
+    # Enterprise Gradients (Anti-AI-Cliche)
+    "enterprise_slate": {
+        "class": "bg-gradient-to-br from-slate-100 to-slate-200",
+        "text_contrast": "slate-800",
+        "category": "enterprise",
     },
+    "corporate_blue_subtle": {
+        "class": "bg-gradient-to-br from-blue-50 to-slate-100",
+        "text_contrast": "slate-800",
+        "category": "enterprise",
+    },
+    "data_neutral": {
+        "class": "bg-gradient-to-br from-zinc-50 to-zinc-100",
+        "text_contrast": "zinc-800",
+        "category": "enterprise",
+    },
+    "enterprise_dark": {
+        "class": "bg-gradient-to-br from-slate-800 to-slate-900",
+        "text_contrast": "white",
+        "category": "enterprise",
+    },
+    # Signature Gradients (Non-Purple)
     "sunset": {
-        "class": "bg-gradient-to-r from-orange-500 via-pink-500 to-purple-600",
+        "class": "bg-gradient-to-r from-orange-500 via-rose-500 to-red-600",
         "text_contrast": "white",
         "category": "warm",
     },
     "ocean": {
-        "class": "bg-gradient-to-r from-cyan-500 via-blue-500 to-indigo-500",
+        "class": "bg-gradient-to-r from-cyan-500 via-blue-500 to-blue-700",
         "text_contrast": "white",
         "category": "cool",
     },
@@ -278,7 +294,7 @@ GRADIENT_LIBRARY: Dict[str, Dict[str, Any]] = {
         "category": "subtle",
     },
     "blue_subtle": {
-        "class": "bg-gradient-to-br from-blue-50 via-indigo-50 to-violet-50",
+        "class": "bg-gradient-to-br from-blue-50 via-sky-50 to-slate-50",
         "text_contrast": "slate-800",
         "category": "subtle",
     },
@@ -287,15 +303,15 @@ GRADIENT_LIBRARY: Dict[str, Dict[str, Any]] = {
         "text_contrast": "slate-800",
         "category": "subtle",
     },
-    # Mesh Gradients
-    "mesh_purple": {
-        "class": "bg-[radial-gradient(at_top_left,_#c084fc_0%,_transparent_50%),radial-gradient(at_bottom_right,_#f472b6_0%,_transparent_50%),radial-gradient(at_top_right,_#60a5fa_0%,_transparent_50%)]",
+    # Mesh Gradients (Enterprise-Safe)
+    "mesh_blue": {
+        "class": "bg-[radial-gradient(at_top_left,_#60a5fa_0%,_transparent_50%),radial-gradient(at_bottom_right,_#0ea5e9_0%,_transparent_50%),radial-gradient(at_top_right,_#64748b_0%,_transparent_50%)]",
         "bg_color": "bg-slate-900",
         "text_contrast": "white",
         "category": "mesh",
     },
     "mesh_ocean": {
-        "class": "bg-[radial-gradient(at_top_left,_#22d3ee_0%,_transparent_50%),radial-gradient(at_bottom_right,_#3b82f6_0%,_transparent_50%),radial-gradient(at_center,_#8b5cf6_0%,_transparent_60%)]",
+        "class": "bg-[radial-gradient(at_top_left,_#22d3ee_0%,_transparent_50%),radial-gradient(at_bottom_right,_#3b82f6_0%,_transparent_50%),radial-gradient(at_center,_#0891b2_0%,_transparent_60%)]",
         "bg_color": "bg-slate-950",
         "text_contrast": "white",
         "category": "mesh",
@@ -311,27 +327,31 @@ GRADIENT_LIBRARY: Dict[str, Dict[str, Any]] = {
         "text_contrast": "white",
         "category": "glass",
     },
-    # Dark Mode
+    # Dark Mode (Enterprise-Safe)
     "dark_glow": {
-        "class": "bg-gradient-to-r from-slate-900 via-purple-900/50 to-slate-900",
+        "class": "bg-gradient-to-r from-slate-900 via-blue-900/50 to-slate-900",
         "text_contrast": "white",
         "category": "dark",
     },
-    "dark_aurora": {
-        "class": "bg-[linear-gradient(to_right,#0f172a,#1e1b4b,#312e81,#1e1b4b,#0f172a)]",
+    "dark_corporate": {
+        "class": "bg-[linear-gradient(to_right,#0f172a,#1e3a5f,#1e3a5f,#0f172a)]",
         "text_contrast": "white",
         "category": "dark",
     },
-    # Animated
+    # Animated (Enterprise-Safe)
     "animated_flow": {
-        "class": "bg-gradient-to-r from-violet-600 via-fuchsia-500 to-pink-500 bg-[length:200%_200%] animate-gradient-x",
+        "class": "bg-gradient-to-r from-blue-600 via-cyan-500 to-teal-500 bg-[length:200%_200%] animate-gradient-x",
         "text_contrast": "white",
         "category": "animated",
         "keyframes": "@keyframes gradient-x { 0%, 100% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } }",
     },
-    # Text Gradients
+    # Text Gradients (Enterprise-Safe)
     "text_vibrant": {
-        "class": "bg-gradient-to-r from-violet-600 via-fuchsia-500 to-pink-500 bg-clip-text text-transparent",
+        "class": "bg-gradient-to-r from-blue-600 via-cyan-500 to-teal-500 bg-clip-text text-transparent",
+        "category": "text",
+    },
+    "text_corporate": {
+        "class": "bg-gradient-to-r from-slate-700 via-blue-700 to-slate-700 bg-clip-text text-transparent",
         "category": "text",
     },
 }
@@ -572,11 +592,11 @@ STARTUP_ARCHETYPES: Dict[str, Dict[str, Any]] = {
     "disruptor": {
         "name": "Disruptor",
         "tagline": "Challenge the status quo",
-        "primary": "violet-600",
-        "secondary": "fuchsia-500",
+        "primary": "rose-600",
+        "secondary": "orange-500",
         "accent": "lime-400",
         "personality": ["bold", "unconventional", "energetic"],
-        "gradient": "from-violet-600 via-fuchsia-500 to-pink-500",
+        "gradient": "from-rose-600 via-orange-500 to-amber-500",
         "motion": "dynamic, fast",
     },
     "enterprise": {
@@ -622,11 +642,11 @@ STARTUP_ARCHETYPES: Dict[str, Dict[str, Any]] = {
     "ai_ml": {
         "name": "AI/ML Startup",
         "tagline": "Intelligence amplified",
-        "primary": "purple-600",
-        "secondary": "blue-500",
-        "accent": "cyan-400",
+        "primary": "blue-600",
+        "secondary": "cyan-500",
+        "accent": "teal-400",
         "personality": ["cutting-edge", "intelligent", "futuristic"],
-        "gradient": "from-purple-600 via-blue-500 to-cyan-400",
+        "gradient": "from-blue-600 via-cyan-500 to-teal-400",
         "motion": "algorithmic, precise",
     },
     "sustainability": {
@@ -652,84 +672,140 @@ THEME_VIBE_COMPATIBILITY: Dict[str, Dict[str, int]] = {
         "playful_funny": 2,
         "cyberpunk_edge": 2,
         "luxury_editorial": 4,
+        # Enterprise vibes
+        "swiss_precision": 5,
+        "sap_fiori": 4,
+        "ibm_carbon": 5,
     },
     "brutalist": {
         "elite_corporate": 2,
         "playful_funny": 3,
         "cyberpunk_edge": 4,
         "luxury_editorial": 2,
+        # Enterprise vibes
+        "swiss_precision": 3,
+        "sap_fiori": 2,
+        "ibm_carbon": 3,
     },
     "glassmorphism": {
         "elite_corporate": 4,
         "playful_funny": 3,
         "cyberpunk_edge": 3,
         "luxury_editorial": 4,
+        # Enterprise vibes
+        "swiss_precision": 1,
+        "sap_fiori": 2,
+        "ibm_carbon": 2,
     },
     "neo-brutalism": {
         "elite_corporate": 1,
         "playful_funny": 5,
         "cyberpunk_edge": 3,
         "luxury_editorial": 2,
+        # Enterprise vibes
+        "swiss_precision": 2,
+        "sap_fiori": 1,
+        "ibm_carbon": 2,
     },
     "soft-ui": {
         "elite_corporate": 3,
         "playful_funny": 4,
         "cyberpunk_edge": 1,
         "luxury_editorial": 3,
+        # Enterprise vibes
+        "swiss_precision": 2,
+        "sap_fiori": 3,
+        "ibm_carbon": 3,
     },
     "corporate": {
         "elite_corporate": 5,
         "playful_funny": 1,
         "cyberpunk_edge": 1,
         "luxury_editorial": 4,
+        # Enterprise vibes
+        "swiss_precision": 5,
+        "sap_fiori": 5,
+        "ibm_carbon": 5,
     },
     "gradient": {
         "elite_corporate": 3,
         "playful_funny": 4,
         "cyberpunk_edge": 4,
         "luxury_editorial": 3,
+        # Enterprise vibes
+        "swiss_precision": 1,
+        "sap_fiori": 2,
+        "ibm_carbon": 2,
     },
     "cyberpunk": {
         "elite_corporate": 1,
         "playful_funny": 2,
         "cyberpunk_edge": 5,
         "luxury_editorial": 1,
+        # Enterprise vibes
+        "swiss_precision": 2,
+        "sap_fiori": 1,
+        "ibm_carbon": 2,
     },
     "retro": {
         "elite_corporate": 2,
         "playful_funny": 5,
         "cyberpunk_edge": 3,
         "luxury_editorial": 2,
+        # Enterprise vibes
+        "swiss_precision": 3,
+        "sap_fiori": 1,
+        "ibm_carbon": 2,
     },
     "pastel": {
         "elite_corporate": 2,
         "playful_funny": 5,
         "cyberpunk_edge": 1,
         "luxury_editorial": 3,
+        # Enterprise vibes
+        "swiss_precision": 2,
+        "sap_fiori": 2,
+        "ibm_carbon": 3,
     },
     "dark_mode_first": {
         "elite_corporate": 4,
         "playful_funny": 2,
         "cyberpunk_edge": 4,
         "luxury_editorial": 3,
+        # Enterprise vibes
+        "swiss_precision": 4,
+        "sap_fiori": 4,
+        "ibm_carbon": 5,
     },
     "high_contrast": {
         "elite_corporate": 3,
         "playful_funny": 2,
         "cyberpunk_edge": 3,
         "luxury_editorial": 2,
+        # Enterprise vibes
+        "swiss_precision": 5,
+        "sap_fiori": 4,
+        "ibm_carbon": 5,
     },
     "nature": {
         "elite_corporate": 2,
         "playful_funny": 3,
         "cyberpunk_edge": 1,
         "luxury_editorial": 4,
+        # Enterprise vibes
+        "swiss_precision": 2,
+        "sap_fiori": 2,
+        "ibm_carbon": 3,
     },
     "startup": {
         "elite_corporate": 3,
         "playful_funny": 4,
         "cyberpunk_edge": 3,
         "luxury_editorial": 2,
+        # Enterprise vibes
+        "swiss_precision": 3,
+        "sap_fiori": 3,
+        "ibm_carbon": 4,
     },
 }
 

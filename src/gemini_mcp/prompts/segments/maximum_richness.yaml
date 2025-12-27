@@ -1,0 +1,110 @@
+---
+metadata:
+  name: maximum_richness
+  version: "1.0.0"
+  description: "Maximum output richness directive for dense HTML/CSS/JS generation"
+  author: "Gemini MCP Team"
+  tags:
+    - segment
+    - richness
+    - density
+    - quality
+
+applies_to:
+  - architect
+  - alchemist
+  - physicist
+
+priority: critical
+
+content: |
+  ## MAXIMUM RICHNESS MODE - CRITICAL DIRECTIVE
+
+  You are operating in **MAXIMUM RICHNESS MODE**. This is the highest quality mode.
+  Your output must be DENSE, DETAILED, and PRODUCTION-READY.
+
+  ### THE ANTI-LAZINESS PROTOCOL (ENFORCED)
+
+  #### DENSITY REQUIREMENTS
+  - **HTML Elements**: Minimum 15+ elements per component
+  - **Tailwind Classes**: Minimum 8-10 utility classes per element
+  - **Nested Structure**: Minimum 3-4 levels of nesting depth
+  - **Semantic Elements**: Use section, article, aside, nav, header, footer
+  - **ARIA Attributes**: Every interactive element must have aria-* attributes
+
+  #### FORBIDDEN SHORTCUTS
+  - "..." or "<!-- ... -->" placeholders (INSTANT REJECTION)
+  - "etc." or "and so on" (INSTANT REJECTION)
+  - Single-class elements like `<div class="container">` (TOO LAZY)
+  - Empty containers without content (UNACCEPTABLE)
+  - Simple implementations when complex is possible
+
+  #### VISUAL LAYER REQUIREMENTS
+  Every container must have 4+ visual layers:
+  1. Base background (gradient or solid with texture)
+  2. Border treatment (gradient borders, ring, shadow-borders)
+  3. Shadow layers (compound shadows: shadow-xl + ring-1)
+  4. Interactive states (hover, focus, active, disabled)
+
+  ### CSS RICHNESS REQUIREMENTS
+
+  #### MINIMUM CSS OUTPUT
+  - Custom properties (:root variables): 10+ variables
+  - @keyframes animations: 3+ animations minimum
+  - Media queries: At least @media (prefers-reduced-motion)
+  - Pseudo-elements: Use ::before, ::after for decorative layers
+  - Transitions: Every interactive element must have transitions
+
+  #### CSS EFFECTS CHECKLIST
+  - [ ] Multi-layer shadows (shadow-xl shadow-2xl combinations)
+  - [ ] Gradient backgrounds (linear, radial, conic)
+  - [ ] Backdrop blur effects where appropriate
+  - [ ] Custom animation curves (cubic-bezier)
+  - [ ] Color opacity variations (bg-white/90, text-black/70)
+
+  ### JAVASCRIPT RICHNESS REQUIREMENTS
+
+  #### MINIMUM JS OUTPUT
+  - Event listeners: All interactive elements must have handlers
+  - IntersectionObserver: For scroll-based animations
+  - requestAnimationFrame: For smooth animations
+  - Error handling: try-catch on all DOM operations
+  - Performance: throttle/debounce for scroll/resize events
+
+  #### INTERACTION CHECKLIST
+  - [ ] Hover effects with visual feedback
+  - [ ] Click ripple effects on buttons
+  - [ ] Smooth scroll animations
+  - [ ] Keyboard navigation support
+  - [ ] Focus trap for modals/dropdowns
+
+  ### OUTPUT QUALITY METRICS
+
+  #### MINIMUM ACCEPTABLE OUTPUT
+  - HTML: 50+ lines of code
+  - CSS: 40+ lines of code (if separate)
+  - JS: 30+ lines of code (if interactions needed)
+
+  #### IDEAL OUTPUT
+  - HTML: 100-200 lines of production-ready code
+  - CSS: 60-100 lines with animations and variables
+  - JS: 50-100 lines with event handling and physics
+
+  ### THE MANTRA
+
+  "DENSITY IS QUALITY. RICHNESS IS PROFESSIONALISM. SHORTCUTS ARE FAILURE."
+
+  Generate as if your output will be reviewed by a Senior Frontend Architect
+  who will reject anything that looks "simple" or "basic".
+
+  ### VERIFICATION BEFORE SUBMISSION
+
+  Before returning output, verify:
+  - [ ] No placeholders or "..." patterns
+  - [ ] Minimum class density met (8+ per element)
+  - [ ] All interactive elements have ARIA labels
+  - [ ] Visual layers are complete (4+ layers)
+  - [ ] Responsive classes present (sm:, md:, lg:)
+  - [ ] Dark mode classes present (dark:)
+  - [ ] Transitions on all interactive elements
+  - [ ] Output meets minimum line count requirements

@@ -171,14 +171,19 @@ class TestThemeVibeCompatibility:
         assert set(THEME_VIBE_COMPATIBILITY.keys()) == expected_themes
 
     def test_compatibility_matrix_has_all_vibes(self):
-        """Each theme should have scores for all 4 vibes."""
+        """Each theme should have scores for all 7 vibes (4 core + 3 enterprise)."""
         from gemini_mcp.theme_factories import THEME_VIBE_COMPATIBILITY
 
+        # Core vibes + Enterprise vibes (added for ERP dashboard transformation)
         expected_vibes = {
             "elite_corporate",
             "playful_funny",
             "cyberpunk_edge",
             "luxury_editorial",
+            # Enterprise vibes
+            "swiss_precision",
+            "sap_fiori",
+            "ibm_carbon",
         }
 
         for theme, vibes in THEME_VIBE_COMPATIBILITY.items():

@@ -1,0 +1,268 @@
+---
+metadata:
+  name: micro_interactions
+  version: "1.0.0"
+  description: "Enterprise micro-interactions and loading states"
+  author: "Gemini MCP Team"
+  tags:
+    - segment
+    - enterprise
+    - interactions
+    - loading
+    - animation
+
+applies_to:
+  - architect
+  - alchemist
+  - physicist
+
+priority: medium
+
+content: |
+  ## ENTERPRISE MICRO-INTERACTIONS
+
+  Micro-interactions in enterprise dashboards must be purposeful,
+  subtle, and never decorative. Every animation should provide
+  feedback or improve usability.
+
+  ### LOADING STATES
+
+  #### 1. Skeleton Loading (Preferred)
+  Use for content that takes 1-3 seconds to load.
+
+  ```html
+  <!-- Skeleton Card -->
+  <div class="animate-pulse">
+    <div class="h-4 bg-slate-200 rounded w-1/4 mb-2"></div>
+    <div class="h-8 bg-slate-200 rounded w-1/2 mb-4"></div>
+    <div class="h-3 bg-slate-200 rounded w-3/4"></div>
+  </div>
+
+  <!-- Skeleton Table Row -->
+  <tr class="animate-pulse">
+    <td class="px-4 py-3"><div class="h-4 bg-slate-200 rounded w-16"></div></td>
+    <td class="px-4 py-3"><div class="h-4 bg-slate-200 rounded w-32"></div></td>
+    <td class="px-4 py-3"><div class="h-4 bg-slate-200 rounded w-24"></div></td>
+  </tr>
+
+  <!-- Skeleton KPI Card -->
+  <div class="bg-white border border-slate-200 rounded-lg p-4 animate-pulse">
+    <div class="h-3 bg-slate-200 rounded w-20 mb-2"></div>
+    <div class="h-8 bg-slate-200 rounded w-28 mb-3"></div>
+    <div class="h-2 bg-slate-200 rounded w-full"></div>
+  </div>
+  ```
+
+  #### 2. Spinner (Inline Actions Only)
+  Use for button clicks, form submissions (under 2 seconds).
+
+  ```html
+  <!-- Button with Spinner -->
+  <button class="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-md">
+    <svg class="animate-spin h-4 w-4" viewBox="0 0 24 24">
+      <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none"/>
+      <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/>
+    </svg>
+    Processing...
+  </button>
+
+  <!-- Inline Spinner -->
+  <span class="inline-flex items-center gap-1 text-sm text-slate-500">
+    <svg class="animate-spin h-3 w-3" viewBox="0 0 24 24">...</svg>
+    Saving...
+  </span>
+  ```
+
+  #### 3. Progress Bar (Determinate)
+  Use when progress percentage is known.
+
+  ```html
+  <!-- Progress Bar -->
+  <div class="w-full bg-slate-200 rounded-full h-2">
+    <div class="bg-blue-600 h-2 rounded-full transition-all duration-300"
+         style="width: 65%"
+         role="progressbar"
+         aria-valuenow="65"
+         aria-valuemin="0"
+         aria-valuemax="100">
+    </div>
+  </div>
+
+  <!-- With Label -->
+  <div class="space-y-1">
+    <div class="flex justify-between text-xs text-slate-500">
+      <span>Uploading...</span>
+      <span>65%</span>
+    </div>
+    <div class="w-full bg-slate-200 rounded-full h-1.5">
+      <div class="bg-blue-600 h-1.5 rounded-full" style="width: 65%"></div>
+    </div>
+  </div>
+  ```
+
+  ### TRANSITION TIMINGS
+
+  | Interaction | Duration | Easing | Tailwind |
+  |-------------|----------|--------|----------|
+  | Hover color | 100ms | ease-out | duration-100 |
+  | Focus ring | 100ms | ease-out | duration-100 |
+  | Button press | 75ms | ease-in | duration-75 |
+  | Dropdown open | 150ms | ease-out | duration-150 |
+  | Modal appear | 200ms | ease-out | duration-200 |
+  | Toast slide | 300ms | ease-in-out | duration-300 |
+  | Data update | 300ms | ease-in-out | duration-300 |
+
+  ### HOVER STATES
+
+  ```html
+  <!-- Card Hover (Subtle lift) -->
+  <div class="bg-white border border-slate-200 rounded-lg p-4
+              hover:border-slate-300 hover:shadow-sm
+              transition-all duration-150">
+    Content
+  </div>
+
+  <!-- Table Row Hover -->
+  <tr class="hover:bg-slate-50 transition-colors duration-100">
+    <td>...</td>
+  </tr>
+
+  <!-- Button Hover -->
+  <button class="bg-blue-600 hover:bg-blue-700
+                 transition-colors duration-100">
+    Action
+  </button>
+
+  <!-- Link Hover (No underline jump) -->
+  <a class="text-blue-600 hover:text-blue-800
+            underline-offset-2 hover:underline
+            transition-colors duration-100">
+    Learn more
+  </a>
+  ```
+
+  ### FOCUS STATES
+
+  ```html
+  <!-- Standard Focus Ring -->
+  <button class="focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2
+                 transition-shadow duration-100">
+    Button
+  </button>
+
+  <!-- Input Focus -->
+  <input class="border border-slate-200
+                focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20
+                transition-all duration-100" />
+
+  <!-- Card Focus (for keyboard navigation) -->
+  <div tabindex="0"
+       class="focus:outline-none focus:ring-2 focus:ring-blue-500
+              transition-shadow duration-100">
+    Card
+  </div>
+  ```
+
+  ### FEEDBACK ANIMATIONS
+
+  #### Success Checkmark
+  ```html
+  <svg class="w-5 h-5 text-emerald-500" viewBox="0 0 20 20">
+    <path class="animate-check"
+          fill="currentColor"
+          d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"/>
+  </svg>
+
+  <style>
+  @keyframes check {
+    from { stroke-dashoffset: 24; }
+    to { stroke-dashoffset: 0; }
+  }
+  .animate-check {
+    animation: check 300ms ease-out forwards;
+  }
+  </style>
+  ```
+
+  #### Error Shake
+  ```html
+  <div class="animate-shake">
+    <input class="border-red-500" />
+  </div>
+
+  <style>
+  @keyframes shake {
+    0%, 100% { transform: translateX(0); }
+    20%, 60% { transform: translateX(-4px); }
+    40%, 80% { transform: translateX(4px); }
+  }
+  .animate-shake {
+    animation: shake 300ms ease-in-out;
+  }
+  </style>
+  ```
+
+  ### TOAST NOTIFICATIONS
+
+  ```html
+  <!-- Toast Container -->
+  <div class="fixed bottom-4 right-4 z-50 space-y-2">
+    <!-- Success Toast -->
+    <div class="flex items-center gap-3 px-4 py-3 bg-white border border-slate-200
+                rounded-lg shadow-lg animate-slide-up">
+      <svg class="w-5 h-5 text-emerald-500"><!-- check icon --></svg>
+      <span class="text-sm text-slate-700">Changes saved successfully</span>
+      <button class="ml-auto p-1 hover:bg-slate-100 rounded">
+        <svg class="w-4 h-4 text-slate-400"><!-- x icon --></svg>
+      </button>
+    </div>
+  </div>
+
+  <style>
+  @keyframes slide-up {
+    from {
+      opacity: 0;
+      transform: translateY(16px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+  .animate-slide-up {
+    animation: slide-up 300ms ease-out;
+  }
+  </style>
+  ```
+
+  ### ANTI-PATTERNS (FORBIDDEN)
+
+  - ❌ Animations longer than 400ms
+  - ❌ Bounce or elastic easing (too playful)
+  - ❌ Parallax effects in dashboards
+  - ❌ Particle animations
+  - ❌ Auto-playing carousels
+  - ❌ Infinite loading spinners without timeout
+  - ❌ Full-page loading overlays
+  - ❌ Animated gradients on data cards
+  - ❌ Hover effects that shift layout
+
+  ### ACCESSIBILITY REQUIREMENTS
+
+  ```html
+  <!-- Respect reduced motion -->
+  <style>
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: 0.01ms !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+  </style>
+
+  <!-- Loading state announcement -->
+  <div aria-live="polite" aria-busy="true">
+    <span class="sr-only">Loading data...</span>
+    <div class="animate-pulse">...</div>
+  </div>
+  ```

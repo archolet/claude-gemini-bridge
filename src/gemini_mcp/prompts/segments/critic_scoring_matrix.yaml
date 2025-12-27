@@ -1,0 +1,327 @@
+---
+metadata:
+  name: critic_scoring_matrix
+  version: "1.0.0"
+  description: "9-dimension scoring matrix with weighted criteria for enterprise UI evaluation"
+  author: "Gemini MCP Team"
+  tags:
+    - segment
+    - enterprise
+    - critic
+    - scoring
+    - quality
+
+applies_to:
+  - critic
+
+priority: high
+
+content: |
+  ## CRITIC 9-DIMENSION SCORING MATRIX
+
+  As The Critic, you evaluate design output using a rigorous 9-dimension scoring system.
+  Each dimension has specific weight and criteria. Total score = weighted average.
+
+  ### SCORING DIMENSIONS
+
+  | # | Dimension | Weight | Focus Area |
+  |---|-----------|--------|------------|
+  | 1 | Semantic HTML | 15% | Proper tags, heading hierarchy |
+  | 2 | ARIA Compliance | 20% | Roles, labels, states |
+  | 3 | Keyboard Navigation | 15% | Focus order, skip links |
+  | 4 | Focus Management | 10% | Visible ring, trap, return |
+  | 5 | Dark Mode | 5% | dark: prefix, contrast |
+  | 6 | Responsive | 10% | Breakpoints, mobile-first |
+  | 7 | Performance | 10% | Animations, will-change |
+  | 8 | State Management | 10% | Alpine.js scope, stores |
+  | 9 | Error Handling | 5% | Validation, aria-live |
+
+  ### DIMENSION 1: SEMANTIC HTML (15%)
+
+  **Scoring Criteria:**
+
+  | Score | Criteria |
+  |-------|----------|
+  | 10 | All semantic tags used correctly (nav, main, section, article, aside, header, footer) |
+  | 8 | Most semantic tags correct, minor issues |
+  | 6 | Basic semantics present, some div soup |
+  | 4 | Heavy div usage, few semantic tags |
+  | 2 | No semantic structure |
+
+  **Checks:**
+  - [ ] `<nav>` for navigation areas
+  - [ ] `<main>` for primary content (exactly one per page)
+  - [ ] `<section>` with proper headings
+  - [ ] `<article>` for self-contained content
+  - [ ] Heading hierarchy (h1 → h2 → h3, no skips)
+  - [ ] `<button>` vs `<a>` used correctly
+
+  ### DIMENSION 2: ARIA COMPLIANCE (20%)
+
+  **Scoring Criteria:**
+
+  | Score | Criteria |
+  |-------|----------|
+  | 10 | Complete ARIA implementation: roles, labels, states, live regions |
+  | 8 | Good ARIA coverage, minor gaps in complex widgets |
+  | 6 | Basic ARIA present, missing on some interactive elements |
+  | 4 | Minimal ARIA, custom widgets unlabeled |
+  | 2 | No ARIA attributes |
+
+  **Required Patterns:**
+  ```html
+  <!-- Interactive elements MUST have -->
+  <button aria-label="Close modal" aria-expanded="false">
+  <input aria-describedby="error-hint" aria-invalid="true">
+
+  <!-- Custom widgets MUST have roles -->
+  <div role="tablist" aria-label="Settings">
+    <button role="tab" aria-selected="true">
+
+  <!-- Dynamic content MUST have -->
+  <div role="alert" aria-live="assertive">
+  <div role="status" aria-live="polite">
+  ```
+
+  **ARIA Checklist:**
+  - [ ] All buttons have `aria-label` or visible text
+  - [ ] Form inputs have `aria-describedby` for hints/errors
+  - [ ] Custom widgets have appropriate `role`
+  - [ ] Expandable elements have `aria-expanded`
+  - [ ] Selected states use `aria-selected` or `aria-current`
+  - [ ] Error messages use `role="alert"` or `aria-live="assertive"`
+
+  ### DIMENSION 3: KEYBOARD NAVIGATION (15%)
+
+  **Scoring Criteria:**
+
+  | Score | Criteria |
+  |-------|----------|
+  | 10 | Full keyboard access: tab order, arrow keys, shortcuts |
+  | 8 | All interactive elements reachable, minor sequence issues |
+  | 6 | Basic tab navigation, custom widgets need work |
+  | 4 | Some elements unreachable via keyboard |
+  | 2 | Keyboard navigation broken or missing |
+
+  **Required Patterns:**
+  - Tab order follows visual order (no positive tabindex)
+  - Skip link before main content
+  - Arrow keys for composite widgets (tabs, menus, grids)
+  - Escape to close modals/dropdowns
+  - Enter/Space to activate buttons
+
+  **Checklist:**
+  - [ ] Skip link: `<a href="#main" class="sr-only focus:not-sr-only">`
+  - [ ] No `tabindex > 0` (only 0 or -1)
+  - [ ] Roving tabindex OR aria-activedescendant for composites
+  - [ ] All custom controls keyboard accessible
+
+  ### DIMENSION 4: FOCUS MANAGEMENT (10%)
+
+  **Scoring Criteria:**
+
+  | Score | Criteria |
+  |-------|----------|
+  | 10 | Clear focus ring, proper trap, correct return focus |
+  | 8 | Good focus visibility, minor trap issues |
+  | 6 | Basic focus ring, incomplete trap implementation |
+  | 4 | Focus sometimes lost or invisible |
+  | 2 | No focus management |
+
+  **Focus Ring Requirements:**
+  ```css
+  /* Visible focus ring */
+  :focus-visible {
+    outline: 2px solid #2563eb;  /* blue-600 */
+    outline-offset: 2px;
+  }
+
+  /* Never remove focus without replacement */
+  /* BAD: */ :focus { outline: none; }
+  /* GOOD: */ :focus:not(:focus-visible) { outline: none; }
+  ```
+
+  **Focus Trap Pattern:**
+  - Modal opens → focus moves to first focusable element
+  - Tab cycles within modal (no escape)
+  - Escape/close → focus returns to trigger element
+  - Use `inert` attribute on background content
+
+  ### DIMENSION 5: DARK MODE (5%)
+
+  **Scoring Criteria:**
+
+  | Score | Criteria |
+  |-------|----------|
+  | 10 | Complete dark mode with `dark:` variants, proper contrast |
+  | 8 | Most elements have dark variants, minor gaps |
+  | 6 | Basic dark mode, some contrast issues |
+  | 4 | Incomplete dark mode, many elements unstyled |
+  | 2 | No dark mode support |
+
+  **Required Pattern:**
+  ```html
+  <!-- Every color class needs dark variant -->
+  <div class="bg-white dark:bg-slate-900 text-slate-900 dark:text-white">
+  <span class="text-slate-600 dark:text-slate-400">
+  <div class="border-slate-200 dark:border-slate-700">
+  ```
+
+  ### DIMENSION 6: RESPONSIVE (10%)
+
+  **Scoring Criteria:**
+
+  | Score | Criteria |
+  |-------|----------|
+  | 10 | Mobile-first, all breakpoints covered, no horizontal scroll |
+  | 8 | Good responsive, minor issues at edge breakpoints |
+  | 6 | Basic responsive, some layout breaks |
+  | 4 | Desktop-only or broken mobile |
+  | 2 | Fixed width, no responsive |
+
+  **Breakpoint Coverage:**
+  - `sm:` (640px) - Tablet
+  - `md:` (768px) - Small laptop
+  - `lg:` (1024px) - Desktop
+  - `xl:` (1280px) - Large desktop
+
+  **Checklist:**
+  - [ ] Mobile-first base styles
+  - [ ] Typography scales appropriately
+  - [ ] Grid columns reduce on mobile
+  - [ ] No horizontal overflow
+  - [ ] Touch targets ≥ 44px on mobile
+
+  ### DIMENSION 7: PERFORMANCE (10%)
+
+  **Scoring Criteria:**
+
+  | Score | Criteria |
+  |-------|----------|
+  | 10 | Only transform/opacity animated, will-change used, no repaints |
+  | 8 | Good animation performance, minor issues |
+  | 6 | Some layout-triggering animations |
+  | 4 | Heavy animations affecting performance |
+  | 2 | Animations cause jank/layout thrash |
+
+  **Performance Rules:**
+  ```css
+  /* GOOD - GPU accelerated */
+  transition: transform 200ms, opacity 200ms;
+
+  /* BAD - triggers layout */
+  transition: width 200ms, height 200ms, margin 200ms;
+  ```
+
+  **Animation Budget:**
+  - Max duration: 400ms
+  - Prefer `ease-out` for enter, `ease-in` for exit
+  - Use `will-change` sparingly (only on animated elements)
+  - No animations during scroll (except parallax)
+
+  ### DIMENSION 8: STATE MANAGEMENT (10%)
+
+  **Scoring Criteria:**
+
+  | Score | Criteria |
+  |-------|----------|
+  | 10 | Clean x-data scope, global stores for shared state |
+  | 8 | Good state organization, minor scope leaks |
+  | 6 | Basic Alpine.js, some inline logic |
+  | 4 | Messy state, global pollution |
+  | 2 | No state management |
+
+  **Alpine.js Patterns:**
+  ```html
+  <!-- Scoped component state -->
+  <div x-data="{ isOpen: false, items: [] }">
+
+  <!-- Global store for shared state -->
+  <script>
+    Alpine.store('notifications', { items: [], add(msg) {...} });
+  </script>
+
+  <!-- Using stores -->
+  <div x-data x-text="$store.notifications.items.length">
+  ```
+
+  **Checklist:**
+  - [ ] Component state scoped to `x-data`
+  - [ ] Global state in `Alpine.store()`
+  - [ ] No inline JS logic in templates
+  - [ ] `x-cloak` on initially hidden elements
+
+  ### DIMENSION 9: ERROR HANDLING (5%)
+
+  **Scoring Criteria:**
+
+  | Score | Criteria |
+  |-------|----------|
+  | 10 | Inline errors, aria-live announcements, clear recovery |
+  | 8 | Good error display, minor a11y gaps |
+  | 6 | Basic error messages, no announcements |
+  | 4 | Errors shown but not accessible |
+  | 2 | No error handling |
+
+  **Error Pattern:**
+  ```html
+  <div class="relative">
+    <input id="email" aria-describedby="email-error" aria-invalid="true"
+           class="border-rose-500">
+    <p id="email-error" role="alert" class="text-sm text-rose-600">
+      Please enter a valid email address
+    </p>
+  </div>
+  ```
+
+  ---
+
+  ## SCORING OUTPUT FORMAT
+
+  Return your evaluation as structured JSON:
+
+  ```json
+  {
+    "scores": {
+      "semantic_html": { "score": 8, "weight": 0.15, "notes": "..." },
+      "aria_compliance": { "score": 7, "weight": 0.20, "notes": "..." },
+      "keyboard_nav": { "score": 9, "weight": 0.15, "notes": "..." },
+      "focus_management": { "score": 8, "weight": 0.10, "notes": "..." },
+      "dark_mode": { "score": 10, "weight": 0.05, "notes": "..." },
+      "responsive": { "score": 8, "weight": 0.10, "notes": "..." },
+      "performance": { "score": 9, "weight": 0.10, "notes": "..." },
+      "state_management": { "score": 7, "weight": 0.10, "notes": "..." },
+      "error_handling": { "score": 8, "weight": 0.05, "notes": "..." }
+    },
+    "weighted_total": 7.95,
+    "pass": false,
+    "critical_issues": [
+      "ARIA labels missing on 3 buttons",
+      "Focus trap incomplete in modal"
+    ],
+    "recommendations": [
+      "Add aria-label to icon-only buttons",
+      "Implement focus trap using inert attribute"
+    ]
+  }
+  ```
+
+  ## SCORE THRESHOLDS
+
+  | Total Score | Result | Action |
+  |-------------|--------|--------|
+  | ≥ 8.0 | PASS | Approve for production |
+  | 7.0 - 7.9 | CONDITIONAL | Minor fixes, may pass with review |
+  | 5.0 - 6.9 | FAIL | Requires rework |
+  | < 5.0 | REJECT | Fundamental issues, restart |
+
+  ## ENTERPRISE THEME MODIFIERS
+
+  For `corporate` or `enterprise` themes, apply stricter criteria:
+
+  - ARIA Compliance: Minimum score 9
+  - Keyboard Navigation: Minimum score 9
+  - Performance: No animations > 200ms
+  - Colors: Only slate/zinc/blue palette
+  - Gradients: Only for data visualization
+

@@ -17,21 +17,19 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass, field
-from enum import Enum
 from typing import Optional
 
+# Import standardized types from central location
+from gemini_mcp.validation.types import ValidationSeverity
 
-class AnimationSeverity(Enum):
-    """Severity level for animation issues."""
-    ERROR = "error"
-    WARNING = "warning"
-    INFO = "info"
+# Backward compatibility alias - AnimationSeverity is now ValidationSeverity
+AnimationSeverity = ValidationSeverity
 
 
 @dataclass
 class AnimationIssue:
     """A single animation validation issue."""
-    severity: AnimationSeverity
+    severity: ValidationSeverity
     message: str
     duration_ms: Optional[int] = None
     suggestion: Optional[str] = None
@@ -58,11 +56,11 @@ class AnimationValidationResult:
 
     @property
     def error_count(self) -> int:
-        return sum(1 for i in self.issues if i.severity == AnimationSeverity.ERROR)
+        return sum(1 for i in self.issues if i.severity == ValidationSeverity.ERROR)
 
     @property
     def warning_count(self) -> int:
-        return sum(1 for i in self.issues if i.severity == AnimationSeverity.WARNING)
+        return sum(1 for i in self.issues if i.severity == ValidationSeverity.WARNING)
 
     def to_dict(self) -> dict:
         return {

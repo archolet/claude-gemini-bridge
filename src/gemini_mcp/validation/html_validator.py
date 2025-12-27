@@ -14,61 +14,13 @@ Validates HTML output from The Architect agent for:
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass, field
-from enum import Enum
-from typing import Optional
 
 from gemini_mcp.validation.contrast_checker import check_wcag_compliance
-
-
-class ValidationSeverity(Enum):
-    """Severity level for validation issues."""
-
-    ERROR = "error"
-    WARNING = "warning"
-    INFO = "info"
-
-
-@dataclass
-class ValidationIssue:
-    """A single validation issue."""
-
-    severity: ValidationSeverity
-    message: str
-    line: Optional[int] = None
-    suggestion: Optional[str] = None
-
-    def to_dict(self) -> dict:
-        return {
-            "severity": self.severity.value,
-            "message": self.message,
-            "line": self.line,
-            "suggestion": self.suggestion,
-        }
-
-
-@dataclass
-class ValidationResult:
-    """Result of validation."""
-
-    valid: bool
-    issues: list[ValidationIssue] = field(default_factory=list)
-
-    @property
-    def error_count(self) -> int:
-        return sum(1 for i in self.issues if i.severity == ValidationSeverity.ERROR)
-
-    @property
-    def warning_count(self) -> int:
-        return sum(1 for i in self.issues if i.severity == ValidationSeverity.WARNING)
-
-    def to_dict(self) -> dict:
-        return {
-            "valid": self.valid,
-            "error_count": self.error_count,
-            "warning_count": self.warning_count,
-            "issues": [i.to_dict() for i in self.issues],
-        }
+from gemini_mcp.validation.types import (
+    ValidationSeverity,
+    ValidationIssue,
+    ValidationResult,
+)
 
 
 class HTMLValidator:

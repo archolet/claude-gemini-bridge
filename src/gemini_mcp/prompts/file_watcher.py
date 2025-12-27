@@ -229,8 +229,9 @@ class FileWatcher:
             self._original_sighup_handler = signal.getsignal(signal.SIGHUP)
             signal.signal(signal.SIGHUP, self._handle_sighup)
             logger.debug("SIGHUP handler registered for manual reload")
-        except (ValueError, OSError):
+        except (AttributeError, ValueError, OSError):
             # Not on a Unix system or in a thread that can't handle signals
+            # AttributeError: signal.SIGHUP doesn't exist on Windows
             logger.debug("SIGHUP handler not available on this platform")
 
     def _restore_signal_handler(self) -> None:
@@ -239,7 +240,8 @@ class FileWatcher:
             if self._original_sighup_handler is not None:
                 signal.signal(signal.SIGHUP, self._original_sighup_handler)
                 self._original_sighup_handler = None
-        except (ValueError, OSError):
+        except (AttributeError, ValueError, OSError):
+            # AttributeError: signal.SIGHUP doesn't exist on Windows
             pass
 
     def _handle_sighup(self, signum: int, frame) -> None:

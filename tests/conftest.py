@@ -4,6 +4,27 @@ import pytest
 from unittest.mock import MagicMock, AsyncMock
 
 
+# =============================================================================
+# Pytest Configuration
+# =============================================================================
+
+
+def pytest_configure(config):
+    """Register custom markers for test categorization."""
+    config.addinivalue_line(
+        "markers",
+        "e2e: end-to-end tests requiring real Gemini API",
+    )
+    config.addinivalue_line(
+        "markers",
+        "slow: tests that take longer than 30 seconds",
+    )
+    config.addinivalue_line(
+        "markers",
+        "expensive: tests with high API token cost",
+    )
+
+
 @pytest.fixture
 def mock_genai_client():
     """Mock Google GenAI client."""

@@ -51,6 +51,20 @@ from . import customizers  # noqa: F401
 # Import constants for external use
 from . import constants  # noqa: F401
 
+# Import vibes for design personality
+from . import vibes  # noqa: F401
+from .vibes import (
+    get_vibe,
+    list_vibes,
+    list_enterprise_vibes,
+    get_vibe_for_industry,
+    get_vibe_prompt_segment,
+    ALL_VIBES,
+    CORE_VIBES,
+    ENTERPRISE_VIBES,
+    ENTERPRISE_VIBE_COMPATIBILITY,
+)
+
 __all__ = [
     # Config dataclasses
     "ThemeConfig",
@@ -79,4 +93,15 @@ __all__ = [
     "bases",
     "customizers",
     "constants",
+    "vibes",
+    # Vibes exports
+    "get_vibe",
+    "list_vibes",
+    "list_enterprise_vibes",
+    "get_vibe_for_industry",
+    "get_vibe_prompt_segment",
+    "ALL_VIBES",
+    "CORE_VIBES",
+    "ENTERPRISE_VIBES",
+    "ENTERPRISE_VIBE_COMPATIBILITY",
 ]

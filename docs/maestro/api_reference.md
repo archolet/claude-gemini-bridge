@@ -12,10 +12,13 @@ Start a new MAESTRO design wizard session.
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
-| `project_context` | string | No | Project description for context |
+| `project_context` | string | No | Project description for context (v1 mode) |
 | `existing_html` | string | No | Existing HTML for refinement |
+| `design_brief` | string | No | **NEW in v2:** Design brief for soul extraction |
 
-**Returns:**
+> **v2 Mode:** When `design_brief` is provided, MAESTRO v2 extracts a `ProjectSoul` using Gemini, enabling intelligent gap detection and dynamic question generation.
+
+**Returns (v1 - no design_brief):**
 
 ```json
 {
@@ -31,6 +34,56 @@ Start a new MAESTRO design wizard session.
     ]
   },
   "progress": 0.0,
+  "status": "interviewing"
+}
+```
+
+**Returns (v2 - with design_brief):**
+
+```json
+{
+  "session_id": "maestro_v2_abc123",
+  "soul": {
+    "metadata": {
+      "project_name": "FinDash Pro",
+      "project_type": "dashboard",
+      "industry": "fintech"
+    },
+    "brand_personality": {
+      "sincerity": 0.7,
+      "excitement": 0.4,
+      "competence": 0.9,
+      "sophistication": 0.8,
+      "ruggedness": 0.2,
+      "dominant_trait": "competence",
+      "archetype": "The Expert"
+    },
+    "confidence_scores": {
+      "brand": 0.85,
+      "audience": 0.72,
+      "visual": 0.60,
+      "emotion": 0.78,
+      "overall": 0.74
+    },
+    "gap_analysis": {
+      "gaps": [
+        {
+          "field": "visual_language.colors",
+          "priority": "important",
+          "suggested_question": "Marka renk paletiniz var mı?"
+        }
+      ],
+      "critical_count": 0,
+      "important_count": 1
+    }
+  },
+  "question": {
+    "id": "dyn_visual_colors",
+    "text": "Marka renk paletiniz var mı?",
+    "phase": "context_gathering",
+    "options": [...]
+  },
+  "progress": 0.33,
   "status": "interviewing"
 }
 ```
@@ -164,7 +217,7 @@ Abort and cleanup a MAESTRO session.
 
 ## Python API
 
-### Maestro Class
+### Maestro Class (v1)
 
 ```python
 from gemini_mcp.maestro.core import Maestro
@@ -207,6 +260,123 @@ class Maestro:
 
     def abort_session(self, session_id: str) -> bool:
         """Abort and cleanup session."""
+```
+
+---
+
+### MAESTROv2Wrapper (v2 - NEW)
+
+```python
+from gemini_mcp.maestro import MAESTROv2Wrapper
+
+class MAESTROv2Wrapper:
+    """
+    v2 wrapper with soul-aware interview capabilities.
+    Creates legacy Maestro internally for backward compatibility.
+    """
+
+    def __init__(
+        self,
+        client: Any,  # GeminiClient
+        config: MAESTROConfig | None = None,
+    ) -> None:
+        """
+        Initialize v2 wrapper.
+
+        Note: Creates legacy_maestro internally.
+        """
+        ...
+
+    async def start_session(
+        self,
+        design_brief: str | None = None,
+        project_context: str = "",
+        existing_html: str | None = None,
+    ) -> tuple[str, SoulAwareSessionResult]:
+        """
+        Start a soul-aware session.
+
+        If design_brief is provided:
+        - Extracts ProjectSoul using Gemini
+        - Detects gaps and generates dynamic questions
+        - Returns soul + first gap-filling question
+
+        Falls back to v1 if design_brief is empty or extraction fails.
+        """
+        ...
+
+    async def process_answer(
+        self,
+        session_id: str,
+        answer: Answer,
+    ) -> SoulAwareSessionResult:
+        """Process answer and update soul with new information."""
+        ...
+
+    async def execute(
+        self,
+        session_id: str,
+        use_trifecta: bool = False,
+        quality_target: str = "production",
+    ) -> dict[str, Any]:
+        """Execute with soul-informed design parameters."""
+        ...
+```
+
+---
+
+### SoulAwareSession (v2 - NEW)
+
+```python
+from gemini_mcp.maestro import SoulAwareSession, SessionState
+
+class SoulAwareSession:
+    """
+    Session with integrated ProjectSoul.
+    Uses state machine for interview flow.
+    """
+
+    @property
+    def state(self) -> SessionState:
+        """Current session state."""
+
+    @property
+    def soul(self) -> ProjectSoul | None:
+        """Extracted project soul (None until extraction)."""
+
+    @property
+    def current_phase(self) -> InterviewPhase:
+        """Current interview phase."""
+
+    def set_soul(self, soul: ProjectSoul) -> None:
+        """
+        Attach extracted soul to session.
+        Automatically transitions to GATHERING_CONTEXT state.
+        """
+        ...
+
+    def get_analytics(self) -> dict[str, Any]:
+        """
+        Get session analytics including:
+        - phases_completed: list[str]
+        - answers_collected: int
+        - confidence_history: list[float]
+        - duration_seconds: float
+        """
+        ...
+
+
+class SessionState(Enum):
+    """v2 Session states."""
+    CREATED = "created"
+    GATHERING_CONTEXT = "gathering_context"
+    DEEP_DIVE = "deep_dive"
+    VISUAL = "visual"
+    VALIDATION = "validation"
+    READY = "ready"
+    EXECUTING = "executing"
+    COMPLETE = "complete"
+    FAILED = "failed"
 ```
 
 ---
@@ -452,4 +622,239 @@ answer = Answer(question_id="q_intent_main", selected_options=["invalid_opt"])
 # No decision ready
 result = await maestro.execute("maestro_interviewing")
 # Returns: {"error": "No decision ready", "status": "failed"}
+```
+
+---
+
+## v2 Models Reference (NEW)
+
+### ProjectSoul
+
+```python
+from gemini_mcp.maestro.models.soul import ProjectSoul
+
+@dataclass
+class ProjectSoul:
+    """The 'soul' of a project - captures its essence."""
+
+    # Unique identifier
+    id: str
+
+    # Core metadata
+    metadata: ProjectMetadata
+
+    # Brand personality (Aaker Framework)
+    brand_personality: BrandPersonality
+
+    # Target audience profile
+    target_audience: AudienceProfile
+
+    # Visual language preferences
+    visual_language: VisualLanguage
+
+    # Emotional framework
+    emotional_framework: EmotionalFramework
+
+    # Confidence scores (0.0 - 1.0)
+    confidence_scores: ConfidenceScores
+
+    # Gap analysis
+    gap_analysis: GapAnalysis
+
+    # Timestamps
+    created_at: datetime
+    updated_at: datetime
+
+    # Source brief (original text)
+    source_brief: str | None = None
+```
+
+---
+
+### BrandPersonality (Aaker Framework)
+
+```python
+@dataclass
+class BrandPersonality:
+    """
+    Aaker's 5-dimension brand personality model.
+    Each dimension is scored 0.0 to 1.0.
+    """
+
+    sincerity: float       # Honest, wholesome, cheerful
+    excitement: float      # Daring, spirited, imaginative
+    competence: float      # Reliable, intelligent, successful
+    sophistication: float  # Upper class, charming
+    ruggedness: float      # Outdoorsy, tough
+
+    # Derived traits
+    dominant_trait: str    # "sincerity" | "excitement" | etc.
+    archetype: str         # "The Hero", "The Sage", "The Creator", etc.
+```
+
+**Archetype Mapping:**
+
+| Dominant Trait | Archetype |
+|----------------|-----------|
+| sincerity | "The Innocent", "The Caregiver" |
+| excitement | "The Hero", "The Rebel" |
+| competence | "The Sage", "The Expert" |
+| sophistication | "The Ruler", "The Magician" |
+| ruggedness | "The Explorer", "The Outlaw" |
+
+---
+
+### EmotionalFramework
+
+```python
+from gemini_mcp.maestro.models.emotion import (
+    EmotionalFramework,
+    EmotionalTone,
+    Emotion
+)
+
+class EmotionalTone(Enum):
+    """Available emotional tones for design."""
+    PROFESSIONAL = "professional"
+    OPTIMISTIC = "optimistic"
+    INNOVATIVE = "innovative"
+    TRUSTWORTHY = "trustworthy"
+    PLAYFUL = "playful"
+    BOLD = "bold"
+    ELEGANT = "elegant"
+    MINIMAL = "minimal"
+
+@dataclass
+class EmotionalFramework:
+    """Emotional goals for the design."""
+
+    primary_emotion: Emotion      # Main feeling to evoke
+    secondary_emotion: Emotion    # Supporting emotion
+    primary_tone: EmotionalTone   # Communication style
+    secondary_tone: EmotionalTone
+    avoid_emotions: list[str]     # Emotions to avoid
+```
+
+---
+
+### GapAnalysis
+
+```python
+from gemini_mcp.maestro.models.gap import GapAnalysis, GapInfo, GapPriority
+
+class GapPriority(Enum):
+    """Priority levels for information gaps."""
+    CRITICAL = "critical"      # Blocks design
+    IMPORTANT = "important"    # Affects quality
+    NICE_TO_HAVE = "nice_to_have"
+
+@dataclass
+class GapInfo:
+    """Information about a specific gap."""
+
+    field: str                 # e.g., "visual_language.colors"
+    priority: GapPriority
+    current_value: Any | None  # What we have (if anything)
+    suggested_question: str    # Question to fill gap
+    reason: str               # Why this gap matters
+
+@dataclass
+class GapAnalysis:
+    """Analysis of all gaps in extracted soul."""
+
+    gaps: list[GapInfo]
+    critical_count: int
+    important_count: int
+    nice_to_have_count: int
+
+    @property
+    def total_gaps(self) -> int:
+        return len(self.gaps)
+
+    @property
+    def has_critical_gaps(self) -> bool:
+        return self.critical_count > 0
+```
+
+---
+
+### ConfidenceScores
+
+```python
+@dataclass
+class ConfidenceScores:
+    """Confidence levels for each extraction dimension."""
+
+    brand: float      # Brand personality confidence
+    audience: float   # Target audience confidence
+    visual: float     # Visual language confidence
+    emotion: float    # Emotional framework confidence
+    overall: float    # Weighted average
+
+    def is_sufficient(self, threshold: float = 0.6) -> bool:
+        """Check if overall confidence is above threshold."""
+        return self.overall >= threshold
+```
+
+---
+
+### InterviewPhase
+
+```python
+from gemini_mcp.maestro.models.soul import InterviewPhase
+
+class InterviewPhase(Enum):
+    """Interview phases for v2 state machine."""
+
+    INITIAL = "initial"
+    SOUL_EXTRACTION = "extraction"
+    CONTEXT_GATHERING = "gathering"
+    DEEP_DIVE = "deep_dive"
+    VISUAL_EXPLORATION = "visual"
+    VALIDATION = "validation"
+    SYNTHESIS = "synthesis"
+    EXECUTION = "execution"
+    COMPLETE = "complete"
+```
+
+---
+
+## Turkish Prompt Templates
+
+v2 includes Turkish prompt templates for all user-facing messages:
+
+### Extraction Prompts
+- `SOUL_EXTRACTION_PROMPT` - Extract ProjectSoul from brief
+- `GAP_DETECTION_PROMPT` - Identify missing information
+- `BRIEF_ANALYSIS_PROMPT` - Analyze brief quality
+- `SYNTHESIS_PROMPT` - Synthesize final design parameters
+
+### Feedback Messages
+- `VALIDATION_MESSAGES` - Field validation errors
+- `ERROR_MESSAGES` - Error handling with recovery actions
+- `SUCCESS_MESSAGES` - Success confirmations with emojis
+
+### Helper Functions
+
+```python
+from gemini_mcp.maestro.prompts.tr.extraction import (
+    build_soul_extraction_request,
+    build_gap_detection_request,
+    build_synthesis_request,
+)
+
+from gemini_mcp.maestro.prompts.tr.feedback import (
+    get_validation_message,
+    get_error_message,
+    get_success_message,
+    format_error_for_display,
+    format_success_for_display,
+)
+
+# Example usage
+error = get_error_message("session_expired")
+# {"title": "Oturum Sona Erdi", "message": "...", "action": "Yeni Oturum"}
+
+success = format_success_for_display("soul_extracted")
+# "✨ Proje Ruhu Çıkarıldı: Projenizin kimliği başarıyla belirlendi."
 ```

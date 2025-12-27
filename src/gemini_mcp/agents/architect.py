@@ -23,10 +23,10 @@ from __future__ import annotations
 
 import logging
 import re
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING, Any, Optional
 
 from gemini_mcp.agents.base import AgentConfig, AgentResult, AgentRole, BaseAgent
-from gemini_mcp.prompts import ARCHITECT_SYSTEM_PROMPT
+from gemini_mcp.prompts.prompt_loader import get_prompt
 from gemini_mcp.validation import HTMLValidator
 
 if TYPE_CHECKING:
@@ -75,9 +75,12 @@ class ArchitectAgent(BaseAgent):
             auto_fix=True,
         )
 
-    def get_system_prompt(self) -> str:
-        """Return The Architect's system prompt."""
-        return ARCHITECT_SYSTEM_PROMPT
+    def get_system_prompt(self, variables: dict[str, Any] | None = None) -> str:
+        """Return The Architect's system prompt from YAML template."""
+        return get_prompt(
+            agent_name="architect",
+            variables=variables or {},
+        )
 
     async def execute(self, context: "AgentContext") -> AgentResult:
         """

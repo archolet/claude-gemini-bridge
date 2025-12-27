@@ -1,0 +1,410 @@
+---
+metadata:
+  name: quality_guard_checklist
+  version: "1.0.0"
+  description: "Extended validation rules, auto-fix patterns, and enterprise checks for QualityGuard"
+  author: "Gemini MCP Team"
+  tags:
+    - segment
+    - enterprise
+    - quality-guard
+    - validation
+    - auto-fix
+
+applies_to:
+  - quality_guard
+
+priority: high
+
+content: |
+  ## QUALITY GUARD EXTENDED CHECKLIST
+
+  This segment extends QualityGuard with enterprise-specific validation rules
+  and comprehensive auto-fix patterns for common accessibility issues.
+
+  ---
+
+  ## ALPINE.JS VALIDATION RULES
+
+  ### CRITICAL: x-cloak Missing
+
+  **Pattern:**
+  Elements with `x-show` or `x-if` that are initially hidden MUST have `x-cloak`
+  to prevent flash of unstyled content (FOUC).
+
+  **Detection:**
+  ```regex
+  x-show=["'][^"']*["'](?![^>]*x-cloak)
+  ```
+
+  **Auto-Fix:**
+  ```html
+  <!-- BEFORE -->
+  <div x-show="isOpen" class="modal">
+
+  <!-- AFTER -->
+  <div x-cloak x-show="isOpen" class="modal">
+  ```
+
+  **Required CSS:**
+  ```css
+  [x-cloak] { display: none !important; }
+  ```
+
+  ### ERROR: x-data Scope Leak
+
+  **Detection:**
+  - `x-data` nested inside another `x-data` without clear purpose
+  - `$store` access without corresponding `Alpine.store()` definition
+  - `x-ref` used outside its `x-data` scope
+
+  **Check:**
+  ```javascript
+  // Every $store.name must have:
+  Alpine.store('name', { ... });
+  ```
+
+  ### ERROR: x-init Async Without Wrapper
+
+  **Pattern:**
+  Async operations in `x-init` without proper wrapper cause race conditions.
+
+  **BAD:**
+  ```html
+  <div x-data="{ items: [] }" x-init="items = await fetchItems()">
+  ```
+
+  **GOOD:**
+  ```html
+  <div x-data="{ items: [], loading: true }"
+       x-init="(async () => { items = await fetchItems(); loading = false; })()">
+  ```
+
+  ---
+
+  ## ACCESSIBILITY AUTO-FIX RULES
+
+  ### Rule 1: Error Div → role="alert"
+
+  **Detection:**
+  Any div containing error-related classes or text without proper ARIA.
+
+  **Patterns to detect:**
+  - `class=".*error.*"` without `role="alert"`
+  - `class=".*invalid.*"` without `aria-invalid`
+  - `class=".*text-red.*"` near form inputs
+
+  **Auto-Fix:**
+  ```html
+  <!-- BEFORE -->
+  <div class="text-red-600 text-sm">Invalid email address</div>
+
+  <!-- AFTER -->
+  <div role="alert" class="text-red-600 text-sm">Invalid email address</div>
+  ```
+
+  ### Rule 2: Dynamic Content → aria-live
+
+  **Detection:**
+  Elements updated via JavaScript without `aria-live` attribute.
+
+  **Patterns:**
+  - Elements with `x-text` or `x-html` that display user feedback
+  - Toast/notification containers
+  - Loading state indicators
+  - Counter/badge updates
+
+  **Auto-Fix:**
+  ```html
+  <!-- BEFORE -->
+  <div x-text="message" class="toast">
+
+  <!-- AFTER -->
+  <div x-text="message" class="toast" aria-live="polite" role="status">
+  ```
+
+  **Severity Mapping:**
+  | Content Type | aria-live | role |
+  |--------------|-----------|------|
+  | Errors/Alerts | assertive | alert |
+  | Success messages | polite | status |
+  | Loading states | polite | status |
+  | Live counters | off | - |
+
+  ### Rule 3: Custom Interactive → tabindex="0"
+
+  **Detection:**
+  Clickable elements that are not natively focusable.
+
+  **Patterns:**
+  - `<div>` or `<span>` with `@click` or `onclick`
+  - Elements with `cursor-pointer` class but no tabindex
+  - Custom cards/tiles with click handlers
+
+  **Auto-Fix:**
+  ```html
+  <!-- BEFORE -->
+  <div @click="selectItem(item)" class="cursor-pointer">
+
+  <!-- AFTER -->
+  <div @click="selectItem(item)"
+       @keydown.enter="selectItem(item)"
+       @keydown.space.prevent="selectItem(item)"
+       tabindex="0"
+       role="button"
+       class="cursor-pointer">
+  ```
+
+  ### Rule 4: Form Button → type="button"
+
+  **Detection:**
+  Buttons inside forms without explicit `type` attribute default to `type="submit"`.
+
+  **Auto-Fix:**
+  ```html
+  <!-- BEFORE -->
+  <form>
+    <button class="btn">Cancel</button>  <!-- This submits! -->
+  </form>
+
+  <!-- AFTER -->
+  <form>
+    <button type="button" class="btn">Cancel</button>
+  </form>
+  ```
+
+  **Exception:** Buttons clearly intended for submission (text contains "Submit", "Send", etc.)
+
+  ### Rule 5: Icon-Only Button → aria-label
+
+  **Detection:**
+  Buttons containing only SVG/icon without visible text or aria-label.
+
+  **Patterns:**
+  ```html
+  <button class="p-2">
+    <svg>...</svg>
+  </button>
+  ```
+
+  **Auto-Fix:**
+  ```html
+  <button class="p-2" aria-label="Close">
+    <svg>...</svg>
+  </button>
+  ```
+
+  **Label Inference:**
+  | Icon Type | Suggested Label |
+  |-----------|-----------------|
+  | X / close | "Close" |
+  | Menu / bars | "Open menu" |
+  | Search / magnifier | "Search" |
+  | Settings / gear | "Settings" |
+  | Edit / pencil | "Edit" |
+  | Delete / trash | "Delete" |
+  | Plus | "Add" |
+  | Minus | "Remove" |
+
+  ---
+
+  ## ENTERPRISE VALIDATION RULES
+
+  ### Theme-Specific Checks (Corporate/Enterprise)
+
+  When `theme === "corporate"` or `industry` is set:
+
+  **Color Palette Enforcement:**
+  ```regex
+  # FORBIDDEN in corporate theme:
+  purple|violet|indigo|fuchsia|pink|rose  # (except for error states)
+
+  # ALLOWED:
+  slate|zinc|gray|blue|emerald|amber|red  # (status colors)
+  ```
+
+  **Auto-Fix:**
+  Replace non-compliant colors with enterprise equivalents:
+  | Original | Replacement |
+  |----------|-------------|
+  | purple-* | blue-* |
+  | violet-* | blue-* |
+  | indigo-* | blue-* |
+  | pink-* | rose-* (errors only) |
+
+  **Effects Enforcement:**
+  ```regex
+  # FORBIDDEN in corporate theme:
+  backdrop-filter|blur|glass|neon|glow|gradient(?!.*(chart|graph))
+  ```
+
+  **Animation Enforcement:**
+  - Max duration: 200ms (not 400ms)
+  - No parallax or decorative animations
+  - Only functional transitions (hover, focus)
+
+  ### Data Density Checks
+
+  For `component_type` in ["dashboard", "data_table", "pricing_table"]:
+
+  **Minimum Requirements:**
+  - [ ] At least 3 data columns visible
+  - [ ] Pagination or virtual scroll for > 10 rows
+  - [ ] Sortable columns have aria-sort
+  - [ ] Selection checkboxes have aria-label
+  - [ ] Row hover state defined
+
+  ---
+
+  ## CROSS-LAYER VALIDATION EXTENDED
+
+  ### JS-to-HTML ID Matching
+
+  **Check all getElementById calls:**
+  ```javascript
+  // Extract IDs from JS
+  const jsIds = html.match(/getElementById\(['"]([^'"]+)['"]\)/g);
+
+  // Verify each exists in HTML
+  for (const id of jsIds) {
+    if (!htmlContainsId(id)) {
+      // CRITICAL: ID mismatch
+    }
+  }
+  ```
+
+  ### CSS-to-HTML Class Matching
+
+  **Check custom CSS classes:**
+  ```javascript
+  // Extract class selectors from CSS (not Tailwind)
+  const cssClasses = css.match(/\.([a-z][a-z0-9-_]+)/gi);
+
+  // Verify usage in HTML (warning only - might be dynamically added)
+  ```
+
+  ### Animation Target Validation
+
+  **Check data-interaction attributes:**
+  ```javascript
+  // Elements with data-interaction must have matching IDs
+  const interactionElements = html.match(/data-interaction="[^"]+"/g);
+
+  // JS must have handlers for these
+  ```
+
+  ---
+
+  ## SKIP LINK VALIDATION
+
+  ### Detection
+
+  Skip link MUST be the first focusable element on the page.
+
+  **Pattern:**
+  ```html
+  <body>
+    <a href="#main" class="sr-only focus:not-sr-only ...">
+      Skip to main content
+    </a>
+    <!-- Rest of page -->
+    <main id="main">
+  ```
+
+  **Checks:**
+  - [ ] Skip link exists
+  - [ ] Links to valid ID (usually #main)
+  - [ ] Has sr-only + focus:not-sr-only classes
+  - [ ] Is first focusable element
+
+  **Auto-Fix:**
+  If skip link missing, inject at start of body.
+
+  ---
+
+  ## HEADING HIERARCHY VALIDATION
+
+  ### Detection
+
+  Heading levels must not skip (h1 → h3 is invalid).
+
+  **Check:**
+  ```javascript
+  const headings = html.match(/<h([1-6])/g);
+  let prevLevel = 0;
+
+  for (const h of headings) {
+    const level = parseInt(h[2]);
+    if (level > prevLevel + 1 && prevLevel !== 0) {
+      // WARNING: Heading skip detected
+    }
+    prevLevel = level;
+  }
+  ```
+
+  **Auto-Fix:**
+  Do NOT auto-fix headings (structural change). Report only.
+
+  ---
+
+  ## PERFORMANCE ANTI-PATTERNS
+
+  ### Layout Thrashing in Loops
+
+  **Detection:**
+  ```regex
+  for|while|forEach|map.*\n.*getBoundingClientRect|offsetWidth|offsetHeight
+  ```
+
+  **Severity:** WARNING (report but don't block)
+
+  ### Synchronous XHR
+
+  **Detection:**
+  ```regex
+  XMLHttpRequest.*open\([^,]+,[^,]+,\s*false
+  ```
+
+  **Severity:** ERROR (blocks main thread)
+
+  ---
+
+  ## AUTO-FIX PRIORITY ORDER
+
+  When multiple fixes needed, apply in this order:
+
+  1. **CRITICAL** - Syntax errors, duplicate IDs, unclosed tags
+  2. **CRITICAL** - Cross-layer mismatches (JS→HTML IDs)
+  3. **ERROR** - Accessibility (ARIA, focus, keyboard)
+  4. **ERROR** - Vendor prefixes (CSS compatibility)
+  5. **WARNING** - Report only (dark mode, semantics)
+  6. **INFO** - Suggestions only (performance, style)
+
+  ---
+
+  ## VALIDATION OUTPUT EXTENSION
+
+  Add these fields to standard output:
+
+  ```json
+  {
+    "alpine_validation": {
+      "x_cloak_missing": [],
+      "store_undefined": [],
+      "scope_leaks": []
+    },
+    "enterprise_compliance": {
+      "color_violations": [],
+      "effect_violations": [],
+      "animation_violations": []
+    },
+    "accessibility_score": 8.5,
+    "auto_fixes_by_type": {
+      "aria_labels": 3,
+      "role_alerts": 1,
+      "tabindex": 2,
+      "x_cloak": 1
+    }
+  }
+  ```
+

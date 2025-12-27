@@ -72,6 +72,11 @@ __all__ = [
     "with_retry",
     "retry_async",
     "ResponseValidator",
+    # Error Recovery - Auth & Sync Retry (NEW)
+    "AUTH_ERROR_PATTERNS",
+    "is_auth_error",
+    "with_retry_sync",
+    "retry_sync",
     # Few Shot Examples
     "COMPONENT_EXAMPLES",
     "SECTION_CHAIN_EXAMPLES",
@@ -213,6 +218,11 @@ from .error_recovery import (
     with_retry,
     retry_async,
     ResponseValidator,
+    # Auth & Sync Retry (NEW)
+    AUTH_ERROR_PATTERNS,
+    is_auth_error,
+    with_retry_sync,
+    retry_sync,
 )
 
 from .few_shot_examples import (

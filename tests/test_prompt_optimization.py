@@ -60,10 +60,12 @@ class TestNegativeExamples:
 
     def test_bad_examples_exists(self):
         """BAD_EXAMPLES dict must exist in few_shot_examples."""
+        from collections.abc import Mapping
+
         from gemini_mcp.few_shot_examples import BAD_EXAMPLES
 
         assert BAD_EXAMPLES is not None
-        assert isinstance(BAD_EXAMPLES, dict)
+        assert isinstance(BAD_EXAMPLES, Mapping)
 
     def test_bad_examples_has_minimum_count(self):
         """BAD_EXAMPLES must have at least 3 entries."""
@@ -152,10 +154,12 @@ class TestFewShotExamples:
 
     def test_component_examples_exist(self):
         """COMPONENT_EXAMPLES must exist."""
+        from collections.abc import Mapping
+
         from gemini_mcp.few_shot_examples import COMPONENT_EXAMPLES
 
         assert COMPONENT_EXAMPLES is not None
-        assert isinstance(COMPONENT_EXAMPLES, dict)
+        assert isinstance(COMPONENT_EXAMPLES, Mapping)
 
     def test_component_examples_count(self):
         """COMPONENT_EXAMPLES must have 15+ examples."""
@@ -420,26 +424,32 @@ class TestAgentPromptEnhancements:
 
     def test_quality_guard_prompt_has_few_shot(self):
         """Quality Guard prompt should have validation examples."""
-        from gemini_mcp.prompts import QUALITY_GUARD_SYSTEM_PROMPT
+        from gemini_mcp.prompts import get_agent_prompt
+
+        quality_guard_prompt = get_agent_prompt("quality_guard")
 
         # Should have validation-related keywords
-        assert "valid" in QUALITY_GUARD_SYSTEM_PROMPT.lower()
-        assert "error" in QUALITY_GUARD_SYSTEM_PROMPT.lower() or "issue" in QUALITY_GUARD_SYSTEM_PROMPT.lower()
+        assert "valid" in quality_guard_prompt.lower()
+        assert "error" in quality_guard_prompt.lower() or "issue" in quality_guard_prompt.lower()
 
     def test_strategist_prompt_has_dna_extraction(self):
         """Strategist prompt should have DNA extraction methodology."""
-        from gemini_mcp.prompts import STRATEGIST_SYSTEM_PROMPT
+        from gemini_mcp.prompts import get_agent_prompt
+
+        strategist_prompt = get_agent_prompt("strategist")
 
         # Should mention design DNA or tokens
-        prompt_lower = STRATEGIST_SYSTEM_PROMPT.lower()
+        prompt_lower = strategist_prompt.lower()
         assert "dna" in prompt_lower or "token" in prompt_lower or "extract" in prompt_lower
 
     def test_visionary_prompt_has_analysis_methodology(self):
         """Visionary prompt should have visual analysis methodology."""
-        from gemini_mcp.prompts import VISIONARY_SYSTEM_PROMPT
+        from gemini_mcp.prompts import get_agent_prompt
+
+        visionary_prompt = get_agent_prompt("visionary")
 
         # Should have analysis-related keywords
-        prompt_lower = VISIONARY_SYSTEM_PROMPT.lower()
+        prompt_lower = visionary_prompt.lower()
         assert "analyz" in prompt_lower or "extract" in prompt_lower
         assert "color" in prompt_lower
         assert "component" in prompt_lower

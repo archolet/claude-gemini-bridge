@@ -1,0 +1,247 @@
+---
+metadata:
+  name: layout_stratified
+  version: "1.0.0"
+  description: "Vertical zone-based stratified layout for progressive data disclosure"
+  author: "Gemini MCP Team"
+  tags:
+    - segment
+    - enterprise
+    - dashboard
+    - layout
+    - stratified
+
+applies_to:
+  - architect
+
+priority: high
+
+content: |
+  ## STRATIFIED DASHBOARD LAYOUT
+
+  Stratified layouts organize content into horizontal "strata" (layers) based on
+  data type and importance. Inspired by geological strata - each layer serves
+  a specific purpose.
+
+  ### LAYER HIERARCHY
+
+  ```
+  ┌─────────────────────────────────────────────────────────────┐
+  │ COMMAND BAR (Sticky) - Navigation, Search, User            │ ← Layer 0
+  ├─────────────────────────────────────────────────────────────┤
+  │ KPI STRIP - 4-6 horizontal KPI cards                        │ ← Layer 1
+  ├─────────────────────────────────────────────────────────────┤
+  │                                                             │
+  │ VISUALIZATION ZONE - Charts, graphs, maps (2-3 rows)        │ ← Layer 2
+  │                                                             │
+  ├─────────────────────────────────────────────────────────────┤
+  │                                                             │
+  │ DETAIL ZONE - Tables, lists, records (4-6 rows)             │ ← Layer 3
+  │                                                             │
+  ├─────────────────────────────────────────────────────────────┤
+  │ ACTION BAR (Sticky) - Bulk actions, pagination              │ ← Layer 4
+  └─────────────────────────────────────────────────────────────┘
+  ```
+
+  ### LAYER SPECIFICATIONS
+
+  #### LAYER 0: COMMAND BAR (Sticky Top)
+  - **Position**: `sticky top-0 z-50`
+  - **Height**: 48-56px
+  - **Background**: White with bottom border
+  - **Contains**: Logo, navigation, global search, user menu
+
+  ```html
+  <header class="sticky top-0 z-50 flex items-center justify-between h-14 px-4
+                 bg-white border-b border-slate-200">
+    <div class="flex items-center gap-4">
+      <img src="logo.svg" alt="Logo" class="h-8">
+      <nav class="flex items-center gap-1">
+        <a href="#" class="px-3 py-2 text-sm font-medium text-blue-600 bg-blue-50 rounded-md">
+          Dashboard
+        </a>
+        <a href="#" class="px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100 rounded-md">
+          Reports
+        </a>
+        <a href="#" class="px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100 rounded-md">
+          Settings
+        </a>
+      </nav>
+    </div>
+    <div class="flex items-center gap-4">
+      <div class="relative">
+        <input type="text" placeholder="Search..." class="pl-8 pr-3 py-1.5 w-64
+               text-sm border border-slate-200 rounded-md focus:ring-2 focus:ring-blue-500">
+        <svg class="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400">
+          <!-- search icon -->
+        </svg>
+      </div>
+      <button class="relative p-2 hover:bg-slate-100 rounded-full">
+        <svg class="w-5 h-5 text-slate-500"><!-- notification bell --></svg>
+        <span class="absolute top-1 right-1 w-2 h-2 bg-rose-500 rounded-full"></span>
+      </button>
+      <div class="w-8 h-8 rounded-full bg-slate-200"></div>
+    </div>
+  </header>
+  ```
+
+  #### LAYER 1: KPI STRIP
+  - **Height**: 100-120px
+  - **Layout**: Horizontal scroll or 4-6 fixed cards
+  - **Card style**: Compact KPIs (label + value + trend)
+  - **Spacing**: gap-4
+
+  ```html
+  <section class="px-4 py-3 bg-slate-50 border-b border-slate-200">
+    <div class="flex items-stretch gap-4 overflow-x-auto pb-1">
+      <!-- KPI Card 1 -->
+      <div class="flex-shrink-0 min-w-[180px] bg-white border border-slate-200 rounded-lg p-4">
+        <div class="text-xs font-medium text-slate-500 uppercase tracking-wide">Revenue</div>
+        <div class="mt-1 text-2xl font-semibold text-slate-900 tabular-nums">$4.2M</div>
+        <div class="mt-1 flex items-center gap-1">
+          <span class="text-xs font-medium text-emerald-600">▲ +15.3%</span>
+          <span class="text-xs text-slate-400">vs last month</span>
+        </div>
+      </div>
+      <!-- KPI Card 2 -->
+      <div class="flex-shrink-0 min-w-[180px] bg-white border border-slate-200 rounded-lg p-4">
+        <div class="text-xs font-medium text-slate-500 uppercase tracking-wide">Users</div>
+        <div class="mt-1 text-2xl font-semibold text-slate-900 tabular-nums">12,847</div>
+        <div class="mt-1 flex items-center gap-1">
+          <span class="text-xs font-medium text-emerald-600">▲ +8.2%</span>
+          <span class="text-xs text-slate-400">vs last month</span>
+        </div>
+      </div>
+      <!-- More KPI cards... -->
+    </div>
+  </section>
+  ```
+
+  #### LAYER 2: VISUALIZATION ZONE
+  - **Height**: 280-400px (adjustable)
+  - **Layout**: 1-3 charts side by side
+  - **Resizable**: Users can expand/collapse
+  - **Background**: White
+
+  ```html
+  <section class="px-4 py-4">
+    <div class="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4">
+      <!-- Chart 1: Primary (spans 2 cols on xl) -->
+      <div class="xl:col-span-2 bg-white border border-slate-200 rounded-lg p-4 h-80">
+        <div class="flex items-center justify-between mb-4">
+          <h3 class="text-sm font-semibold text-slate-700">Revenue Trend</h3>
+          <select class="text-xs border border-slate-200 rounded px-2 py-1">
+            <option>Last 30 days</option>
+            <option>Last 90 days</option>
+          </select>
+        </div>
+        <div class="h-[calc(100%-48px)]">
+          <!-- Chart -->
+        </div>
+      </div>
+      <!-- Chart 2: Secondary -->
+      <div class="bg-white border border-slate-200 rounded-lg p-4 h-80">
+        <h3 class="text-sm font-semibold text-slate-700 mb-4">Distribution</h3>
+        <div class="h-[calc(100%-48px)]">
+          <!-- Chart -->
+        </div>
+      </div>
+    </div>
+  </section>
+  ```
+
+  #### LAYER 3: DETAIL ZONE
+  - **Height**: Remaining viewport, min 300px
+  - **Content**: Data tables, record lists
+  - **Scroll**: Vertical scroll within table body
+  - **Header**: Sticky within zone
+
+  ```html
+  <section class="flex-1 px-4 pb-20"> <!-- pb-20 for action bar space -->
+    <div class="bg-white border border-slate-200 rounded-lg overflow-hidden">
+      <div class="flex items-center justify-between px-4 py-3 border-b border-slate-200">
+        <h3 class="text-sm font-semibold text-slate-700">Recent Orders</h3>
+        <div class="flex items-center gap-2">
+          <button class="text-sm text-blue-600 hover:underline">View All</button>
+        </div>
+      </div>
+      <div class="overflow-auto max-h-[400px]">
+        <!-- Data table here -->
+      </div>
+    </div>
+  </section>
+  ```
+
+  #### LAYER 4: ACTION BAR (Sticky Bottom)
+  - **Position**: `sticky bottom-0 z-40`
+  - **Height**: 48-56px
+  - **Visibility**: Shown when items selected or for pagination
+  - **Background**: White with top border/shadow
+
+  ```html
+  <footer class="sticky bottom-0 z-40 flex items-center justify-between h-14 px-4
+                 bg-white border-t border-slate-200 shadow-lg shadow-slate-200/50">
+    <div class="text-sm text-slate-500">
+      Showing <span class="font-medium">1-25</span> of <span class="font-medium">1,247</span>
+    </div>
+    <div class="flex items-center gap-2">
+      <button class="px-3 py-1.5 text-sm border border-slate-200 rounded hover:bg-slate-50">
+        Previous
+      </button>
+      <span class="text-sm text-slate-600">Page 1 of 50</span>
+      <button class="px-3 py-1.5 text-sm bg-blue-600 text-white rounded hover:bg-blue-700">
+        Next
+      </button>
+    </div>
+  </footer>
+  ```
+
+  ### FULL PAGE STRUCTURE
+
+  ```html
+  <div class="flex flex-col min-h-screen bg-slate-100">
+    <!-- Layer 0: Command Bar -->
+    <header class="sticky top-0 z-50 ...">...</header>
+
+    <!-- Main Content Area -->
+    <main class="flex-1 flex flex-col">
+      <!-- Layer 1: KPI Strip -->
+      <section class="...">...</section>
+
+      <!-- Layer 2: Visualization Zone -->
+      <section class="...">...</section>
+
+      <!-- Layer 3: Detail Zone -->
+      <section class="flex-1 ...">...</section>
+    </main>
+
+    <!-- Layer 4: Action Bar -->
+    <footer class="sticky bottom-0 z-40 ...">...</footer>
+  </div>
+  ```
+
+  ### RESPONSIVE BEHAVIOR
+
+  | Breakpoint | KPI Strip | Viz Zone | Detail Zone |
+  |------------|-----------|----------|-------------|
+  | Desktop (>1280px) | 6 cards visible | 2-3 charts | Full table |
+  | Tablet (768-1280px) | 4 cards, horizontal scroll | 2 charts | Compact table |
+  | Mobile (<768px) | 2 cards, carousel | 1 chart | Card list |
+
+  ### DATA FLOW PATTERN
+
+  ```
+  Summary (KPIs) → Trends (Charts) → Details (Tables)
+       ↑                ↑                  ↑
+    Aggregated     Time-series      Individual records
+       data           data               data
+  ```
+
+  ### ANTI-PATTERNS (FORBIDDEN)
+
+  - ❌ Details zone above visualization zone
+  - ❌ More than 2 sticky bars
+  - ❌ KPI strip with >6 cards without scroll
+  - ❌ Charts without time-range selectors
+  - ❌ Empty layers (all layers must have content)
+  - ❌ Layer heights that don't adapt to content

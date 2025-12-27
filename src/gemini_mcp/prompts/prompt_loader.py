@@ -5,8 +5,8 @@ This module provides a thread-safe YAML prompt loader that supports:
 - Runtime template loading from YAML files
 - Variable substitution with {{variable}} syntax
 - Hot-reload without server restart
-- Graceful fallback to hardcoded prompts on error
 - LRU caching for rendered prompts
+- Auto-include of anti_laziness segment for quality enforcement
 """
 
 from __future__ import annotations
@@ -62,7 +62,7 @@ class PromptLoader:
         - File modification tracking for cache invalidation
         - Variable substitution with {{variable}} syntax
         - Conditional sections based on component/theme
-        - Fallback to hardcoded prompts on YAML errors
+        - Auto-include of anti_laziness segment
     """
 
     _instance: Optional["PromptLoader"] = None
@@ -73,7 +73,6 @@ class PromptLoader:
         templates_dir: Optional[Path] = None,
         segments_dir: Optional[Path] = None,
         watch: bool = True,
-        fallback_to_hardcoded: bool = True,
         poll_interval: float = 2.0,
     ):
         """
@@ -85,12 +84,11 @@ class PromptLoader:
             segments_dir: Directory containing reusable segment files.
                          Defaults to ./segments relative to this file.
             watch: Enable file watching for hot-reload.
-            fallback_to_hardcoded: Fall back to hardcoded prompts on error.
             poll_interval: Seconds between file modification checks.
         """
         if not YAML_AVAILABLE:
-            logger.warning(
-                "PyYAML not installed. Prompt loading will fall back to hardcoded prompts. "
+            raise ImportError(
+                "PyYAML is required for prompt loading. "
                 "Install with: pip install PyYAML"
             )
 
@@ -100,7 +98,6 @@ class PromptLoader:
         self._segments_dir = segments_dir or (self._base_dir / "segments")
 
         self._watch = watch and YAML_AVAILABLE
-        self._fallback = fallback_to_hardcoded
         self._poll_interval = poll_interval
 
         # Thread-safe caches
@@ -132,7 +129,6 @@ class PromptLoader:
         templates_dir: Optional[Path] = None,
         segments_dir: Optional[Path] = None,
         watch: bool = True,
-        fallback_to_hardcoded: bool = True,
     ) -> "PromptLoader":
         """
         Get or create the singleton loader instance.
@@ -147,7 +143,6 @@ class PromptLoader:
                         templates_dir=templates_dir,
                         segments_dir=segments_dir,
                         watch=watch,
-                        fallback_to_hardcoded=fallback_to_hardcoded,
                     )
         return cls._instance
 
@@ -178,16 +173,14 @@ class PromptLoader:
             Rendered prompt string with variables substituted.
 
         Raises:
-            PromptLoadError: If template cannot be loaded and fallback is disabled.
+            PromptLoadError: If template cannot be loaded.
         """
         variables = variables or {}
 
         try:
             return self._get_from_yaml(agent_name, variables, include_sections)
         except Exception as e:
-            logger.warning(f"Failed to load YAML template for {agent_name}: {e}")
-            if self._fallback:
-                return self._get_hardcoded_fallback(agent_name)
+            logger.error(f"Failed to load YAML template for {agent_name}: {e}")
             raise PromptLoadError(f"Cannot load prompt for {agent_name}") from e
 
     def _get_from_yaml(
@@ -267,9 +260,9 @@ class PromptLoader:
         except ValidationError as e:
             raise PromptLoadError(f"Template validation failed for {agent_name}: {e}") from e
 
-        # Process includes (segment files)
-        if template.includes:
-            template = self._process_includes(template)
+        # Process includes (segment files) and auto-includes (anti_laziness)
+        # Always call _process_includes - it handles auto-include even when explicit includes are empty
+        template = self._process_includes(template)
 
         file_mtime = template_path.stat().st_mtime
 
@@ -283,9 +276,28 @@ class PromptLoader:
         )
 
     def _process_includes(self, template: PromptTemplate) -> PromptTemplate:
-        """Process 'includes' by prepending segment content to system_prompt."""
+        """Process 'includes' by prepending segment content to system_prompt.
+
+        Auto-includes the anti_laziness segment for ALL agents to ensure
+        consistent quality rules across the entire agent system.
+        """
         included_content = []
 
+        # AUTO-INCLUDE: anti_laziness for ALL agents (quality enforcement)
+        # Skip if already explicitly included in template to avoid duplication
+        anti_laziness_path = "anti_laziness.yaml"
+        already_included = anti_laziness_path in template.includes
+        anti_laziness_file = self._segments_dir / anti_laziness_path
+
+        if not already_included and anti_laziness_file.exists():
+            try:
+                segment = self._load_segment(anti_laziness_path)
+                included_content.append(segment.segment.content)
+                logger.debug("Auto-included anti_laziness segment")
+            except Exception as e:
+                logger.warning(f"Failed to auto-include anti_laziness: {e}")
+
+        # Then process explicit includes from template
         for include_path in template.includes:
             segment_path = self._segments_dir / include_path
             if not segment_path.exists():
@@ -447,36 +459,6 @@ class PromptLoader:
             content = content + "\n\n" + "\n\n".join(sections_to_add)
 
         return content
-
-    def _get_hardcoded_fallback(self, agent_name: str) -> str:
-        """Fall back to hardcoded prompts from agent_prompts.py."""
-        # Import here to avoid circular imports
-        from gemini_mcp.prompts.agent_prompts import (
-            ALCHEMIST_SYSTEM_PROMPT,
-            ARCHITECT_SYSTEM_PROMPT,
-            CRITIC_SYSTEM_PROMPT,
-            PHYSICIST_SYSTEM_PROMPT,
-            QUALITY_GUARD_SYSTEM_PROMPT,
-            STRATEGIST_SYSTEM_PROMPT,
-            VISIONARY_SYSTEM_PROMPT,
-        )
-
-        fallbacks = {
-            "architect": ARCHITECT_SYSTEM_PROMPT,
-            "alchemist": ALCHEMIST_SYSTEM_PROMPT,
-            "physicist": PHYSICIST_SYSTEM_PROMPT,
-            "strategist": STRATEGIST_SYSTEM_PROMPT,
-            "quality_guard": QUALITY_GUARD_SYSTEM_PROMPT,
-            "critic": CRITIC_SYSTEM_PROMPT,
-            "visionary": VISIONARY_SYSTEM_PROMPT,
-        }
-
-        prompt = fallbacks.get(agent_name.lower())
-        if prompt is None:
-            raise PromptLoadError(f"No fallback prompt for agent: {agent_name}")
-
-        logger.info(f"Using hardcoded fallback for agent: {agent_name}")
-        return prompt
 
     def reload_template(self, agent_name: str) -> bool:
         """
